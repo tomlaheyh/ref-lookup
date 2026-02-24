@@ -207,12 +207,121 @@ function showDOIModal(result, linksHtml) {
   const qualityBorder = sjrScore >= 3   ? '#82c882' : sjrScore >= 0.8 ? '#e6c84a' : '#ccc';
   const qualityText   = sjrScore >= 3   ? '#2d6a2d' : sjrScore >= 0.8 ? '#7a5c00' : '#666';
 
-  html += '<div style="margin-bottom: 24px; padding: 20px; background: #f8f7f3; border-left: 4px solid #005a8c;">';
+  // Source selection: pick set with most ORCIDs, RA wins ties
+  const isValidTop = v => v && v !== 'N/A';
+  const raFirstOrcidTop  = result.raFirstAuthorOrcid  || null;
+  const raLastOrcidTop   = result.raLastAuthorOrcid   || null;
+  const pmFirstOrcidTop  = result.pubmedAuthorFirstORCID || null;
+  const pmLastOrcidTop   = result.pubmedAuthorLastORCID  || null;
+  const raScoreTop = (isValidTop(raFirstOrcidTop) ? 1 : 0) + (isValidTop(raLastOrcidTop) ? 1 : 0);
+  const pmScoreTop = (isValidTop(pmFirstOrcidTop) ? 1 : 0) + (isValidTop(pmLastOrcidTop) ? 1 : 0);
+  const useRATop = raScoreTop >= pmScoreTop;
+  const authorSourceTop = useRATop ? (result.doiOrgRa || 'RA') : 'PubMed';
+
+  // Resolve fields from chosen source
+  const topFirstFamily  = useRATop ? (result.raFirstAuthorFamily || result.doiOrgFirstAuthorFamily) : null;
+  const topFirstGiven   = useRATop ? (result.raFirstAuthorGiven  || result.doiOrgFirstAuthorGiven)  : (result.pubmedAuthorFirst || null);
+  const topFirstOrcid   = useRATop ? (result.raFirstAuthorOrcid  || result.doiOrgFirstAuthorOrcid)  : (result.pubmedAuthorFirstORCID || null);
+  const topFirstOrcidUrl= useRATop ? (result.raFirstAuthorOrcidUrl || result.doiOrgFirstAuthorOrcidUrl) : (topFirstOrcid ? `https://orcid.org/${topFirstOrcid}` : null);
+  const topFirstAffRaw  = useRATop ? (result.raFirstAuthorAffiliation || result.doiOrgFirstAuthorAffiliation) : null;
+
+  const topLastFamily   = useRATop ? (result.raLastAuthorFamily  || result.doiOrgLastAuthorFamily)  : null;
+  const topLastGiven    = useRATop ? (result.raLastAuthorGiven   || result.doiOrgLastAuthorGiven)   : (result.pubmedAuthorLast || null);
+  const topLastOrcid    = useRATop ? (result.raLastAuthorOrcid   || result.doiOrgLastAuthorOrcid)   : (result.pubmedAuthorLastORCID || null);
+  const topLastOrcidUrl = useRATop ? (result.raLastAuthorOrcidUrl || result.doiOrgLastAuthorOrcidUrl) : (topLastOrcid ? `https://orcid.org/${topLastOrcid}` : null);
+  const topLastAffRaw   = useRATop ? (result.raLastAuthorAffiliation || result.doiOrgLastAuthorAffiliation) : null;
+
+  // Author count
+  let authorCountTop = 0;
+  if (result.doiOrgAuthors || result.raAuthors) {
+    try {
+      const arr = result.doiOrgAuthors || result.raAuthors;
+      const parsed = typeof arr === 'string' ? JSON.parse(arr) : arr;
+      if (Array.isArray(parsed)) authorCountTop = parsed.length;
+    } catch (e) { /* leave at 0 */ }
+  }
+  if (authorCountTop === 0 && result.pubmedAuthorCount) {
+    authorCountTop = parseInt(result.pubmedAuthorCount, 10) || 0;
+  }
+
+  // Helper to parse affiliation text
+  const parseAffiliation = (raw) => {
+    if (!raw || raw === 'N/A') return null;
+    try {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        const text = arr.map(a => typeof a === 'string' ? a : a.name || '').filter(Boolean).join(', ');
+        return text || null; // Return null if array was empty or all entries were empty
+      }
+    } catch (e) { /* not JSON */ }
+    return raw || null;
+  };
+
+  // Helper to render one author block with scores
+  const authorBlockTop = (label, family, given, orcidId, orcidUrl, affiliation, metrics) => {
+    const hasName  = family || given;
+    const hasOrcid = isValidTop(orcidId);
+
+    // Name
+    html += '<div style="margin-bottom: 2px;">';
+    html += `<span style="color: #666; font-weight: bold;">${label}:</span> `;
+    html += hasName
+      ? `<span style="color: #333;">${given || ''} ${family || ''}</span>`
+      : '<span style="color: #ccc;">none</span>';
+    html += '</div>';
+
+    // ORCID
+    html += '<div style="margin-bottom: 2px; margin-left: 15px;">';
+    html += '<span style="color: #666;">ORCID:</span> ';
+    html += hasOrcid
+      ? `<span style="color: #333; font-family: monospace;">${orcidId}</span>`
+      : '<span style="color: #ccc;">not available</span>';
+    html += '</div>';
+
+    // Scores
+    html += '<div style="margin-bottom: 2px; margin-left: 15px;">';
+    if (metrics) {
+      html += `<span style="color: #333;">h-index: ${metrics.hIndex ?? 'N/A'}, i10-index: ${metrics.i10Index ?? 'N/A'}, 2yr cites: ${metrics.twoYrCites ?? 'N/A'} <span style="color: #999; font-size: 11px;">(OpenAlex via ORCID)</span></span>`;
+    } else {
+      html += '<span style="color: #ccc;">h-index: N/A, i10-index: N/A, 2yr cites: N/A</span>';
+    }
+    html += '</div>';
+
+    // Affiliation
+    html += '<div style="margin-bottom: 10px; margin-left: 15px;">';
+    const affText = parseAffiliation(affiliation);
+    html += affText
+      ? `<span style="color: #333;">${affText}</span>`
+      : '<span style="color: #ccc;">No affiliation data available</span>';
+    html += '</div>';
+  };
+
+  // Use pre-fetched metrics from result._authorMetrics
+  const firstMetrics = result._authorMetrics?.first || null;
+  const lastMetrics  = result._authorMetrics?.last  || null;
+
+  // Resolve affiliations - use RA first, fall back to PubMed if empty
+  const pmAff = result._pubmedAffiliations || null;
+  const resolvedFirstAff = parseAffiliation(topFirstAffRaw) ? topFirstAffRaw : (pmAff?.first || null);
+  const resolvedLastAff  = parseAffiliation(topLastAffRaw)  ? topLastAffRaw  : (pmAff?.last  || null);
+
+  // Update source label if PubMed affiliation fallback was used
+  const usedPubMedAff = pmAff?.usedFallback &&
+    (!parseAffiliation(topFirstAffRaw) || !parseAffiliation(topLastAffRaw));
+  const displaySource = usedPubMedAff ? `${authorSourceTop}\\PubMed` : authorSourceTop;
+
+    html += '<div style="margin-bottom: 24px; padding: 20px; background: #f8f7f3; border-left: 4px solid #005a8c;">';
   html += '<div style="font-weight: bold; color: #005a8c; font-size: 17px; margin-bottom: 14px; letter-spacing: 0.5px;">Summary</div>';
 
   // DOI
   if (summaryDoi) {
-    html += `<div style="font-family: monospace; font-size: 17px; font-weight: bold; color: #666; margin-bottom: 8px;">${summaryDoi} (<a href="https://doi.org/${summaryDoi}" target="_blank" style="color: #005a8c;">Link</a>)</div>`;
+    let doiLine = `${summaryDoi} (<a href="https://doi.org/${summaryDoi}" target="_blank" style="color: #005a8c;">Link</a>)`;
+    if (result._oaFreePdf) {
+      doiLine += ` (<a href="${result._oaFreePdf}" target="_blank" style="color: #1a7a1a;">Free PDF</a>)`;
+    } else if (result._oaFreeText) {
+      doiLine += ` (<a href="${result._oaFreeText}" target="_blank" style="color: #1a7a1a;">Free Text</a>)`;
+    }
+    html += `<div style="font-family: monospace; font-size: 17px; font-weight: bold; color: #666; margin-bottom: 8px;">${doiLine}</div>`;
   }
 
   // Title
@@ -244,16 +353,57 @@ function showDOIModal(result, linksHtml) {
     }
     if (raHomePage && summaryRaDataUrl) html += ' | ';
     if (summaryRaDataUrl) {
-      html += `<a href="${summaryRaDataUrl}" target="_blank" style="color: #005a8c;">API</a>`;
+      html += `<a href="${summaryRaDataUrl}" target="_blank" style="color: #005a8c;">API Data</a>`;
     }
     html += '</div>';
   }
 
-  // Citation count (plain text, no link)
+  // Citations from all sources on one line
+  const citeParts = [];
   const citationCount = result.doiOrgCitationCount ?? result.raCitationCount ?? null;
-  if (citationCount !== null && citationCount !== undefined) {
-    html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">CrossRef: Citation counts = ${citationCount}</div>`;
+  if (citationCount !== null) citeParts.push(`CrossRef: ${citationCount}`);
+  if (result._openAlexCitations !== null && result._openAlexCitations !== undefined) citeParts.push(`OpenAlex: ${result._openAlexCitations}`);
+  if (result._semSchCitations  !== null && result._semSchCitations  !== undefined) {
+    let semSchStr = `Sem Sch: ${result._semSchCitations}`;
+    if (result._semSchInfluential !== null && result._semSchInfluential !== undefined) {
+      semSchStr += ` (${result._semSchInfluential} influential)`;
+    }
+    citeParts.push(semSchStr);
   }
+  if (result._iciteCitations   !== null && result._iciteCitations   !== undefined) citeParts.push(`iCite: ${result._iciteCitations}`);
+  if (result._iciteRcr         !== null && result._iciteRcr         !== undefined) citeParts.push(`RCR: ${result._iciteRcr}`);
+  if (citeParts.length > 0) {
+    html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">Citations &mdash; ${citeParts.join(' &nbsp;|&nbsp; ')}</div>`;
+  }
+
+  // PubMed summary line - always show if we have pubmed data
+  if (result.pubmedFound !== undefined) {
+    if (!result.pubmedFound) {
+      html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">PubMed: No</div>`;
+    } else {
+      let pmLine = `PubMed: Yes`;
+      pmLine += ` &nbsp;|&nbsp; Medline: ${result.pubmedIsMedline ? 'Yes' : 'No'}`;
+      pmLine += ` &nbsp;|&nbsp; Preprint: ${result.pubmedIsPreprint ? 'Yes' : 'No'}`;
+      if (result._iciteCitations !== null && result._iciteCitations !== undefined) {
+        pmLine += ` &nbsp;|&nbsp; iCite Citations: ${result._iciteCitations}`;
+      }
+      if (result._iciteRcr !== null && result._iciteRcr !== undefined) {
+        pmLine += ` &nbsp;|&nbsp; RCR: ${result._iciteRcr}`;
+      }
+      html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">${pmLine}</div>`;
+    }
+  }
+
+  // Authors in summary - blank line separator then first/last author blocks
+  html += '<div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid #d8d5cc;">';
+  html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 8px;">Number of Authors: ${authorCountTop > 0 ? authorCountTop : 'unknown'} &nbsp;|&nbsp; Source: ${displaySource}</div>`;
+  authorBlockTop('First Author', topFirstFamily, topFirstGiven, topFirstOrcid, topFirstOrcidUrl, resolvedFirstAff, firstMetrics);
+  if (authorCountTop > 1) {
+    authorBlockTop('Last Author', topLastFamily, topLastGiven, topLastOrcid, topLastOrcidUrl, resolvedLastAff, lastMetrics);
+  } else {
+    authorBlockTop('Last Author', null, null, null, null, null, null);
+  }
+  html += '</div>';
 
   // Publisher
   if (summaryPublisher) {
@@ -501,109 +651,6 @@ function showDOIModal(result, linksHtml) {
   html += '<div style="font-weight: bold; color: #005a8c; margin-bottom: 8px; font-size: 15px;">Authors</div>';
   html += '<div style="margin-left: 15px; line-height: 1.8;">';
 
-  // Source selection: pick set with most ORCIDs, RA wins ties
-  const isValidTop = v => v && v !== 'N/A';
-  const raFirstOrcidTop  = result.raFirstAuthorOrcid  || null;
-  const raLastOrcidTop   = result.raLastAuthorOrcid   || null;
-  const pmFirstOrcidTop  = result.pubmedAuthorFirstORCID || null;
-  const pmLastOrcidTop   = result.pubmedAuthorLastORCID  || null;
-  const raScoreTop = (isValidTop(raFirstOrcidTop) ? 1 : 0) + (isValidTop(raLastOrcidTop) ? 1 : 0);
-  const pmScoreTop = (isValidTop(pmFirstOrcidTop) ? 1 : 0) + (isValidTop(pmLastOrcidTop) ? 1 : 0);
-  const useRATop = raScoreTop >= pmScoreTop;
-  const authorSourceTop = useRATop ? (result.doiOrgRa || 'RA') : 'PubMed';
-
-  // Resolve fields from chosen source
-  const topFirstFamily  = useRATop ? (result.raFirstAuthorFamily || result.doiOrgFirstAuthorFamily) : null;
-  const topFirstGiven   = useRATop ? (result.raFirstAuthorGiven  || result.doiOrgFirstAuthorGiven)  : (result.pubmedAuthorFirst || null);
-  const topFirstOrcid   = useRATop ? (result.raFirstAuthorOrcid  || result.doiOrgFirstAuthorOrcid)  : (result.pubmedAuthorFirstORCID || null);
-  const topFirstOrcidUrl= useRATop ? (result.raFirstAuthorOrcidUrl || result.doiOrgFirstAuthorOrcidUrl) : (topFirstOrcid ? `https://orcid.org/${topFirstOrcid}` : null);
-  const topFirstAffRaw  = useRATop ? (result.raFirstAuthorAffiliation || result.doiOrgFirstAuthorAffiliation) : null;
-
-  const topLastFamily   = useRATop ? (result.raLastAuthorFamily  || result.doiOrgLastAuthorFamily)  : null;
-  const topLastGiven    = useRATop ? (result.raLastAuthorGiven   || result.doiOrgLastAuthorGiven)   : (result.pubmedAuthorLast || null);
-  const topLastOrcid    = useRATop ? (result.raLastAuthorOrcid   || result.doiOrgLastAuthorOrcid)   : (result.pubmedAuthorLastORCID || null);
-  const topLastOrcidUrl = useRATop ? (result.raLastAuthorOrcidUrl || result.doiOrgLastAuthorOrcidUrl) : (topLastOrcid ? `https://orcid.org/${topLastOrcid}` : null);
-  const topLastAffRaw   = useRATop ? (result.raLastAuthorAffiliation || result.doiOrgLastAuthorAffiliation) : null;
-
-  // Author count
-  let authorCountTop = 0;
-  if (result.doiOrgAuthors || result.raAuthors) {
-    try {
-      const arr = result.doiOrgAuthors || result.raAuthors;
-      const parsed = typeof arr === 'string' ? JSON.parse(arr) : arr;
-      if (Array.isArray(parsed)) authorCountTop = parsed.length;
-    } catch (e) { /* leave at 0 */ }
-  }
-  if (authorCountTop === 0 && result.pubmedAuthorCount) {
-    authorCountTop = parseInt(result.pubmedAuthorCount, 10) || 0;
-  }
-
-  // Helper to parse affiliation text
-  const parseAffiliation = (raw) => {
-    if (!raw || raw === 'N/A') return null;
-    try {
-      const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) {
-        const text = arr.map(a => typeof a === 'string' ? a : a.name || '').filter(Boolean).join(', ');
-        return text || null; // Return null if array was empty or all entries were empty
-      }
-    } catch (e) { /* not JSON */ }
-    return raw || null;
-  };
-
-  // Helper to render one author block with scores
-  const authorBlockTop = (label, family, given, orcidId, orcidUrl, affiliation, metrics) => {
-    const hasName  = family || given;
-    const hasOrcid = isValidTop(orcidId);
-
-    // Name
-    html += '<div style="margin-bottom: 2px;">';
-    html += `<span style="color: #666; font-weight: bold;">${label}:</span> `;
-    html += hasName
-      ? `<span style="color: #333;">${given || ''} ${family || ''}</span>`
-      : '<span style="color: #ccc;">none</span>';
-    html += '</div>';
-
-    // ORCID
-    html += '<div style="margin-bottom: 2px; margin-left: 15px;">';
-    html += '<span style="color: #666;">ORCID:</span> ';
-    html += hasOrcid
-      ? `<span style="color: #333; font-family: monospace;">${orcidId}</span>`
-      : '<span style="color: #ccc;">not available</span>';
-    html += '</div>';
-
-    // Scores
-    html += '<div style="margin-bottom: 2px; margin-left: 15px;">';
-    if (metrics) {
-      html += `<span style="color: #333;">h-index: ${metrics.hIndex ?? 'N/A'}, i10-index: ${metrics.i10Index ?? 'N/A'}, 2yr cites: ${metrics.twoYrCites ?? 'N/A'} <span style="color: #999; font-size: 11px;">(OpenAlex via ORCID)</span></span>`;
-    } else {
-      html += '<span style="color: #ccc;">h-index: N/A, i10-index: N/A, 2yr cites: N/A</span>';
-    }
-    html += '</div>';
-
-    // Affiliation
-    html += '<div style="margin-bottom: 10px; margin-left: 15px;">';
-    const affText = parseAffiliation(affiliation);
-    html += affText
-      ? `<span style="color: #333;">${affText}</span>`
-      : '<span style="color: #ccc;">No affiliation data available</span>';
-    html += '</div>';
-  };
-
-  // Use pre-fetched metrics from result._authorMetrics
-  const firstMetrics = result._authorMetrics?.first || null;
-  const lastMetrics  = result._authorMetrics?.last  || null;
-
-  // Resolve affiliations - use RA first, fall back to PubMed if empty
-  const pmAff = result._pubmedAffiliations || null;
-  const resolvedFirstAff = parseAffiliation(topFirstAffRaw) ? topFirstAffRaw : (pmAff?.first || null);
-  const resolvedLastAff  = parseAffiliation(topLastAffRaw)  ? topLastAffRaw  : (pmAff?.last  || null);
-
-  // Update source label if PubMed affiliation fallback was used
-  const usedPubMedAff = pmAff?.usedFallback &&
-    (!parseAffiliation(topFirstAffRaw) || !parseAffiliation(topLastAffRaw));
-  const displaySource = usedPubMedAff ? `${authorSourceTop}\\PubMed` : authorSourceTop;
-
   html += '<div style="margin-bottom: 6px;">';
   html += `<span style="color: #666;">Number of Authors:</span> <span style="color: #333;">${authorCountTop > 0 ? authorCountTop : 'unknown'}</span>`;
   html += '</div>';
@@ -676,13 +723,13 @@ async function checkAllDOILinks(doi, result) {
   ] = await Promise.all([
     safeCheck(() => checkCrossRef(doi)),
     safeCheck(() => checkDataCite(doi)),
-    safeCheck(() => checkOpenAlex(doi)),
-    safeCheck(() => checkSemanticScholar(doi)),
-    safeCheck(() => checkUnpaywall(doi)),
+    safeCheck(() => checkOpenAlex(doi, result)),
+    safeCheck(() => checkSemanticScholar(doi, result)),
+    safeCheck(() => checkUnpaywall(doi, result)),
     safeCheck(() => checkDOAJByDOI(doi)),
     safeCheck(() => checkCORE(doi)),
     safeCheck(() => checkOpenAIRE(doi)),
-    safeCheck(() => checkICite(result.pubmedPMID))
+    safeCheck(() => checkICite(result.pubmedPMID, result))
   ]);
   
   // --- Static entries (no fetch needed) ---
@@ -1250,27 +1297,33 @@ async function checkDataCite(doi) {
 
 // Test (article in OpenAlex): https://api.openalex.org/works/https://doi.org/10.3390/children12050616
 // Test (article in OpenAlex): https://api.openalex.org/works/https://doi.org/10.1038/s41586-025-09227-0
-async function checkOpenAlex(doi) {
+async function checkOpenAlex(doi, result) {
   const apiUrl = `https://api.openalex.org/works/https://doi.org/${doi}`;
   const webUrl = `https://openalex.org/works?filter=doi:https://doi.org/${encodeURIComponent(doi)}`;
   try {
     const response = await fetch(apiUrl);
-    const found = response.ok;
-    return { web: found ? webUrl : null, data: found ? apiUrl : null };
+    if (!response.ok) return { web: null, data: null };
+    const data = await response.json();
+    if (result) result._openAlexCitations = data.cited_by_count ?? null;
+    return { web: webUrl, data: apiUrl };
   } catch (error) {
     return { web: null, data: null };
   }
 }
 
 // Test: https://api.semanticscholar.org/graph/v1/paper/DOI:10.1016/S0140-6736(24)02679-5?fields=title,citationCount
-async function checkSemanticScholar(doi) {
+async function checkSemanticScholar(doi, result) {
   const fields = 'title,abstract,year,publicationDate,url,citationCount,referenceCount,influentialCitationCount,authors.name,authors.affiliations,authors.hIndex,authors.externalIds,venue,journal,openAccessPdf';
   const apiUrl = `https://api.semanticscholar.org/graph/v1/paper/DOI:${doi}?fields=${fields}`;
   try {
     const response = await fetch(apiUrl);
     if (response.ok) {
       const data = await response.json();
-      const webUrl = data.url || null; // Direct paper URL from API response
+    if (result) {
+      result._semSchCitations = data.citationCount ?? null;
+      result._semSchInfluential = data.influentialCitationCount ?? null;
+    }
+      const webUrl = data.url || null;
       return { web: webUrl, data: apiUrl };
     }
     return { web: null, data: null };
@@ -1280,13 +1333,20 @@ async function checkSemanticScholar(doi) {
 }
 
 // Test: https://api.unpaywall.org/v2/10.1016/S0140-6736(24)02679-5?email=tomlaheyh@gmail.com
-async function checkUnpaywall(doi) {
+async function checkUnpaywall(doi, result) {
   const apiUrl = `https://api.unpaywall.org/v2/${doi}?email=tomlaheyh@gmail.com`;
   const webUrl = 'https://unpaywall.org/products/simple-query-tool';
   try {
     const response = await fetch(apiUrl);
-    const found = response.ok;
-    return { web: found ? webUrl : null, data: found ? apiUrl : null };
+    if (!response.ok) return { web: null, data: null };
+    const data = await response.json();
+    // Extract free access info from best_oa_location
+    const loc = data.best_oa_location || null;
+    if (loc && result) {
+      result._oaFreeText = loc.url || null;
+      result._oaFreePdf  = loc.url_for_pdf || null;
+    }
+    return { web: webUrl, data: apiUrl };
   } catch (error) {
     return { web: null, data: null };
   }
@@ -1346,30 +1406,46 @@ async function checkOpenAIRE(doi) {
 }
 
 // Test: POST to https://icite.od.nih.gov/iciterest/store-search with PMID 29303484
-async function checkICite(pmid) {
+async function checkICite(pmid, result) {
   if (!pmid) return { web: null, data: null };
   const dataUrl = `https://icite.od.nih.gov/api/pubs?pmids=${pmid}`;
   try {
-    const response = await fetch('https://icite.od.nih.gov/iciterest/store-search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userType: 'app',
-        searchType: 'List of PMIDs input',
-        searchRequest: {
-          pubmedQueryStr: '',
-          uploadedFileName: '',
-          pmids: [pmid],
-          activeTab: 'infl',
-          papersSearch: '',
-          filters: []
-        }
+    // Run both fetches in parallel
+    const [dataResp, webResp] = await Promise.all([
+      fetch(dataUrl),
+      fetch('https://icite.od.nih.gov/iciterest/store-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userType: 'app',
+          searchType: 'List of PMIDs input',
+          searchRequest: {
+            pubmedQueryStr: '',
+            uploadedFileName: '',
+            pmids: [pmid],
+            activeTab: 'infl',
+            papersSearch: '',
+            filters: []
+          }
+        })
       })
-    });
-    if (response.ok) {
-      const data = await response.json();
-      if (data.id) {
-        return { web: `https://icite.od.nih.gov/results?searchId=${data.id}`, data: dataUrl };
+    ]);
+    // Extract citation data
+    if (dataResp.ok && result) {
+      const data = await dataResp.json();
+      const pub = data.data?.[0] || null;
+      if (pub) {
+        result._iciteCitations = pub.citation_count ?? null;
+        result._iciteRcr       = pub.relative_citation_ratio != null
+          ? parseFloat(pub.relative_citation_ratio).toFixed(2)
+          : null;
+      }
+    }
+    // Extract web link
+    if (webResp.ok) {
+      const webData = await webResp.json();
+      if (webData.id) {
+        return { web: `https://icite.od.nih.gov/results?searchId=${webData.id}`, data: dataUrl };
       }
     }
     return { web: null, data: dataUrl };
