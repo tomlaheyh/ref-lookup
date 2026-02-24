@@ -644,30 +644,6 @@ function showDOIModal(result, linksHtml) {
   html += '</div>'; // Close left margin div
   html += '</div>'; // Close Article Details section
 
-  // ========================================
-  // AUTHORS SECTION (middle - full detail with scores)
-  // ========================================
-  html += '<div style="margin-bottom: 20px;">';
-  html += '<div style="font-weight: bold; color: #005a8c; margin-bottom: 8px; font-size: 15px;">Authors</div>';
-  html += '<div style="margin-left: 15px; line-height: 1.8;">';
-
-  html += '<div style="margin-bottom: 6px;">';
-  html += `<span style="color: #666;">Number of Authors:</span> <span style="color: #333;">${authorCountTop > 0 ? authorCountTop : 'unknown'}</span>`;
-  html += '</div>';
-  html += '<div style="margin-bottom: 10px;">';
-  html += `<span style="color: #666;">Author Data Source:</span> <span style="color: #333;">${displaySource}</span>`;
-  html += '</div>';
-
-  authorBlockTop('First Author', topFirstFamily, topFirstGiven, topFirstOrcid, topFirstOrcidUrl, resolvedFirstAff, firstMetrics);
-  if (authorCountTop > 1) {
-    authorBlockTop('Last Author', topLastFamily, topLastGiven, topLastOrcid, topLastOrcidUrl, resolvedLastAff, lastMetrics);
-  } else {
-    authorBlockTop('Last Author', null, null, null, null, null, null);
-  }
-
-  html += '</div>'; // Close left margin div
-  html += '</div>'; // Close Authors section
-
   // Links Section
   html += '<div style="margin-bottom: 20px;">';
   html += '<div style="font-weight: bold; color: #005a8c; margin-bottom: 8px; font-size: 15px;">Links</div>';

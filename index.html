@@ -235,6 +235,10 @@
         return;
       }
 
+      // Update URL so it's shareable and scriptable
+      const cleanDoi = raw.replace(/^https?:\/\/doi\.org\//i, '').trim();
+      history.replaceState(null, '', `?doi=${encodeURIComponent(cleanDoi)}`);
+
       btn.disabled = true;
       results.innerHTML = '';
       setStatus('<span class="spinner"></span>Looking up DOI — this may take 10–20 seconds while checking all sources…');
