@@ -199,10 +199,10 @@ function showDOIModal(result, linksHtml) {
   // Quality from SJR (will be computed after SJR lookup below, placeholder for now)
   // We attach it to result._sjrScore in checkAllDOILinks
   const sjrScore = result._sjrScore ? parseFloat(result._sjrScore) : null;
-  const quality = sjrScore === null ? 'Low or Unknown Quality'
+  const quality = sjrScore === null ? 'Quality Unknown (no SJR data)'
                 : sjrScore >= 3    ? 'High Quality'
                 : sjrScore >= 0.8  ? 'Good Quality'
-                : 'Low or Unknown Quality';
+                : 'Low Quality';
   const qualityBg     = sjrScore >= 3   ? '#d4edda' : sjrScore >= 0.8 ? '#fff8d6' : '#f0f0f0';
   const qualityBorder = sjrScore >= 3   ? '#82c882' : sjrScore >= 0.8 ? '#e6c84a' : '#ccc';
   const qualityText   = sjrScore >= 3   ? '#2d6a2d' : sjrScore >= 0.8 ? '#7a5c00' : '#666';
@@ -308,7 +308,7 @@ function showDOIModal(result, linksHtml) {
   // Update source label if PubMed affiliation fallback was used
   const usedPubMedAff = pmAff?.usedFallback &&
     (!parseAffiliation(topFirstAffRaw) || !parseAffiliation(topLastAffRaw));
-  const displaySource = usedPubMedAff ? `${authorSourceTop}\\PubMed` : authorSourceTop;
+  const displaySource = usedPubMedAff ? `${authorSourceTop}/PubMed` : authorSourceTop;
 
     html += '<div style="margin-bottom: 24px; padding: 20px; background: #f8f7f3; border-left: 4px solid #005a8c;">';
   html += '<div style="font-weight: bold; color: #005a8c; font-size: 17px; margin-bottom: 14px; letter-spacing: 0.5px;">Summary</div>';
@@ -374,6 +374,40 @@ function showDOIModal(result, linksHtml) {
   if (result._iciteRcr         !== null && result._iciteRcr         !== undefined) citeParts.push(`RCR: ${result._iciteRcr}`);
   if (citeParts.length > 0) {
     html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">Citations &mdash; ${citeParts.join(' &nbsp;|&nbsp; ')}</div>`;
+  }
+
+  // OpenAIRE BIP metrics line - always show
+  {
+    const pop = result._oaPopularity || 'N/A';
+    const inf = result._oaInfluence  || 'N/A';
+    const imp = result._oaImpulse    || 'N/A';
+    html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">OpenAIRE &mdash; Popularity: ${pop} &nbsp;|&nbsp; Influence: ${inf} &nbsp;|&nbsp; Impulse: ${imp}</div>`;
+  }
+
+  // Altmetric | CORE | Dimensions | Google Scholar links line - always show
+  {
+    const altUrl     = `https://www.altmetric.com/details/doi/${summaryDoi}`;
+    const coreUrl    = `https://core.ac.uk`;
+    const dimUrl     = `https://app.dimensions.ai/discover/publication?search_text=${encodeURIComponent(summaryDoi)}`;
+    const scholarUrl = `https://scholar.google.com/scholar?q=${encodeURIComponent(summaryDoi)}`;
+    html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">`;
+    html += `<a href="${altUrl}" target="_blank" style="color: #005a8c;">Altmetric</a>`;
+    html += ` &nbsp;|&nbsp; <a href="${coreUrl}" target="_blank" style="color: #005a8c;">CORE</a>`;
+    html += ` &nbsp;|&nbsp; <a href="${dimUrl}" target="_blank" style="color: #005a8c;">Dimensions</a>`;
+    html += ` &nbsp;|&nbsp; <a href="${scholarUrl}" target="_blank" style="color: #005a8c;">Google Scholar</a>`;
+    html += `</div>`;
+  }
+
+  // DOAJ line - always show
+  {
+    if (result._doajFound === true) {
+      let doajLine = `DOAJ: Yes`;
+      if (result._doajApc)     doajLine += ` &nbsp;|&nbsp; APC: ${result._doajApc}`;
+      if (result._doajLicence) doajLine += ` &nbsp;|&nbsp; Licence: ${result._doajLicence}`;
+      html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">${doajLine}</div>`;
+    } else {
+      html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">DOAJ: No</div>`;
+    }
   }
 
   // PubMed summary line - always show if we have pubmed data
@@ -551,13 +585,7 @@ function showDOIModal(result, linksHtml) {
       
       html += `<span style="color: #333;">${issnLinks}</span>`;
       
-      // Add DOAJ check indicator (will check automatically using public API)
-      html += ' <span id="doajCheck" style="color: #999; font-size: 11px;">(checking DOAJ...)</span>';
-      
       html += '</div>';
-      
-      // Store ISSN for DOAJ check
-      window.currentDOILookupISSN = issnArray[0];
     }
   }
   
@@ -692,10 +720,20 @@ async function checkAllDOILinks(doi, result) {
     new Promise(resolve => setTimeout(() => resolve(fallback), 4000))
   ]);
   
+  // Pre-compute allIssns here so it's available for checkDOAJJournal in Promise.all below
+  const issnDataEarly = result.doiOrgIssn || result.raIssn;
+  let allIssnsPre = [];
+  if (issnDataEarly) {
+    try {
+      const arr = typeof issnDataEarly === 'string' && issnDataEarly.startsWith('[') ? JSON.parse(issnDataEarly) : [issnDataEarly];
+      allIssnsPre = arr.map(i => i.trim()).filter(Boolean);
+    } catch (e) { allIssnsPre = []; }
+  }
+
   // Run all checks in parallel - each individually capped at 4 seconds
   const [
     crossref, datacite, openalex, semanticscholar,
-    unpaywall, doaj, core, openaire, icite
+    unpaywall, doaj, core, openaire, doajJournal, icite
   ] = await Promise.all([
     safeCheck(() => checkCrossRef(doi)),
     safeCheck(() => checkDataCite(doi)),
@@ -704,7 +742,8 @@ async function checkAllDOILinks(doi, result) {
     safeCheck(() => checkUnpaywall(doi, result)),
     safeCheck(() => checkDOAJByDOI(doi)),
     safeCheck(() => checkCORE(doi)),
-    safeCheck(() => checkOpenAIRE(doi)),
+    safeCheck(() => checkOpenAIRE(doi, result)),
+    safeCheck(() => checkDOAJJournal(allIssnsPre, result)),
     safeCheck(() => checkICite(result.pubmedPMID, result))
   ]);
   
@@ -1011,12 +1050,13 @@ async function checkAllDOILinks(doi, result) {
   // --- Build HTML ---
   let html = '';
   
-  const row = (name, webUrl, dataUrl) => {
-    html += '<div style="margin-bottom: 4px;">';
+  const row = (name, webUrl, dataUrl, suffix = '') => {
+    html += '<div style="margin-bottom: 4px; white-space: nowrap;">';
     html += `<span style="color: #666; display: inline-block; width: 160px;">${name}:</span>`;
     html += webUrl ? `<a href="${webUrl}" target="_blank" style="color: #0066cc;">Web</a>` : '<span style="color: #ccc;">Web</span>';
     html += ' | ';
     html += dataUrl ? `<a href="${dataUrl}" target="_blank" style="color: #0066cc;">Data</a>` : '<span style="color: #ccc;">Data</span>';
+    if (suffix) html += ` <span style="font-size: 10px; color: #999; font-style: italic;">${suffix}</span>`;
     html += '</div>';
   };
   
@@ -1081,12 +1121,52 @@ async function checkAllDOILinks(doi, result) {
   row('Semantic Scholar', semanticscholar.web, semanticscholar.data);
   row('OpenAlex', openalex.web, openalex.data);
   row('Unpaywall', unpaywall.web, unpaywall.data);
+
+  // Altmetric - web link only (public API discontinued, badge discontinued)
+  const altmetricWeb = `https://www.altmetric.com/details/doi/${doi}`;
+  row('Altmetric', altmetricWeb, null);
   row('DOAJ', doaj.web, doaj.data);
   row('CORE', core.web, core.data);
   row('OpenAIRE', openaire.web, openaire.data);
-  row('Dimensions', dimensions.web, dimensions.data);
-  // Append note after Dimensions row
-  html += '<div style="margin-top: -2px; margin-bottom: 4px; margin-left: 165px; font-size: 10px; color: #999; font-style: italic;">(Free Acct for some features)</div>';
+  row('Dimensions', dimensions.web, dimensions.data, '(Free Acct Required)');
+
+  // Retraction Watch - parsed from CrossRef update-to field
+  {
+    const isCrossRef = result.doiOrgRa === 'Crossref';
+    let rwStatus = null;
+    let rwDoi = null;
+    if (isCrossRef && result.raUpdateTo) {
+      try {
+        const updates = JSON.parse(result.raUpdateTo);
+        const rw = updates.find(u =>
+          u.source === 'retraction-watch' ||
+          (u['update-type'] && ['retraction','correction','expression-of-concern','reinstatement'].includes(u['update-type']))
+        );
+        if (rw) {
+          rwStatus = rw['update-type'] || 'retraction';
+          rwDoi    = rw.DOI || null;
+          // Capitalise first letter
+          rwStatus = rwStatus.charAt(0).toUpperCase() + rwStatus.slice(1).replace(/-/g, ' ');
+        }
+      } catch (e) { /* leave null */ }
+    }
+
+    html += '<div style="margin-bottom: 4px;">';
+    html += '<span style="color: #666; display: inline-block; width: 160px;">Retraction Watch:</span>';
+    if (!isCrossRef) {
+      html += '<span style="color: #999;">Not available (non-CrossRef DOI)</span>';
+    } else if (rwStatus) {
+      const rwColor = rwStatus.toLowerCase().includes('retract') ? '#cc0000' : '#e07000';
+      const rwText  = rwDoi
+        ? `<a href="https://doi.org/${rwDoi}" target="_blank" style="color:${rwColor}; font-weight:bold;">⚠ ${rwStatus}</a>`
+        : `<span style="color:${rwColor}; font-weight:bold;">⚠ ${rwStatus}</span>`;
+      html += `${rwText} <span style="color:#999; font-size:11px;">(Source: CrossRef)</span>`;
+    } else {
+      html += '<span style="color: #333;">None</span> <span style="color:#999; font-size:11px;">(Source: CrossRef)</span>';
+    }
+    html += '</div>';
+  }
+
   row('PubMed', pubmed.web, pubmed.data);
   
   // PubMed attribute rows - Yes/No value, Data always greyed out
@@ -1369,44 +1449,79 @@ async function checkCORE(doi) {
 }
 
 // Test: https://api.openaire.eu/search/publications?doi=10.1016/S0140-6736(24)02679-5&format=json
-async function checkOpenAIRE(doi) {
+async function checkDOAJJournal(issns, result) {
+  if (!issns || issns.length === 0) return;
+  try {
+    // Try each ISSN until we get a hit
+    for (const issn of issns) {
+      const clean = issn.replace(/-/g, '');
+      const hyphenated = clean.length === 8 ? `${clean.slice(0,4)}-${clean.slice(4)}` : issn;
+      const response = await fetch(`https://doaj.org/api/v2/search/journals/issn:${hyphenated}`);
+      if (!response.ok) continue;
+      const data = await response.json();
+      if (data?.total > 0 && data.results?.[0]) {
+        const j = data.results[0].bibjson;
+        // APC
+        const apcAllowed = j?.apc?.has_apc;
+        const apcAmount  = j?.apc?.max?.[0];
+        const apcStr = apcAllowed === false ? 'None'
+                     : apcAmount  ? `${apcAmount.currency} ${apcAmount.price?.toLocaleString()}`
+                     : 'Unknown';
+        // Licence
+        const lic = j?.license?.[0]?.type || j?.license?.[0]?.title || null;
+        if (result) {
+          result._doajFound   = true;
+          result._doajApc     = apcStr;
+          result._doajLicence = lic;
+        }
+        return;
+      }
+    }
+    // No ISSN matched
+    if (result) result._doajFound = false;
+  } catch (e) {
+    console.warn('[DOAJ Journal] fetch failed:', e);
+    if (result) result._doajFound = false;
+  }
+}
+
+// Test: https://api.openaire.eu/search/publications?doi=10.1016/S0140-6736(24)02679-5&format=json
+async function checkOpenAIRE(doi, result) {
   const apiUrl = `https://api.openaire.eu/search/publications?doi=${encodeURIComponent(doi)}&format=json`;
   const webUrl = `https://explore.openaire.eu/search/publication?pid=${encodeURIComponent(doi)}`;
   try {
     const response = await fetch(apiUrl);
-    const found = response.ok;
-    return { web: found ? webUrl : null, data: found ? apiUrl : null };
+    if (!response.ok) return { web: null, data: null };
+    const data = await response.json();
+
+    // Navigate to measure array
+    const oafResult = data?.response?.results?.result?.[0]?.metadata?.['oaf:entity']?.['oaf:result'];
+    const measures  = oafResult?.measure || [];
+
+    if (result && measures.length > 0) {
+      const classMap = { C1: 'Top 1%', C2: 'Top 10%', C3: 'Top 25%', C4: 'Top 50%', C5: 'Bottom 50%' };
+      const get = (id) => {
+        const m = measures.find(m => m['@id'] === id);
+        return m ? (classMap[m['@class']] || m['@class']) : null;
+      };
+      result._oaPopularity = get('popularity');
+      result._oaInfluence  = get('influence');
+      result._oaImpulse    = get('impulse');
+    }
+
+    return { web: webUrl, data: apiUrl };
   } catch (error) {
     return { web: null, data: null };
   }
 }
 
-// Test: POST to https://icite.od.nih.gov/iciterest/store-search with PMID 29303484
+// Test: https://icite.od.nih.gov/api/pubs?pmids=29303484
 async function checkICite(pmid, result) {
   if (!pmid) return { web: null, data: null };
   const dataUrl = `https://icite.od.nih.gov/api/pubs?pmids=${pmid}`;
+  const webUrl  = `https://icite.od.nih.gov/analysis?pmids=${pmid}`;
   try {
-    // Run both fetches in parallel
-    const [dataResp, webResp] = await Promise.all([
-      fetch(dataUrl),
-      fetch('https://icite.od.nih.gov/iciterest/store-search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userType: 'app',
-          searchType: 'List of PMIDs input',
-          searchRequest: {
-            pubmedQueryStr: '',
-            uploadedFileName: '',
-            pmids: [pmid],
-            activeTab: 'infl',
-            papersSearch: '',
-            filters: []
-          }
-        })
-      })
-    ]);
-    // Extract citation data
+    const dataResp = await fetch(dataUrl);
     if (dataResp.ok && result) {
       const data = await dataResp.json();
       const pub = data.data?.[0] || null;
@@ -1417,14 +1532,7 @@ async function checkICite(pmid, result) {
           : null;
       }
     }
-    // Extract web link
-    if (webResp.ok) {
-      const webData = await webResp.json();
-      if (webData.id) {
-        return { web: `https://icite.od.nih.gov/results?searchId=${webData.id}`, data: dataUrl };
-      }
-    }
-    return { web: null, data: dataUrl };
+    return { web: webUrl, data: dataUrl };
   } catch (error) {
     return { web: null, data: dataUrl };
   }
@@ -1438,67 +1546,3 @@ async function checkDimensions(doi) {
   };
 }
 
-/**
- * Check if ISSN is in DOAJ (Directory of Open Access Journals)
- * Uses DOAJ Public Search API v2 - NO AUTHENTICATION REQUIRED
- * API Documentation: https://doaj.org/api/docs
- */
-async function checkDOAJ(issn) {
-  const doajCheckElement = document.getElementById('doajCheck');
-  if (!doajCheckElement) return;
-  
-  try {
-    // Clean ISSN (DOAJ accepts both formats, but hyphenated is standard)
-    const cleanIssn = issn.replace(/-/g, '');
-    const hyphenatedIssn = cleanIssn.length === 8 
-      ? cleanIssn.substring(0, 4) + '-' + cleanIssn.substring(4)
-      : issn;
-    
-    // DOAJ Public Search API v2 (no authentication required!)
-    const doajUrl = `https://doaj.org/api/v2/search/journals/issn:${hyphenatedIssn}`;
-    
-    const response = await fetch(doajUrl);
-    
-    if (response.ok) {
-      const data = await response.json();
-      
-      // If total === 1, the journal IS in DOAJ (verified Open Access)
-      if (data && data.total === 1) {
-        const journal = data.results && data.results[0];
-        const journalTitle = journal?.bibjson?.title || 'Unknown';
-        
-        doajCheckElement.innerHTML = '<span style="color: #28a745; font-weight: bold;">✓ Open Access (in DOAJ)</span>';
-        doajCheckElement.title = `This journal is listed in the Directory of Open Access Journals (DOAJ)\nTitle: ${journalTitle}`;
-      } else if (data && data.total === 0) {
-        // Not in DOAJ - provide manual check link as fallback
-        const doajSearchUrl = `https://doaj.org/search/journals?ref=homepage-box&source=%7B%22query%22%3A%7B%22query_string%22%3A%7B%22query%22%3A%22issn%3A${hyphenatedIssn}%22%2C%22default_operator%22%3A%22AND%22%7D%7D%7D`;
-        doajCheckElement.innerHTML = `<span style="color: #666;">Not in DOAJ (check article access)</span> <a href="${doajSearchUrl}" target="_blank" style="color: #0066cc; font-size: 10px;">(verify)</a>`;
-        doajCheckElement.title = 'This journal is not listed in DOAJ. It may still offer open access articles. Check individual article access.';
-      } else {
-        // Unexpected response
-        doajCheckElement.innerHTML = '<span style="color: #999;">DOAJ check inconclusive</span>';
-        doajCheckElement.title = `Unexpected response: total=${data?.total}`;
-      }
-    } else if (response.status === 404) {
-      // 404 likely means not found in DOAJ
-      const doajSearchUrl = `https://doaj.org/search/journals?ref=homepage-box&source=%7B%22query%22%3A%7B%22query_string%22%3A%7B%22query%22%3A%22issn%3A${hyphenatedIssn}%22%2C%22default_operator%22%3A%22AND%22%7D%7D%7D`;
-      doajCheckElement.innerHTML = `<span style="color: #666;">Not in DOAJ (check article access)</span> <a href="${doajSearchUrl}" target="_blank" style="color: #0066cc; font-size: 10px;">(verify)</a>`;
-      doajCheckElement.title = 'This journal is not listed in DOAJ. It may still offer open access articles. Check individual article access.';
-    } else {
-      // Other error - provide manual check link
-      const doajSearchUrl = `https://doaj.org/search/journals?ref=homepage-box&source=%7B%22query%22%3A%7B%22query_string%22%3A%7B%22query%22%3A%22issn%3A${hyphenatedIssn}%22%2C%22default_operator%22%3A%22AND%22%7D%7D%7D`;
-      doajCheckElement.innerHTML = `<span style="color: #999;">DOAJ check unavailable</span> <a href="${doajSearchUrl}" target="_blank" style="color: #0066cc; font-size: 10px;">(check manually)</a>`;
-      doajCheckElement.title = `HTTP ${response.status}`;
-    }
-  } catch (error) {
-    console.log('DOAJ check failed:', error);
-    // Provide manual check link
-    const cleanIssn = issn.replace(/-/g, '');
-    const hyphenatedIssn = cleanIssn.length === 8 
-      ? cleanIssn.substring(0, 4) + '-' + cleanIssn.substring(4)
-      : issn;
-    const doajSearchUrl = `https://doaj.org/search/journals?ref=homepage-box&source=%7B%22query%22%3A%7B%22query_string%22%3A%7B%22query%22%3A%22issn%3A${hyphenatedIssn}%22%2C%22default_operator%22%3A%22AND%22%7D%7D%7D`;
-    doajCheckElement.innerHTML = `<span style="color: #999;">DOAJ check failed</span> <a href="${doajSearchUrl}" target="_blank" style="color: #0066cc; font-size: 10px;">(check manually)</a>`;
-    doajCheckElement.title = error.message;
-  }
-}
