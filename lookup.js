@@ -107,9 +107,51 @@ function extractDOI(text) {
   return text.trim();
 }
 
+// ============================================================================
+// LOCAL STORAGE CACHE — 24 hour TTL
+// ============================================================================
+const CACHE_PREFIX = 'doi_cache_';
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function _cacheGet(doi) {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + doi.toLowerCase());
+    if (!raw) return null;
+    const { ts, data, linksHtml } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL_MS) {
+      localStorage.removeItem(CACHE_PREFIX + doi.toLowerCase());
+      return null;
+    }
+    console.log(`[Cache] HIT for ${doi}`);
+    return { data, linksHtml };
+  } catch (e) { return null; }
+}
+
+function _cacheSet(doi, data, linksHtml) {
+  try {
+    // Strip non-serialisable functions before storing
+    const serialisable = JSON.parse(JSON.stringify(data));
+    localStorage.setItem(CACHE_PREFIX + doi.toLowerCase(), JSON.stringify({
+      ts: Date.now(),
+      data: serialisable,
+      linksHtml
+    }));
+    console.log(`[Cache] SET for ${doi}`);
+  } catch (e) {
+    console.warn('[Cache] Failed to write:', e);
+  }
+}
+
 // Handler for DOI lookup
 async function handleDOILookup(doiInput) {
   const doi = extractDOI(doiInput);
+
+  // Check cache first
+  const cached = _cacheGet(doi);
+  if (cached) {
+    showDOIModal(cached.data, cached.linksHtml);
+    return;
+  }
   
   try {
     console.log(`[DOI Lookup] Starting lookup for: ${doi}`);
@@ -137,7 +179,6 @@ async function handleDOILookup(doiInput) {
       }
     } catch (pubmedError) {
       console.error('[DOI Lookup] PubMed fetch error (non-fatal):', pubmedError);
-      // Non-fatal - continue with just DOI data
     }
     
     // Step 3: Merge all data
@@ -169,6 +210,9 @@ async function handleDOILookup(doiInput) {
       pubmed:    allData.pubmedAuthorLastORCID      || null,
       openalex:  allData._oaLastAuthorOrcid         || null,
     });
+
+    // Cache the result before displaying
+    _cacheSet(doi, allData, linksData);
 
     // Display results in modal - all data complete
     showDOIModal(allData, linksData);

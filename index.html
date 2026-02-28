@@ -248,12 +248,12 @@
       }
     });
 
-    // Check for ?doi= query parameter on page load
+    // Check for ?doi= query parameter on page load — supports comma-separated list
     window.addEventListener('load', () => {
       const params = new URLSearchParams(window.location.search);
       const doiParam = params.get('doi');
       if (doiParam) {
-        input.value = doiParam;
+        input.value = decodeURIComponent(doiParam);
         runLookup();
       }
     });
@@ -271,9 +271,9 @@
 
       if (dois.length === 0) { setStatus('Please enter a valid DOI.', true); return; }
 
-      // Update URL (first DOI only for shareability)
-      const cleanFirst = dois[0].replace(/^https?:\/\/doi\.org\//i, '').trim();
-      history.replaceState(null, '', `?doi=${encodeURIComponent(cleanFirst)}`);
+      // Update URL with all DOIs for shareability
+      const cleanDois = dois.map(d => d.replace(/^https?:\/\/doi\.org\//i, '').trim());
+      history.replaceState(null, '', `?doi=${encodeURIComponent(cleanDois.join(','))}`);
 
       btn.disabled = true;
       results.innerHTML = '';
