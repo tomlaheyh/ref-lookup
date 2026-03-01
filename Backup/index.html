@@ -101,26 +101,6 @@
     #exportBtn:hover { background: #1e5c1e; }
     #exportBtn:disabled { background: var(--muted); cursor: not-allowed; }
 
-    #helpBtn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 22px;
-      height: 22px;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: 50%;
-      font-family: var(--mono);
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      line-height: 1;
-      padding: 0;
-      transition: background 0.15s;
-    }
-    #helpBtn:hover { background: #004470; }
-
     .lookup-box button {
       font-family: var(--mono);
       font-size: 13px;
@@ -236,8 +216,7 @@
       autocomplete="off" spellcheck="false"></textarea>
     <button id="lookupBtn" onclick="runLookup()">Look Up</button>
   </div>
-  <div style="max-width:1400px; margin: 0 auto 8px; display:flex; align-items:center; gap:10px;">
-    <button id="helpBtn" onclick="DOIHelp.showHelpModal()" title="Help">?</button>
+  <div style="max-width:1400px; margin: 0 auto 8px; display:flex; align-items:center; gap:16px;">
     <button id="exportBtn" onclick="exportCSV()">Export CSV</button>
     <div id="status"></div>
   </div>
@@ -248,7 +227,6 @@
     <span><a href="https://github.com/tomlaheyh/doi-lookup" target="_blank">GitHub</a></span>
   </footer>
 
-  <script src="helpContent.js"></script>
   <script src="doiLookup.js"></script>
   <script src="pubmedLookup-nonmodule.js"></script>
   <script src="lookup.js"></script>
@@ -301,7 +279,6 @@
       results.innerHTML = '';
       exportBtn.style.display = 'none';
       _allResults = [];
-      window.__xdoiResult = null;
 
       const total = dois.length;
       let completed = 0;
@@ -317,18 +294,7 @@
           errDiv.textContent = `Error looking up ${doi}: ${err.message}`;
           results.appendChild(errDiv);
           console.error(err);
-
-          // Set error result for first DOI if not yet set
-          if (completed === 0 && !window.__xdoiResult) {
-            window.__xdoiResult = { error: true, message: err.message, doi: doi };
-          }
         }
-
-        // After first DOI completes, populate __xdoiResult for extension consumption
-        if (completed === 0 && !window.__xdoiResult && _allResults.length > 0) {
-          window.__xdoiResult = curateXdoiResult(_allResults[0]);
-        }
-
         completed++;
       }
 
@@ -419,96 +385,6 @@
     function setStatus(msg, isError = false) {
       status.innerHTML = msg;
       status.className = isError ? 'error' : '';
-    }
-
-    // Build a flat summary object from the full result for extension consumption
-    // Available at window.__xdoiResult after first DOI lookup completes
-    function curateXdoiResult(r) {
-      if (!r) return { error: true, message: 'No result data' };
-
-      // Quality label (mirrors summary card logic)
-      const sjr = r._sjrScore ? parseFloat(r._sjrScore) : null;
-      const hasRetraction = r.pubmedIsRetractedPublication || false;
-      let quality = sjr === null ? 'Unknown'
-                  : sjr >= 3    ? 'High'
-                  : sjr >= 0.8  ? 'Good'
-                  : 'Low';
-      if (hasRetraction) quality = 'Retracted';
-
-      // Grants — flatten to simple strings
-      const grants = r._resolvedGrants || [];
-      const funders = [...new Set(grants.map(g => g.agency).filter(Boolean))].join('; ');
-      const grantIds = grants.map(g => g.grantId).filter(Boolean).join('; ');
-
-      return {
-        error: false,
-        doi:              r.doiOrgDoi || r._doi || '',
-        title:            r.doiOrgTitle || r.raTitle || '',
-        journal:          r.doiOrgJournal || r.raJournal || '',
-        publisher:        r.doiOrgPublisher || r.raPublisher || '',
-        year:             r.doiOrgPublishedDate || r.raPublishedOnline || r.raIssued || '',
-        volume:           r.doiOrgVolume || r.raVolume || '',
-        issue:            r.doiOrgIssue || r.raIssue || '',
-        pages:            r.doiOrgPages || r.raPage || '',
-        type:             r.doiOrgType || r.raType || '',
-        issn:             r.doiOrgIssn || r.raIssn || '',
-        ra:               r.doiOrgRa || '',
-        language:         r.doiOrgLanguage || r.raLanguage || '',
-
-        // Authors
-        firstAuthor:      r._displayFirstAuthorName || '',
-        firstAuthorOrcid: r._displayFirstAuthorOrcid || '',
-        lastAuthor:       r._displayLastAuthorName || '',
-        lastAuthorOrcid:  r._displayLastAuthorOrcid || '',
-        authorCount:      r._displayAuthorCount || 0,
-
-        // Citations
-        citationsCrossref:  r.doiOrgCitationCount ?? r.raCitationCount ?? null,
-        citationsOpenAlex:  r._openAlexCitations ?? null,
-        citationsSemSch:    r._semSchCitations ?? null,
-        citationsInfluential: r._semSchInfluential ?? null,
-        citationsICite:     r._iciteCitations ?? null,
-        rcr:                r._iciteRcr ?? null,
-
-        // Journal metrics
-        sjr:              r._sjrScore || null,
-        sjrUrl:           r._sjrUrl || null,
-        quality:          quality,
-
-        // Open access / availability
-        doajFound:        r._doajFound === true,
-        doajApc:          r._doajApc || null,
-        doajLicence:      r._doajLicence || null,
-        freePdfUrl:       r._oaFreePdf || '',
-        freePdfLabel:     r._oaLabel || '',
-
-        // PubMed
-        pubmedFound:      r.pubmedFound === true,
-        pmid:             r.pubmedPMID || '',
-        pmcid:            r.pubmedPMCID || '',
-        medline:          r.pubmedIsMedline === true,
-        preprint:         r.pubmedIsPreprint === true,
-        retracted:        hasRetraction,
-        hasCorrection:    r.pubmedHasCorrection === true,
-        correctionPmid:   r.pubmedCorrectionPMID || '',
-        retractionPmid:   r.pubmedRetractionPMID || '',
-
-        // OpenAIRE
-        oaPopularity:     r._oaPopularity || null,
-        oaInfluence:      r._oaInfluence || null,
-        oaImpulse:        r._oaImpulse || null,
-
-        // Grants
-        funders:          funders,
-        grantIds:         grantIds,
-        grantSource:      r._resolvedGrantsSource || '',
-
-        // Abstract snippet
-        abstract:         r.pubmedAbstract || r.raAbstract || '',
-
-        // Timestamp
-        lookupDate:       new Date().toISOString()
-      };
     }
   </script>
 </body>
