@@ -763,6 +763,10 @@ const DOILookup = {
     if (crossRefData.ISSN) {
       data.raIssn = JSON.stringify(crossRefData.ISSN);
     }
+    // issn-type: [{value: "0028-0836", type: "print"}, {value: "1476-4687", type: "electronic"}]
+    if (crossRefData['issn-type']) {
+      data.raIssnType = JSON.stringify(crossRefData['issn-type']);
+    }
     if (crossRefData.ISBN) {
       data.raIsbn = JSON.stringify(crossRefData.ISBN);
     }

@@ -157,8 +157,10 @@ These are percentile-based classes, not raw counts.`,
     // =====================
     {
       section: 'Authors',
-      label: 'Author source selection',
-      description: `Author information is merged from up to three sources: the Registration Agency (CrossRef, DataCite, etc.), PubMed, and OpenAlex. The tool picks the source with the most ORCID coverage — RA wins ties. First and last authors follow academic convention (first = typically led the work, last = typically leads the lab).
+      label: 'First and last authors',
+      description: `In academic convention, first author typically led the work, last author typically supervised. This convention is widely followed across disciplines, though the majority of users — including many librarians — may not be aware of it. Articles often have many authors, but the first and last positions carry the most significance.
+
+Author information is merged from up to three sources: the Registration Agency (CrossRef, DataCite, etc.), PubMed, and OpenAlex. The tool picks the source with the most ORCID coverage — RA wins ties. When the chosen source lacks ORCIDs but OpenAlex has them, the OpenAlex ORCIDs are used as a fallback.
 
 An ORCID comparison table is shown at the bottom of the summary, displaying author names and ORCIDs from all three sources for transparency.`,
       ref: 'https://orcid.org/'

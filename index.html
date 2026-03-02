@@ -370,8 +370,9 @@
         dois.push(clean);
       }
 
-      // Update URL with all DOIs for shareability
-      history.replaceState(null, '', `?doi=${encodeURIComponent(dois.join(','))}`);
+      // Update URL with all DOIs for shareability (preserve nocache if present)
+      const nocache = new URLSearchParams(window.location.search).has('nocache');
+      history.replaceState(null, '', `?doi=${encodeURIComponent(dois.join(','))}${nocache ? '&nocache' : ''}`);
 
       btn.disabled = true;
       results.innerHTML = '';

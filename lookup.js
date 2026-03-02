@@ -127,6 +127,11 @@ const CACHE_MAX    = 20;                   // Keep at most 20 cached DOIs
 
 function _cacheGet(doi) {
   try {
+    // ?nocache in URL skips cache reads (for testing)
+    if (new URLSearchParams(window.location.search).has('nocache')) {
+      console.log(`[Cache] SKIP for ${doi} (nocache)`);
+      return null;
+    }
     const raw = localStorage.getItem(CACHE_PREFIX + doi.toLowerCase());
     if (!raw) return null;
     const { ts, data, linksHtml } = JSON.parse(raw);
@@ -141,6 +146,11 @@ function _cacheGet(doi) {
 
 function _cacheSet(doi, data, linksHtml) {
   try {
+    // Skip cache writes when nocache is active (testing/debugging)
+    if (new URLSearchParams(window.location.search).has('nocache')) {
+      console.log(`[Cache] SKIP WRITE for ${doi} (nocache)`);
+      return;
+    }
     // Strip non-serialisable functions before storing
     const serialisable = JSON.parse(JSON.stringify(data));
     localStorage.setItem(CACHE_PREFIX + doi.toLowerCase(), JSON.stringify({
@@ -488,15 +498,18 @@ function showDOIModal(result, linksHtml) {
   const firstMetrics = result._authorMetrics?.first || null;
   const lastMetrics  = result._authorMetrics?.last  || null;
 
-  // Resolve affiliations - use RA first, fall back to PubMed if empty
+  // Resolve affiliations - use RA first, fall back to PubMed eFetch, then PubMed XML refetch
   const pmAff = result._pubmedAffiliations || null;
-  const resolvedFirstAff = parseAffiliation(topFirstAffRaw) ? topFirstAffRaw : (pmAff?.first || null);
-  const resolvedLastAff  = parseAffiliation(topLastAffRaw)  ? topLastAffRaw  : (pmAff?.last  || null);
+  const pmEfetchFirstAff = (result.pubmedAuthorFirstAffiliations && result.pubmedAuthorFirstAffiliations.length > 0)
+    ? result.pubmedAuthorFirstAffiliations.join('; ') : null;
+  const pmEfetchLastAff = (result.pubmedAuthorLastAffiliations && result.pubmedAuthorLastAffiliations.length > 0)
+    ? result.pubmedAuthorLastAffiliations.join('; ') : null;
+  const resolvedFirstAff = parseAffiliation(topFirstAffRaw) ? topFirstAffRaw : (pmAff?.first || pmEfetchFirstAff || null);
+  const resolvedLastAff  = parseAffiliation(topLastAffRaw)  ? topLastAffRaw  : (pmAff?.last  || pmEfetchLastAff  || null);
 
   // Update source label if PubMed affiliation fallback was used
-  const usedPubMedAff = pmAff?.usedFallback &&
-    (!parseAffiliation(topFirstAffRaw) || !parseAffiliation(topLastAffRaw));
-  const displaySource = usedPubMedAff ? `${authorSourceTop}/PubMed` : authorSourceTop;
+  const usedPubMedAff = !parseAffiliation(topFirstAffRaw) || !parseAffiliation(topLastAffRaw);
+  const displaySource = (usedPubMedAff && (resolvedFirstAff || resolvedLastAff)) ? `${authorSourceTop}/PubMed` : authorSourceTop;
 
     html += '<div style="margin-bottom: 24px; padding: 20px; background: #f8f7f3; border-left: 4px solid #005a8c;">';
   html += '<div style="font-weight: bold; color: #005a8c; font-size: 17px; margin-bottom: 14px; letter-spacing: 0.5px;">Summary</div>';
@@ -802,7 +815,8 @@ function showDOIModal(result, linksHtml) {
 
   // Authors in summary - blank line separator then first/last author blocks
   html += '<div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid #d8d5cc;">';
-  html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 8px;">Number of Authors: ${authorCountTop > 0 ? authorCountTop : 'unknown'} &nbsp;|&nbsp; Source: ${displaySource}</div>`;
+  html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 4px;">Number of Authors: ${authorCountTop > 0 ? authorCountTop : 'unknown'} &nbsp;|&nbsp; Source: ${displaySource}</div>`;
+  html += '<div style="color: #888880; font-size: 12px; font-weight: 300; margin-bottom: 10px; font-style: italic;">In academic convention, first author typically led the work, last author typically supervised.</div>';
   authorBlockTop('First Author', topFirstFamily, topFirstGiven, topFirstOrcid, topFirstOrcidUrl, resolvedFirstAff, firstMetrics);
   if (authorCountTop > 1) {
     authorBlockTop('Last Author', topLastFamily, topLastGiven, topLastOrcid, topLastOrcidUrl, resolvedLastAff, lastMetrics);
@@ -824,11 +838,25 @@ function showDOIModal(result, linksHtml) {
     html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">Journal: <span style="color: #1a1a18;">${escapeHtml(summaryJournal)}</span></div>`;
   }
 
-  // ISSNs with links
+  // ISSNs with links — label as print/electronic when type data is available
   if (summaryIssns.length > 0) {
-    const issnLinks = summaryIssns.map(i =>
-      `<a href="https://portal.issn.org/resource/ISSN/${i}" target="_blank" style="color: #005a8c;">${i}</a>`
-    ).join(', ');
+    // Build type lookup: ISSN -> "print" or "electronic"
+    const issnTypeMap = {};
+    // Source 1: CrossRef issn-type array
+    if (result.raIssnType) {
+      try {
+        const typed = JSON.parse(result.raIssnType);
+        typed.forEach(t => { if (t.value && t.type) issnTypeMap[t.value.trim()] = t.type; });
+      } catch (e) { /* skip */ }
+    }
+    // Source 2: PubMed separate fields (fallback)
+    if (result.pubmedISSN && !issnTypeMap[result.pubmedISSN]) issnTypeMap[result.pubmedISSN] = 'print';
+    if (result.pubmedESSN && !issnTypeMap[result.pubmedESSN]) issnTypeMap[result.pubmedESSN] = 'electronic';
+
+    const issnLinks = summaryIssns.map(i => {
+      const typeLabel = issnTypeMap[i] ? ` (${issnTypeMap[i]})` : '';
+      return `<a href="https://portal.issn.org/resource/ISSN/${i}" target="_blank" style="color: #005a8c;">${i}</a>${typeLabel}`;
+    }).join(', ');
     html += `<div style="color: #555; font-size: 17px; font-weight: bold;">ISSN: ${issnLinks}</div>`;
   }
 
@@ -1019,10 +1047,22 @@ function showDOIModal(result, linksHtml) {
       html += '<div style="margin-bottom: 6px;">';
       html += '<span style="color: #666;">ISSN:</span> ';
       
-      // Display each ISSN with link to ISSN.org portal
+      // Display each ISSN with link to ISSN.org portal and type label
+      // Reuse issnTypeMap built from CrossRef issn-type + PubMed fields
+      const _detailIssnTypeMap = {};
+      if (result.raIssnType) {
+        try {
+          const typed = JSON.parse(result.raIssnType);
+          typed.forEach(t => { if (t.value && t.type) _detailIssnTypeMap[t.value.trim()] = t.type; });
+        } catch (e) { /* skip */ }
+      }
+      if (result.pubmedISSN && !_detailIssnTypeMap[result.pubmedISSN]) _detailIssnTypeMap[result.pubmedISSN] = 'print';
+      if (result.pubmedESSN && !_detailIssnTypeMap[result.pubmedESSN]) _detailIssnTypeMap[result.pubmedESSN] = 'electronic';
+
       const issnLinks = issnArray.map(issn => {
         const cleanIssn = issn.trim();
-        return `<a href="https://portal.issn.org/resource/ISSN/${cleanIssn}" target="_blank" style="color: #0066cc;">${cleanIssn}</a>`;
+        const typeLabel = _detailIssnTypeMap[cleanIssn] ? ` (${_detailIssnTypeMap[cleanIssn]})` : '';
+        return `<a href="https://portal.issn.org/resource/ISSN/${cleanIssn}" target="_blank" style="color: #0066cc;">${cleanIssn}</a>${typeLabel}`;
       }).join(', ');
       
       html += `<span style="color: #333;">${issnLinks}</span>`;
@@ -1348,16 +1388,22 @@ async function checkAllDOILinks(doi, result) {
   // Attach Semantic Scholar web URL to result for citation link
   result._semSchUrl = semanticscholar.web || null;
   
-  // Author ORCIDs - use same source-selection logic (RA wins ties)
+  // Author ORCIDs - use same source-selection logic (RA wins ties, OpenAlex fallback)
   const raFirstOrcidLinks = result.raFirstAuthorOrcid || null;
   const raLastOrcidLinks  = result.raLastAuthorOrcid  || null;
   const pmFirstOrcidLinks = result.pubmedAuthorFirstORCID || null;
   const pmLastOrcidLinks  = result.pubmedAuthorLastORCID  || null;
-  const raOrcidScoreLinks = (raFirstOrcidLinks && raFirstOrcidLinks !== 'N/A' ? 1 : 0) + (raLastOrcidLinks && raLastOrcidLinks !== 'N/A' ? 1 : 0);
-  const pmOrcidScoreLinks = (pmFirstOrcidLinks && pmFirstOrcidLinks !== 'N/A' ? 1 : 0) + (pmLastOrcidLinks && pmLastOrcidLinks !== 'N/A' ? 1 : 0);
+  const oaFirstOrcidLinks = result._oaFirstAuthorOrcid || null;
+  const oaLastOrcidLinks  = result._oaLastAuthorOrcid  || null;
+  const isValidOrcid = v => v && v !== 'N/A';
+  const raOrcidScoreLinks = (isValidOrcid(raFirstOrcidLinks) ? 1 : 0) + (isValidOrcid(raLastOrcidLinks) ? 1 : 0);
+  const pmOrcidScoreLinks = (isValidOrcid(pmFirstOrcidLinks) ? 1 : 0) + (isValidOrcid(pmLastOrcidLinks) ? 1 : 0);
   const useRALinks = raOrcidScoreLinks >= pmOrcidScoreLinks;
-  const firstOrcid = useRALinks ? raFirstOrcidLinks : pmFirstOrcidLinks;
-  const lastOrcid  = useRALinks ? raLastOrcidLinks  : pmLastOrcidLinks;
+  let firstOrcid = useRALinks ? raFirstOrcidLinks : pmFirstOrcidLinks;
+  let lastOrcid  = useRALinks ? raLastOrcidLinks  : pmLastOrcidLinks;
+  // Fall back to OpenAlex ORCIDs when the chosen source doesn't have them
+  if (!isValidOrcid(firstOrcid) && isValidOrcid(oaFirstOrcidLinks)) firstOrcid = oaFirstOrcidLinks;
+  if (!isValidOrcid(lastOrcid)  && isValidOrcid(oaLastOrcidLinks))  lastOrcid  = oaLastOrcidLinks;
 
   // Fetch OpenAlex author metrics for each author independently
   // Test: https://api.openalex.org/authors/orcid:0000-0001-5485-7727
