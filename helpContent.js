@@ -3,7 +3,7 @@
 
 const DOIHelp = {
 
-  version: '1.0 — Feb 2026',
+  version: '1.5 — Mar 2026',
 
   helpItems: [
     // =====================
@@ -32,7 +32,7 @@ const DOIHelp = {
     },
     {
       label: 'Text search → WorldCat',
-      description: 'Any input that doesn\'t match a DOI, ISSN, ISBN, ORCID, or PMID pattern is sent as a general search to WorldCat. This works for titles, authors, keywords, or any combination — for example <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">Brief History of Time</code> or <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">Jane Goodall</code>.',
+      description: 'Any input that doesn\'t match a DOI, ISSN, ISBN, ORCID, or PMID pattern is sent as a search to WorldCat. By default this searches all fields — for example <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">Brief History of Time</code>. You can narrow the search with prefixes: <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">author: Jane Goodall</code> or <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">au: Goodall</code> for author search, and <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">title: Brief History</code> or <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">ti: Brief History</code> for title search.',
       ref: 'https://search.worldcat.org/'
     },
     {
