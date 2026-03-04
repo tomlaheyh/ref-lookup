@@ -1,4 +1,4 @@
-// helpContent.js - Help text and styles for Awesome DOI Lookup
+// helpContent.js - Help text and styles for Awesome Reference Lookup
 // Ver 1.0 Feb-2026
 
 const DOIHelp = {
@@ -12,7 +12,7 @@ const DOIHelp = {
     {
       section: 'Getting Started',
       label: 'What is this tool?',
-      description: 'Awesome DOI Lookup retrieves article metadata, metrics, author information, and external links for any DOI (Digital Object Identifier). It queries over a dozen data sources in real time and presents a consolidated summary.',
+      description: 'Awesome Reference Lookup retrieves metadata, metrics, author information, and external links for DOIs, ISBNs, and more. It queries over a dozen data sources in real time and presents a consolidated summary. Unrecognized input is sent to WorldCat as a general search. All feedback is appreciated — <a href="mailto:tomlaheyh@gmail.com" style="color:#005a8c;">tomlaheyh@gmail.com</a>.',
       ref: 'https://www.doi.org/'
     },
     {
@@ -316,7 +316,7 @@ All API calls are made directly from your browser. There is no backend server, n
     });
 
     // Version footer
-    html += `<div style="text-align:center;color:#888880;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:14px 0 4px;border-top:1px solid #eee;margin-top:16px;">Awesome DOI Lookup — v${this.version}</div>`;
+    html += `<div style="text-align:center;color:#888880;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:14px 0 4px;border-top:1px solid #eee;margin-top:16px;">Awesome Reference Lookup — v${this.version}</div>`;
 
     return html;
   },
@@ -367,7 +367,7 @@ All API calls are made directly from your browser. There is no backend server, n
     header.innerHTML = `
       <div>
         <span style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:#1a1a18;letter-spacing:-0.3px;">Help</span>
-        <span style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:#888880;margin-left:10px;font-weight:300;">Awesome DOI Lookup</span>
+        <span style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:#888880;margin-left:10px;font-weight:300;">Awesome Reference Lookup</span>
       </div>
     `;
 

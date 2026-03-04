@@ -1204,7 +1204,7 @@ function showDOIModal(result, linksHtml) {
 
     const lookupDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     const attributionHtml = `<div style="margin-top:16px; padding-top:10px; border-top:1px solid #e8e5dc; font-family:var(--mono,'IBM Plex Mono',monospace); font-size:11px; color:#aaa; display:flex; justify-content:space-between; flex-wrap:wrap; gap:4px;">` +
-      `<span>Retrieved via <a href="https://tomlaheyh.github.io/doi-lookup/" style="color:#aaa;">Awesome DOI Lookup</a> on ${lookupDate} · Data from CrossRef, PubMed, OpenAlex, Semantic Scholar, WorldCat &amp; others.</span>` +
+      `<span>Retrieved via <a href="https://tomlaheyh.github.io/doi-lookup/" style="color:#aaa;">Awesome Reference Lookup</a> on ${lookupDate} · Data from CrossRef, PubMed, OpenAlex, Semantic Scholar, WorldCat &amp; others.</span>` +
       `<a href="https://github.com/tomlaheyh/doi-lookup" target="_blank" style="color:#aaa;">GitHub</a>` +
       `</div>`;
 
