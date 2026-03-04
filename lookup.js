@@ -1,4 +1,4 @@
-// lookup.js - Core DOI lookup logic for doi-lookup website
+// lookup.js - Core DOI lookup logic for ref-lookup website
 // Adapted from popup.js - no chrome extension dependencies
 // Requires: doiLookup.js (window.DOILookup) and pubmedLookup-nonmodule.js (window.PubMedLookup)
 
@@ -1204,8 +1204,8 @@ function showDOIModal(result, linksHtml) {
 
     const lookupDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     const attributionHtml = `<div style="margin-top:16px; padding-top:10px; border-top:1px solid #e8e5dc; font-family:var(--mono,'IBM Plex Mono',monospace); font-size:11px; color:#aaa; display:flex; justify-content:space-between; flex-wrap:wrap; gap:4px;">` +
-      `<span>Retrieved via <a href="https://tomlaheyh.github.io/doi-lookup/" style="color:#aaa;">Awesome Reference Lookup</a> on ${lookupDate} · Data from CrossRef, PubMed, OpenAlex, Semantic Scholar, WorldCat &amp; others.</span>` +
-      `<a href="https://github.com/tomlaheyh/doi-lookup" target="_blank" style="color:#aaa;">GitHub</a>` +
+      `<span>Retrieved via <a href="https://tomlaheyh.github.io/ref-lookup/" style="color:#aaa;">Awesome Reference Lookup</a> on ${lookupDate} · Data from CrossRef, PubMed, OpenAlex, Semantic Scholar, WorldCat &amp; others.</span>` +
+      `<a href="https://github.com/tomlaheyh/ref-lookup" target="_blank" style="color:#aaa;">GitHub</a>` +
       `</div>`;
 
     const cardHtml = `<div id="${cardId}" style="background:white; padding:25px; border:1.5px solid #d8d5cc; margin-bottom:16px; transition: opacity 0.2s;">${checkboxHtml}${html}${attributionHtml}</div>`;

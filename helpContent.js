@@ -280,7 +280,7 @@ ISSN Portal (journal identity)
 SJR (journal ranking, from bundled CSV)
 
 All API calls are made directly from your browser. There is no backend server, no tracking, and no user data collection.`,
-      ref: 'https://github.com/tomlaheyh/doi-lookup'
+      ref: 'https://github.com/tomlaheyh/ref-lookup'
     },
   ],
 
