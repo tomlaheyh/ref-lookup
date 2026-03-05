@@ -17,7 +17,7 @@ const DOIHelp = {
     },
     {
       label: 'Entering DOIs',
-      description: 'Enter a DOI in standard format (e.g. <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">10.1038/s41586-025-09227-0</code>) or as a full URL (e.g. <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">https://doi.org/10.1038/...</code>). The URL prefix is stripped automatically. Press <strong>Enter</strong> to submit, or <strong>Shift+Enter</strong> for a new line.',
+      description: 'Enter a DOI in standard format (e.g. <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">10.1038/s41586-025-09227-0</code>) or as a full URL — prefixes like <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">doi:</code> and <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">https://doi.org/</code> are stripped automatically. Retraction and correction status is checked automatically across multiple sources including Retraction Watch and PubMed — try <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;color:red;">10.1016/S0140-6736(97)11096-0</code> for an example.',
       ref: null
     },
     {
