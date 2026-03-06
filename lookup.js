@@ -79,8 +79,11 @@ function escapeHtml(s) {
 function displayError(message) {
   const resultsDiv = document.getElementById('results');
   if (resultsDiv) {
-    resultsDiv.style.color = 'red';
-    resultsDiv.textContent = `Error: ${message}`;
+    // Append error as a card instead of wiping existing results
+    const errDiv = document.createElement('div');
+    errDiv.style.cssText = 'background:#fff0f0; padding:20px; border:1.5px solid #cc0000; margin-bottom:16px; color:#cc0000; font-family:var(--mono,"IBM Plex Mono",monospace); font-size:13px;';
+    errDiv.textContent = `Error: ${message}`;
+    resultsDiv.insertAdjacentElement('afterbegin', errDiv);
   } else {
     console.error(`Error: ${message}`);
   }
@@ -209,8 +212,7 @@ async function handleDOILookup(doiInput) {
     const doiResult = await window.DOILookup.performLookup(doi);
     
     if (doiResult.error) {
-      displayError(`Failed to fetch DOI information: ${doiResult.message}`);
-      return;
+      throw new Error(`Failed to fetch DOI information: ${doiResult.message}`);
     }
     
     console.log('[DOI Lookup] DOI RA data fetched successfully');
@@ -268,7 +270,7 @@ async function handleDOILookup(doiInput) {
     
   } catch (error) {
     console.error('[DOI Lookup] Fatal error:', error);
-    displayError(`Failed to fetch DOI information: ${error.message}`);
+    throw error;
   }
 }
 
