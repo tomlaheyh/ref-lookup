@@ -1188,28 +1188,25 @@ function showDOIModal(result, linksHtml) {
     // Register result in _allResults for CSV export (index.html scope)
     if (typeof _allResults !== 'undefined') {
       result._doi     = doi;
-      result._checked = true;
-      _allResults.push(result);
+      _allResults.unshift(result);
     }
 
-    // Card wrapper with stable id for checkbox grey-out
+    // Card wrapper with stable id
     const cardId = `card-${doi.replace(/[^a-zA-Z0-9]/g, '-')}`;
     const checkboxHtml = `
-      <label style="display:flex; align-items:center; gap:6px; margin-bottom:10px; cursor:pointer; font-size:13px; color:#666;">
-        <input type="checkbox" checked
-          onchange="onCardCheckChange('${doi.replace(/'/g, "\'")}', this.checked)"
-          style="width:15px; height:15px; cursor:pointer;" />
-        Include in export
-      </label>`;
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:13px; color:#666;">
+        <span class="card-number" style="font-family:var(--mono,'IBM Plex Mono',monospace); font-size:12px; color:#aaa;"></span>
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" checked
+            onchange="onCardCheckChange('${doi.replace(/'/g, "\'")}')"
+            style="width:15px; height:15px; cursor:pointer;" />
+          <span>Include in group</span>
+        </label>
+      </div>`;
 
-    const lookupDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-    const attributionHtml = `<div style="margin-top:16px; padding-top:10px; border-top:1px solid #e8e5dc; font-family:var(--mono,'IBM Plex Mono',monospace); font-size:11px; color:#aaa; display:flex; justify-content:space-between; flex-wrap:wrap; gap:4px;">` +
-      `<span>Retrieved via <a href="https://tomlaheyh.github.io/ref-lookup/" style="color:#aaa;">Awesome Reference Lookup</a> on ${lookupDate} · Data from CrossRef, PubMed, OpenAlex, Semantic Scholar, WorldCat &amp; others.</span>` +
-      `<a href="https://github.com/tomlaheyh/ref-lookup" target="_blank" style="color:#aaa;">GitHub</a>` +
-      `</div>`;
-
-    const cardHtml = `<div id="${cardId}" style="background:white; padding:25px; border:1.5px solid #d8d5cc; margin-bottom:16px; transition: opacity 0.2s;">${checkboxHtml}${html}${attributionHtml}</div>`;
-    resultsDiv.insertAdjacentHTML('beforeend', cardHtml);
+    const cardHtml = `<div id="${cardId}" style="background:white; padding:25px; border:1.5px solid #d8d5cc; margin-bottom:16px; transition: opacity 0.2s;">${checkboxHtml}${html}</div>`;
+    resultsDiv.insertAdjacentHTML('afterbegin', cardHtml);
+    if (typeof updateCardNumbers === 'function') updateCardNumbers();
   } else {
     // Fallback: modal for extension context
     content.innerHTML = html;

@@ -101,6 +101,20 @@
     #exportBtn:hover { background: #1e5c1e; }
     #exportBtn:disabled { background: var(--muted); cursor: not-allowed; }
 
+    #clearBtn {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 18px;
+      background: #8c2a2a;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    #clearBtn:hover { background: #6b1f1f; }
+
     #helpBtn {
       display: inline-flex;
       align-items: center;
@@ -214,7 +228,7 @@
 
   <header>
     <h1>Awesome Reference Lookup</h1>
-    <p>Enter a DOI (up to 10, separated by commas), a single ISSN, ISBN, ORCID, or PMID to retrieve article metadata, metrics, and more. Any other text is a WorldCat search (prefix with author: or title: to narrow).</p>
+    <p>Enter a DOI (up to 15, separated by commas), a single ISSN, ISBN, ORCID, or PMID to retrieve article metadata, metrics, and more. Any other text is a WorldCat search (prefix with author: or title: to narrow).</p>
   </header>
 
   <div class="lookup-box">
@@ -226,6 +240,7 @@
   <div style="max-width:1400px; margin: 0 auto 8px; display:flex; align-items:center; gap:10px;">
     <button id="helpBtn" onclick="DOIHelp.showHelpModal()" title="Help">?</button>
     <button id="exportBtn" onclick="exportCSV()">Export CSV</button>
+    <button id="clearBtn" onclick="clearList()">Clear list</button>
     <div id="status"></div>
   </div>
   <div id="results"></div>
@@ -242,6 +257,7 @@
     const status  = document.getElementById('status');
     const results = document.getElementById('results');
     const exportBtn = document.getElementById('exportBtn');
+    const clearBtn  = document.getElementById('clearBtn');
 
     // Store all result data objects for CSV export
     let _allResults = [];
@@ -360,7 +376,7 @@
         raw.split(',')
            .map(d => d.trim())
            .filter(Boolean)
-      )].slice(0, 10);
+      )].slice(0, 15);
 
       if (entries.length === 0) {
         setStatus('Please enter a DOI, ISSN, ISBN, ORCID, PMID, or search text.', true);
@@ -389,20 +405,27 @@
         dois.push(clean);
       }
 
-      // Update URL with all DOIs for shareability (preserve nocache if present)
+      // Filter out DOIs already on the page
+      const existingDois = _allResults.map(r => r._doi);
+      const newDois = dois.filter(d => !existingDois.includes(d));
+
+      if (newDois.length === 0) {
+        setStatus('All DOIs already in group.');
+        return;
+      }
+
+      // Combine existing + new DOIs and update URL for shareability
+      const allDois = [...newDois, ...existingDois];
       const nocache = new URLSearchParams(window.location.search).has('nocache');
-      history.replaceState(null, '', `?doi=${encodeURIComponent(dois.join(','))}${nocache ? '&nocache' : ''}`);
+      history.replaceState(null, '', `?doi=${encodeURIComponent(allDois.join(','))}${nocache ? '&nocache' : ''}`);
 
       btn.disabled = true;
-      results.innerHTML = '';
-      exportBtn.style.display = 'none';
-      _allResults = [];
       window.__xdoiResult = null;
 
-      const total = dois.length;
+      const total = newDois.length;
       let completed = 0;
 
-      for (const doi of dois) {
+      for (const doi of newDois) {
         setStatus(`<span class="spinner"></span>Looking up ${completed + 1} of ${total}: ${doi}`);
         try {
           await handleDOILookup(doi);
@@ -428,7 +451,7 @@
         completed++;
       }
 
-      setStatus(total > 1 ? `${completed} of ${total} DOIs looked up.` : '');
+      updateDoiList();
       btn.disabled = false;
 
       // Show export button if we have results
@@ -439,24 +462,75 @@
     }
 
     function updateExportBtn() {
-      const checked = _allResults.filter(r => r._checked !== false).length;
-      const total   = _allResults.length;
-      exportBtn.disabled = checked === 0;
-      exportBtn.textContent = `Export CSV (${checked} of ${total})`;
+      const total = _allResults.length;
+      exportBtn.disabled = total === 0;
+      exportBtn.textContent = `Export CSV (${total})`;
     }
 
-    function onCardCheckChange(doi, checked) {
-      const r = _allResults.find(r => r._doi === doi);
-      if (r) r._checked = checked;
-      // Grey out the card
-      const card = document.getElementById(`card-${CSS.escape(doi)}`);
-      if (card) card.style.opacity = checked ? '1' : '0.35';
+    function updateDoiList() {
+      const dois = _allResults.map(r => r._doi);
+      input.value = dois.join(', ');
+      setStatus('');
+    }
+
+    function updateCardNumbers() {
+      const cards = results.querySelectorAll('[id^="card-"]');
+      const total = cards.length;
+      cards.forEach((card, i) => {
+        const numEl = card.querySelector('.card-number');
+        if (numEl) numEl.textContent = `${i + 1} of ${total}`;
+      });
+    }
+
+    function updateUrlFromResults() {
+      const dois = _allResults.map(r => r._doi);
+      const nocache = new URLSearchParams(window.location.search).has('nocache');
+      if (dois.length > 0) {
+        history.replaceState(null, '', `?doi=${encodeURIComponent(dois.join(','))}${nocache ? '&nocache' : ''}`);
+      } else {
+        history.replaceState(null, '', window.location.pathname);
+      }
+    }
+
+    function onCardCheckChange(doi) {
+      // Remove the result from data
+      _allResults = _allResults.filter(r => r._doi !== doi);
+      // Remove the card from DOM
+      const cardId = `card-${doi.replace(/[^a-zA-Z0-9]/g, '-')}`;
+      const card = document.getElementById(cardId);
+      if (card) card.remove();
+      // Update everything
+      updateCardNumbers();
       updateExportBtn();
+      updateDoiList();
+      updateUrlFromResults();
+      if (_allResults.length === 0) {
+        exportBtn.style.display = 'none';
+      }
+    }
+
+    function clearList() {
+      // Keep only the first card (newest, at top of page)
+      if (_allResults.length <= 1) return;
+      const keepResult = _allResults[0];
+      const keepDoi = keepResult._doi;
+      const keepCardId = `card-${keepDoi.replace(/[^a-zA-Z0-9]/g, '-')}`;
+      // Remove all other cards from DOM
+      const cards = results.querySelectorAll('[id^="card-"]');
+      cards.forEach(card => {
+        if (card.id !== keepCardId) card.remove();
+      });
+      // Keep only the first result
+      _allResults = [keepResult];
+      // Update everything
+      updateCardNumbers();
+      updateExportBtn();
+      updateDoiList();
+      updateUrlFromResults();
     }
 
     function exportCSV() {
-      const selected = _allResults.filter(r => r._checked !== false);
-      if (selected.length === 0) return;
+      if (_allResults.length === 0) return;
 
       const cols = [
         'DOI','Title','Journal','Publisher','Year','Volume','Issue','Pages','Type','ISSN',
@@ -472,7 +546,7 @@
           ? `"${s.replace(/"/g, '""')}"` : s;
       };
 
-      const rows = selected.map(r => [
+      const rows = _allResults.map(r => [
         r.doiOrgDoi || r._doi || '',
         r.doiOrgTitle || r.raTitle || '',
         r.doiOrgJournal || r.raJournal || '',
