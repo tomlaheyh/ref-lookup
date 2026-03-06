@@ -371,9 +371,9 @@ function showDOIModal(result, linksHtml) {
                 : sjrScore >= 3    ? 'High Quality'
                 : sjrScore >= 0.8  ? 'Good Quality'
                 : 'Low Quality';
-  const qualityBg     = sjrScore >= 3   ? '#d4edda' : sjrScore >= 0.8 ? '#fff8d6' : '#f0f0f0';
-  const qualityBorder = sjrScore >= 3   ? '#82c882' : sjrScore >= 0.8 ? '#e6c84a' : '#ccc';
-  const qualityText   = sjrScore >= 3   ? '#2d6a2d' : sjrScore >= 0.8 ? '#7a5c00' : '#666';
+  const qualityBg     = sjrScore >= 3   ? '#d4edda' : sjrScore >= 0.8 ? '#d4edda' : '#f0f0f0';
+  const qualityBorder = sjrScore >= 3   ? '#82c882' : sjrScore >= 0.8 ? '#82c882' : '#ccc';
+  const qualityText   = sjrScore >= 3   ? '#2d6a2d' : sjrScore >= 0.8 ? '#2d6a2d' : '#666';
 
   // Source selection: pick set with most ORCIDs — RA wins ties, OpenAlex included
   const isValidTop = v => v && v !== 'N/A';
