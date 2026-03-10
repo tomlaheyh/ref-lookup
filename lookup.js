@@ -122,89 +122,10 @@ function extractDOI(text) {
 }
 
 // ============================================================================
-// LOCAL STORAGE CACHE — 24 hour TTL
-// ============================================================================
-const CACHE_PREFIX = 'doi_cache_';
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-const CACHE_MAX    = 20;                   // Keep at most 20 cached DOIs
-
-function _cacheGet(doi) {
-  try {
-    // ?nocache in URL skips cache reads (for testing)
-    if (new URLSearchParams(window.location.search).has('nocache')) {
-      console.log(`[Cache] SKIP for ${doi} (nocache)`);
-      return null;
-    }
-    const raw = localStorage.getItem(CACHE_PREFIX + doi.toLowerCase());
-    if (!raw) return null;
-    const { ts, data, linksHtml } = JSON.parse(raw);
-    if (Date.now() - ts > CACHE_TTL_MS) {
-      localStorage.removeItem(CACHE_PREFIX + doi.toLowerCase());
-      return null;
-    }
-    console.log(`[Cache] HIT for ${doi}`);
-    return { data, linksHtml };
-  } catch (e) { return null; }
-}
-
-function _cacheSet(doi, data, linksHtml) {
-  try {
-    // Skip cache writes when nocache is active (testing/debugging)
-    if (new URLSearchParams(window.location.search).has('nocache')) {
-      console.log(`[Cache] SKIP WRITE for ${doi} (nocache)`);
-      return;
-    }
-    // Strip non-serialisable functions before storing
-    const serialisable = JSON.parse(JSON.stringify(data));
-    localStorage.setItem(CACHE_PREFIX + doi.toLowerCase(), JSON.stringify({
-      ts: Date.now(),
-      data: serialisable,
-      linksHtml
-    }));
-    console.log(`[Cache] SET for ${doi}`);
-    _cacheEvict();
-  } catch (e) {
-    console.warn('[Cache] Failed to write:', e);
-  }
-}
-
-// Remove oldest cache entries when count exceeds CACHE_MAX
-function _cacheEvict() {
-  try {
-    const entries = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (!key.startsWith(CACHE_PREFIX)) continue;
-      try {
-        const { ts } = JSON.parse(localStorage.getItem(key));
-        entries.push({ key, ts });
-      } catch (e) {
-        // Corrupt entry — remove it
-        localStorage.removeItem(key);
-      }
-    }
-    if (entries.length <= CACHE_MAX) return;
-    // Sort newest first, remove the rest
-    entries.sort((a, b) => b.ts - a.ts);
-    const toRemove = entries.slice(CACHE_MAX);
-    toRemove.forEach(e => localStorage.removeItem(e.key));
-    console.log(`[Cache] Evicted ${toRemove.length} old entries (kept ${CACHE_MAX})`);
-  } catch (e) {
-    console.warn('[Cache] Eviction error:', e);
-  }
-}
-
 // Handler for DOI lookup
 async function handleDOILookup(doiInput) {
   const doi = extractDOI(doiInput);
 
-  // Check cache first
-  const cached = _cacheGet(doi);
-  if (cached) {
-    showDOIModal(cached.data, cached.linksHtml);
-    return;
-  }
-  
   try {
     console.log(`[DOI Lookup] Starting lookup for: ${doi}`);
     
@@ -261,9 +182,6 @@ async function handleDOILookup(doiInput) {
       pubmed:    allData.pubmedAuthorLastORCID      || null,
       openalex:  allData._oaLastAuthorOrcid         || null,
     });
-
-    // Cache the result before displaying
-    _cacheSet(doi, allData, linksData);
 
     // Display results in modal - all data complete
     showDOIModal(allData, linksData);
