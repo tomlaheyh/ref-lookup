@@ -761,6 +761,16 @@ function showDOIModal(result, linksHtml) {
       let pmLine = `PubMed: Yes`;
       pmLine += ` &nbsp;|&nbsp; Medline: ${result.pubmedIsMedline ? 'Yes' : 'No'}`;
       pmLine += ` &nbsp;|&nbsp; Preprint: ${result.pubmedIsPreprint ? 'Yes' : 'No'}`;
+      pmLine += ` &nbsp;|&nbsp; Erratum: ${result.pubmedHasCorrection 
+        ? (result.pubmedCorrectionPMID 
+          ? `<a href="https://pubmed.ncbi.nlm.nih.gov/${result.pubmedCorrectionPMID}/" target="_blank" style="color: #005a8c;">Yes (PMID:${result.pubmedCorrectionPMID})</a>` 
+          : 'Yes') 
+        : 'No'}`;
+      pmLine += ` &nbsp;|&nbsp; Retraction: ${result.pubmedIsRetractedPublication || result.pubmedHasRetraction 
+        ? (result.pubmedRetractionPMID 
+          ? `<a href="https://pubmed.ncbi.nlm.nih.gov/${result.pubmedRetractionPMID}/" target="_blank" style="color: #cc0000;">Yes (PMID:${result.pubmedRetractionPMID})</a>` 
+          : '<span style="color: #cc0000;">Yes</span>') 
+        : 'No'}`;
       if (result._iciteCitations !== null && result._iciteCitations !== undefined) {
         pmLine += result._iciteUrl
           ? ` &nbsp;|&nbsp; <a href="${result._iciteUrl}" target="_blank" style="color: #005a8c;">iCite Citations: ${result._iciteCitations}</a>`
