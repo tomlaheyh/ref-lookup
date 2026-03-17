@@ -653,9 +653,12 @@ const DOILookup = {
     if (crossRefData.author) {
       data.raAuthors = JSON.stringify(crossRefData.author);
       
-      // Extract first author
-      if (crossRefData.author.length > 0) {
-        const firstAuthor = crossRefData.author[0];
+      // Find first and last PERSON author (skip organizational authors with only 'name' field)
+      const personAuthors = crossRefData.author.filter(a => a.given || a.family);
+      
+      // Extract first person author
+      if (personAuthors.length > 0) {
+        const firstAuthor = personAuthors[0];
         data.raFirstAuthorGiven = firstAuthor.given || null;
         data.raFirstAuthorFamily = firstAuthor.family || null;
         
@@ -669,9 +672,9 @@ const DOILookup = {
         }
       }
       
-      // Extract last author
-      if (crossRefData.author.length > 1) {
-        const lastAuthor = crossRefData.author[crossRefData.author.length - 1];
+      // Extract last person author
+      if (personAuthors.length > 1) {
+        const lastAuthor = personAuthors[personAuthors.length - 1];
         data.raLastAuthorGiven = lastAuthor.given || null;
         data.raLastAuthorFamily = lastAuthor.family || null;
         
@@ -683,8 +686,8 @@ const DOILookup = {
         if (lastAuthor.affiliation && lastAuthor.affiliation.length > 0) {
           data.raLastAuthorAffiliation = JSON.stringify(lastAuthor.affiliation);
         }
-      } else if (crossRefData.author.length === 1) {
-        // Single author - they are both first and last
+      } else if (personAuthors.length === 1) {
+        // Single person author - they are both first and last
         data.raLastAuthorGiven = data.raFirstAuthorGiven;
         data.raLastAuthorFamily = data.raFirstAuthorFamily;
         data.raLastAuthorOrcid = data.raFirstAuthorOrcid;

@@ -399,15 +399,31 @@ function showDOIModal(result, linksHtml) {
   const authorSourceTop = useOATop ? 'OpenAlex' : useRATop ? (result.doiOrgRa || 'RA') : 'PubMed';
 
   // Resolve fields from chosen source
-  const topFirstFamily  = useOATop ? null : useRATop ? (result.raFirstAuthorFamily || result.doiOrgFirstAuthorFamily) : null;
-  const topFirstGiven   = useOATop ? (result._oaFirstAuthorName || null) : useRATop ? (result.raFirstAuthorGiven  || result.doiOrgFirstAuthorGiven)  : (result.pubmedAuthorFirst || null);
+  let topFirstFamily  = useOATop ? null : useRATop ? (result.raFirstAuthorFamily || result.doiOrgFirstAuthorFamily) : null;
+  let topFirstGiven   = useOATop ? (result._oaFirstAuthorName || null) : useRATop ? (result.raFirstAuthorGiven  || result.doiOrgFirstAuthorGiven)  : (result.pubmedAuthorFirst || null);
   let   topFirstOrcid   = useOATop ? oaFirstOrcidTop : useRATop ? (result.raFirstAuthorOrcid  || result.doiOrgFirstAuthorOrcid)  : (result.pubmedAuthorFirstORCID || null);
   let   topFirstOrcidUrl= null;
 
-  const topLastFamily   = useOATop ? null : useRATop ? (result.raLastAuthorFamily  || result.doiOrgLastAuthorFamily)  : null;
-  const topLastGiven    = useOATop ? (result._oaLastAuthorName || null) : useRATop ? (result.raLastAuthorGiven   || result.doiOrgLastAuthorGiven)   : (result.pubmedAuthorLast || null);
+  let topLastFamily   = useOATop ? null : useRATop ? (result.raLastAuthorFamily  || result.doiOrgLastAuthorFamily)  : null;
+  let topLastGiven    = useOATop ? (result._oaLastAuthorName || null) : useRATop ? (result.raLastAuthorGiven   || result.doiOrgLastAuthorGiven)   : (result.pubmedAuthorLast || null);
   let   topLastOrcid    = useOATop ? oaLastOrcidTop : useRATop ? (result.raLastAuthorOrcid   || result.doiOrgLastAuthorOrcid)   : (result.pubmedAuthorLastORCID || null);
   let   topLastOrcidUrl = null;
+
+  // Fallback: if chosen source has no first author name, try PubMed then OpenAlex
+  if (!topFirstGiven && !topFirstFamily) {
+    if (result.pubmedAuthorFirst) {
+      topFirstGiven = result.pubmedAuthorFirst;
+    } else if (result._oaFirstAuthorName) {
+      topFirstGiven = result._oaFirstAuthorName;
+    }
+  }
+  if (!topLastGiven && !topLastFamily) {
+    if (result.pubmedAuthorLast) {
+      topLastGiven = result.pubmedAuthorLast;
+    } else if (result._oaLastAuthorName) {
+      topLastGiven = result._oaLastAuthorName;
+    }
+  }
 
   const topFirstAffRaw  = useOATop ? null : useRATop ? (result.raFirstAuthorAffiliation || result.doiOrgFirstAuthorAffiliation) : null;
   const topLastAffRaw   = useOATop ? null : useRATop ? (result.raLastAuthorAffiliation || result.doiOrgLastAuthorAffiliation) : null;
