@@ -248,13 +248,13 @@
 
   <header>
     <h1>Awesome DOI-Ref-Lookup</h1>
-    <p>Enter a DOI (up to 15, separated by commas), a single ISSN, ISBN, ORCID, or PMID to retrieve article metadata, metrics, <span style="color:var(--accent2);font-weight:500;">retraction status</span>, and more. Any other text is a WorldCat search (prefix with author: or title: to narrow).</p>
+    <p>Enter a DOI (up to 15, separated by commas), a single ISSN, ISBN, ORCID, or PMID to retrieve article metadata, metrics, <span style="color:var(--accent2);font-weight:500;">retraction status</span>, and more. Any other text searches CrossRef. Prefix with <span style="font-family:var(--mono);font-size:12px;">book:</span> to search WorldCat instead.</p>
     <p style="margin-top:5px; font-size:11.5px;">2025: CrossRef registered 13.2M, where 8.75M are academic (articles, preprints, reports) &middot; DataCite 1M academic &middot; together ~95% of 2025 academic DOIs globally.</p>
   </header>
 
   <div class="lookup-box">
     <textarea id="doiInput"
-      placeholder="e.g. 10.1038/s41586-025-09227-0 — DOIs, ISSN, ISBN, ORCID, PMID, or search WorldCat"
+      placeholder="e.g. 10.1038/s41586-025-09227-0 — DOIs, ISSN, ISBN, ORCID, PMID, or search text"
       autocomplete="off" spellcheck="false"></textarea>
     <button id="lookupBtn" onclick="runLookup()">Look Up</button>
   </div>
@@ -414,18 +414,22 @@
       for (const entry of entries) {
         const clean = extractCleanDoi(entry);
         if (!clean) {
-          // Not a recognized identifier — fall through to WorldCat search
-          // Check for author:/au: or title:/ti: prefixes
-          let wcQuery = raw;
-          const authorMatch = raw.match(/^(?:author|au)[:\s]+(.+)$/i);
-          const titleMatch  = raw.match(/^(?:title|ti)[:\s]+(.+)$/i);
-          if (authorMatch) {
-            wcQuery = `au:${authorMatch[1].trim()}`;
-          } else if (titleMatch) {
-            wcQuery = `ti:${titleMatch[1].trim()}`;
+          // Not a recognized identifier — check for book: prefix → WorldCat, otherwise → CrossRef search
+          const bookMatch = raw.match(/^book[:\s]+(.+)$/i);
+          if (bookMatch) {
+            setStatus('Opened WorldCat search in a new tab.');
+            window.open(`https://search.worldcat.org/search?q=${encodeURIComponent(bookMatch[1].trim())}`, '_blank');
+            return;
           }
-          setStatus('Opened WorldCat search in a new tab.');
-          window.open(`https://search.worldcat.org/search?q=${encodeURIComponent(wcQuery)}`, '_blank');
+          // CrossRef text search — show results inline
+          btn.disabled = true;
+          setStatus(`<span class="spinner"></span>Searching CrossRef for: ${escapeHtml(raw)}`);
+          try {
+            await searchCrossRef(raw);
+          } catch (err) {
+            setStatus(`CrossRef search failed: ${err.message}`, true);
+          }
+          btn.disabled = false;
           return;
         }
         dois.push(clean);
@@ -632,6 +636,82 @@
       a.download = `ref-lookup-${new Date().toISOString().slice(0,10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
+    }
+
+    async function searchCrossRef(query) {
+      const url = `https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=8&sort=relevance&select=DOI,title,author,published-print,published-online,container-title,type`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const items = data.message?.items || [];
+
+      if (items.length === 0) {
+        setStatus('No results found in CrossRef.', true);
+        return;
+      }
+
+      setStatus(`Found ${items.length} results — click a DOI to look it up:`);
+
+      // Build results list
+      const container = document.createElement('div');
+      container.id = 'crossref-search-results';
+      container.style.cssText = 'max-width:1400px; margin:0 auto 16px; border:1.5px solid var(--border); background:var(--surface); overflow:hidden;';
+
+      const header = document.createElement('div');
+      header.style.cssText = 'font-family:var(--mono); font-size:12px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:var(--accent); padding:10px 16px; background:#f0f4f8; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;';
+      header.innerHTML = `<span>CrossRef Search Results</span><button onclick="this.closest('#crossref-search-results').remove()" style="background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; font-weight:bold; line-height:1; padding:0;">&times;</button>`;
+      container.appendChild(header);
+
+      items.forEach((item, i) => {
+        const doi = item.DOI || '';
+        const title = item.title?.[0] || 'No title';
+        const journal = item['container-title']?.[0] || '';
+        const dateParts = item['published-print']?.['date-parts']?.[0] || item['published-online']?.['date-parts']?.[0] || [];
+        const year = dateParts[0] || '';
+        const type = item.type || '';
+
+        // First author
+        let firstAuthor = '';
+        if (item.author && item.author.length > 0) {
+          const a = item.author.find(au => au.given || au.family) || item.author[0];
+          firstAuthor = [a.given, a.family].filter(Boolean).join(' ') || a.name || '';
+          if (item.author.length > 1) firstAuthor += ` et al.`;
+        }
+
+        const row = document.createElement('div');
+        row.style.cssText = `padding:10px 16px; cursor:pointer; border-bottom:1px solid #eee; transition:background 0.1s; font-size:14px; line-height:1.5;${i % 2 === 0 ? '' : ' background:#fafaf8;'}`;
+        row.onmouseover = () => row.style.background = '#e8f0f8';
+        row.onmouseout = () => row.style.background = i % 2 === 0 ? '' : '#fafaf8';
+        row.onclick = () => {
+          container.remove();
+          input.value = doi;
+          runLookup();
+        };
+
+        row.innerHTML = `<div style="font-weight:500; color:var(--text); margin-bottom:2px;">${escapeHtml(title)}</div>`
+          + `<div style="color:var(--muted); font-size:12px;">`
+          + `<span style="font-family:var(--mono); color:var(--accent);">${escapeHtml(doi)}</span>`
+          + (firstAuthor ? ` &middot; ${escapeHtml(firstAuthor)}` : '')
+          + (year ? ` &middot; ${year}` : '')
+          + (journal ? ` &middot; ${escapeHtml(journal)}` : '')
+          + (type ? ` &middot; ${type}` : '')
+          + `</div>`;
+
+        container.appendChild(row);
+      });
+
+      // Footer: link to full CrossRef search
+      const footer = document.createElement('div');
+      footer.style.cssText = 'padding:10px 16px; text-align:center; background:#f0f4f8; border-top:1px solid var(--border);';
+      footer.innerHTML = `<a href="https://search.crossref.org/search/works?q=${encodeURIComponent(query)}&from_ui=yes" target="_blank" style="font-family:var(--mono); font-size:13px; font-weight:600; color:var(--accent); text-decoration:none;">Search CrossRef for more results &rarr;</a>`;
+      container.appendChild(footer);
+
+      // Remove previous search results if any
+      const old = document.getElementById('crossref-search-results');
+      if (old) old.remove();
+
+      // Insert before the results div
+      results.parentNode.insertBefore(container, results);
     }
 
     function setStatus(msg, isError = false) {
