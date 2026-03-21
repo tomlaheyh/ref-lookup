@@ -123,6 +123,20 @@
     }
     #clearBtn:hover { background: #6b1f1f; }
 
+    #retractionSearchBtn {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 18px;
+      background: #cc0000;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    #retractionSearchBtn:hover { background: #a30000; }
+
     #helpBtn {
       display: inline-flex;
       align-items: center;
@@ -263,8 +277,10 @@
     <button id="helpBtn" onclick="DOIHelp.showHelpModal()" title="Help">?</button>
     <button id="exportBtn" onclick="exportCSV()">Export CSV</button>
     <button id="clearBtn" onclick="clearList()">Clear list</button>
+    <button id="retractionSearchBtn" onclick="window.open('https://retractiondatabase.org/RetractionSearch.aspx?', '_blank')">Advanced Retraction Search</button>
     <a href="./med/" style="font-family:var(--mono); font-size:13px; font-weight:600; color:var(--accent); text-decoration:none; padding:8px 0; white-space:nowrap;">Clinical Guidelines &rarr;</a>
     <div id="status"></div>
+    <a href="https://chromewebstore.google.com/detail/doi-ref-lookup/eeefkdjjcilinphodokjljocffkkgkfa?utm_source=ext_app_menu" target="_blank" title="Chrome extension — adds a &quot;Ref&quot; link to all DOIs that opens here, easy On/Off" style="font-family:var(--mono); font-size:13px; font-weight:600; color:var(--accent); text-decoration:none; padding:8px 0; white-space:nowrap; margin-left:auto;">&mdash; DOI-Ref-Lookup Extension &mdash;</a>
   </div>
   <div id="results"></div>
 

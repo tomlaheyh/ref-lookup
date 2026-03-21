@@ -803,17 +803,19 @@ function showDOIModal(result, linksHtml) {
     html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">${sjrPart} &nbsp;|&nbsp; ${doajPart}</div>`;
   }
 
-  // Altmetric | CORE | Dimensions | Google Scholar links line - always show
+  // Google Scholar | Altmetric | CORE | Dimensions | Connected Papers links line - always show
   {
+    const scholarUrl = `https://scholar.google.com/scholar?q=${encodeURIComponent(summaryDoi)}`;
     const altUrl     = `https://www.altmetric.com/details/doi/${summaryDoi}`;
     const coreUrl    = `https://core.ac.uk/search/?q=${encodeURIComponent('doi:"' + summaryDoi + '"')}`;
     const dimUrl     = `https://app.dimensions.ai/discover/publication?search_text=${encodeURIComponent(summaryDoi)}`;
-    const scholarUrl = `https://scholar.google.com/scholar?q=${encodeURIComponent(summaryDoi)}`;
+    const connUrl    = `https://www.connectedpapers.com/api/redirect/doi/${summaryDoi}`;
     html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">`;
-    html += `<a href="${altUrl}" target="_blank" style="color: #005a8c;">Altmetric</a>`;
+    html += `<a href="${scholarUrl}" target="_blank" style="color: #005a8c;">Google Scholar</a>`;
+    html += ` &nbsp;|&nbsp; <a href="${altUrl}" target="_blank" style="color: #005a8c;">Altmetric</a>`;
     html += ` &nbsp;|&nbsp; <a href="${coreUrl}" target="_blank" style="color: #005a8c;">CORE</a>`;
     html += ` &nbsp;|&nbsp; <a href="${dimUrl}" target="_blank" style="color: #005a8c;">Dimensions</a>`;
-    html += ` &nbsp;|&nbsp; <a href="${scholarUrl}" target="_blank" style="color: #005a8c;">Google Scholar</a>`;
+    html += ` &nbsp;|&nbsp; <a href="${connUrl}" target="_blank" style="color: #005a8c;">Connected Papers</a>`;
     html += `</div>`;
   }
 
