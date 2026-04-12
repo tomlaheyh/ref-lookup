@@ -569,11 +569,16 @@ function showDOIModal(result, linksHtml) {
 
   // DOI
   if (summaryDoi) {
+    // Store result reference for citation modal
+    const citeRefKey = `_citeRef_${summaryDoi.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    window[citeRefKey] = result;
+
     let doiLine = `${summaryDoi} (<a href="https://doi.org/${summaryDoi}" target="_blank" style="color: #005a8c;">Link</a>)`;
     if (result._oaFreePdf) {
       const label = result._oaLabel || 'Free PDF';
       doiLine += ` (<a href="${result._oaFreePdf}" target="_blank" style="color: #1a7a1a;">${label}</a>)`;
     }
+    doiLine += ` | <a href="#" onclick="event.preventDefault(); CitationBuilder.showCiteModal(window['${citeRefKey}'])" style="color: #005a8c;">Cite this paper</a>`;
     html += `<div style="font-family: monospace; font-size: 17px; font-weight: bold; color: #666; margin-bottom: 8px;">${doiLine}</div>`;
   }
 
@@ -766,7 +771,7 @@ function showDOIModal(result, linksHtml) {
       rcrHtml,
     ];
 
-    html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">Citations &mdash; ${parts.join(' &nbsp;|&nbsp; ')}${chartIcon}</div>`;
+    html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">Citations &mdash; ${chartIcon} ${parts.join(' &nbsp;|&nbsp; ')}</div>`;
 
     // Hidden chart container — rendered when icon is clicked
     if (hasChartData) {
@@ -798,7 +803,7 @@ function showDOIModal(result, linksHtml) {
       const chartH = 160;
       const barAreaH = 110;
       const padL = 30;
-      const padT = 10;
+      const padT = 24;
 
       let bars = '';
       countsByYear.forEach((y, i) => {

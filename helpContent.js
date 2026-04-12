@@ -55,8 +55,8 @@ const DOIHelp = {
     // =====================
     {
       section: 'Summary Card',
-      label: 'DOI + Free PDF link',
-      description: 'The DOI is shown at the top with a link to <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">doi.org</code>. If a free full-text version is available (from PMC via PubMed, or from Unpaywall), a green "Free PDF" or "Free Manuscript" link appears next to it.',
+      label: 'DOI + Free PDF link + Cite',
+      description: 'The DOI is shown at the top with a link to <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">doi.org</code>. If a free full-text version is available (from PMC via PubMed, or from Unpaywall), a green "Free PDF" or "Free Manuscript" link appears next to it. A "Cite this paper" link opens a citation formatting modal (see the Cite section below).',
       ref: 'https://unpaywall.org/'
     },
     {
@@ -103,7 +103,7 @@ Note: SJR measures journal-level visibility, not individual article quality. It 
 <strong>Semantic Scholar:</strong> AI-powered academic search. Also reports "influential citations" — citations where the citing paper meaningfully builds on this work, detected via machine learning.
 <strong>iCite:</strong> NIH's citation analysis tool. Only available for articles with a PubMed ID (PMID).
 
-Click the small bar-chart icon (▊▊▊) at the end of the citations line to see a "Citations by Year" chart (from OpenAlex). The chart shows the last 10 years of data; for older articles, earlier citations are noted separately. The icon is greyed out when there are no citations.`,
+Click the small bar-chart icon (▊▊▊) at the beginning of the citations line to see a "Citations by Year" chart (from OpenAlex). The chart shows the last 10 years of data; for older articles, earlier citations are noted separately. The icon is greyed out when there are no citations.`,
       ref: 'https://icite.od.nih.gov/'
     },
     {
@@ -266,6 +266,32 @@ Blue links are available; greyed-out links mean the service did not have data fo
       label: 'Export CSV',
       description: 'After looking up DOIs, click "Export CSV" to download a spreadsheet with one row per DOI. Each result card has a checkbox (enabled by default) — uncheck a card to exclude it from the export. Unchecked cards are greyed out. The CSV includes 25 columns covering DOI, title, journal, publisher, year, volume, issue, pages, type, ISSN, authors, ORCIDs, citation counts from multiple sources, RCR, SJR, DOAJ status, PubMed status, free PDF URL, funders, and grant numbers.',
       ref: null
+    },
+    // =====================
+    // CITATIONS / CITE
+    // =====================
+    {
+      section: 'Cite',
+      label: 'Citation formatting',
+      description: `Click "Cite" on the DOI line of any result card to open the citation modal. Four styles are available:
+
+<strong>APA (7th edition)</strong> — psychology, social sciences, education, nursing.
+<strong>AMA (11th edition)</strong> — medical journals, clinical research.
+<strong>Vancouver / ICMJE</strong> — biomedical journals (NEJM, Lancet, BMJ, JAMA).
+<strong>MLA (9th edition)</strong> — humanities, literature, languages.
+
+Each citation has a "Copy" button for one-click copying. An optional "Pages" input at the top lets you add or correct page numbers — all four citations update live as you type.`,
+      ref: null
+    },
+    {
+      label: 'RIS export (reference managers)',
+      description: 'Click "Download RIS" in the Cite modal to save the reference as a .ris file. RIS can be imported directly into Zotero, Mendeley, EndNote, RefWorks, and other reference managers.',
+      ref: null
+    },
+    {
+      label: 'ZoteroBib',
+      description: 'The "ZoteroBib" link in the Cite modal opens ZoteroBib — a free tool by the Zotero team that supports thousands of citation styles. It opens in a new tab with the DOI pre-filled.',
+      ref: 'https://zbib.org/'
     },
     // =====================
     // DATA SOURCES
