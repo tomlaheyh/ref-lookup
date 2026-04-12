@@ -72,7 +72,7 @@ const DOIHelp = {
 
 <strong>PubMed:</strong> Uses eSummary references (Erratum in, Retraction in, Retraction of) and publication types (Retracted Publication, Published Erratum, Retraction of Publication).
 
-Retractions and Expressions of Concern override the quality badge. "None" means the source was checked and nothing was found; "N/A" means the source was not available (e.g. article not in PubMed).`,
+Retractions and Expressions of Concern override the quality badge. When a date is available from CrossRef, it is shown alongside the status (e.g. "Retracted (Oct 29, 2018)"). "None" means the source was checked and nothing was found; "N/A" means the source was not available (e.g. article not in PubMed).`,
       ref: 'https://www.crossref.org/blog/linking-corrections-and-retractions/'
     },
     {
@@ -103,7 +103,7 @@ Note: SJR measures journal-level visibility, not individual article quality. It 
 <strong>Semantic Scholar:</strong> AI-powered academic search. Also reports "influential citations" — citations where the citing paper meaningfully builds on this work, detected via machine learning.
 <strong>iCite:</strong> NIH's citation analysis tool. Only available for articles with a PubMed ID (PMID).
 
-Click the small bar-chart icon (▊▊▊) at the beginning of the citations line to see a "Citations by Year" chart (from OpenAlex). The chart shows the last 10 years of data; for older articles, earlier citations are noted separately. The icon is greyed out when there are no citations.`,
+Click the small bar-chart icon (▊▊▊) at the beginning of the citations line to see a "Citations by Year" chart (from OpenAlex). The chart shows the last 10 years of data; for older articles, earlier citations are noted separately. The icon is greyed out when there are no citations. Below the chart, a "View citing articles" link opens OpenAlex filtered to the last two years of citing works — you can adjust the year range and other filters directly on OpenAlex.`,
       ref: 'https://icite.od.nih.gov/'
     },
     {

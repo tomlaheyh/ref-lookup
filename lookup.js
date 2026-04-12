@@ -664,9 +664,26 @@ function showDOIModal(result, linksHtml) {
     if (result.pubmedHasCorrection && result.pubmedCorrectionPMID)   pmParts.push(`Erratum PMID:${result.pubmedCorrectionPMID}`);
     else if (result.pubmedHasCorrection)                             pmParts.push('Erratum');
 
-    const formatCrossrefParts = parts.map(p =>
-      p === 'Retracted' ? `<span style="color:#cc0000;">Retracted</span>` : p
-    );
+    const formatCrossrefParts = parts.map(p => {
+      // Find the matching entry to get its date
+      const typeLookup = p === 'Retracted' ? 'retraction'
+                       : p === 'Reinstated' ? 'reinstatement'
+                       : p === 'Expression of Concern' ? 'expression-of-concern'
+                       : p === 'Withdrawal' ? 'withdrawal'
+                       : p === 'Correction' ? 'correction' : null;
+      const entry = typeLookup ? _updateEntries.find(e => e.type === typeLookup) : null;
+      let dateStr = '';
+      if (entry?.date) {
+        try {
+          const d = new Date(entry.date);
+          if (!isNaN(d.getTime())) {
+            dateStr = ` (${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})`;
+          }
+        } catch (e) { /* skip */ }
+      }
+      if (p === 'Retracted') return `<span style="color:#cc0000;">Retracted${dateStr}</span>`;
+      return `${p}${dateStr}`;
+    });
     const crossrefLabel = parts.length > 0 ? ` ${formatCrossrefParts.join(' | ')} (Crossref)` : ' None';
 
     const formatPmParts = pmParts.map(p =>
@@ -830,11 +847,18 @@ function showDOIModal(result, linksHtml) {
         ? `<div style="font-family:IBM Plex Mono,monospace; font-size:11px; color:#999; margin-top:2px;">${escapeHtml(chartSubtitle)}</div>`
         : '';
 
+      const currentYear = new Date().getFullYear();
+      const oaWorkId = result._openAlexWorkId || null;
+      const citingLink = oaWorkId
+        ? `<div style="margin-top:8px;"><a href="https://openalex.org/works?page=1&filter=cites:${oaWorkId.toLowerCase()},publication_year:${currentYear - 1}-${currentYear}" target="_blank" style="font-family:IBM Plex Mono,monospace; font-size:12px; font-weight:600; color:#005a8c; text-decoration:none;">View citing articles ${currentYear - 1}\u2013${currentYear} (OpenAlex) \u2192</a></div>`
+        : '';
+
       html += `<div id="${chartId}" style="display:none; background:#fafaf8; border:1.5px solid #d8d5cc; padding:14px 16px; margin-bottom:10px; position:relative;">
         <button onclick="_closeCiteChart('${chartId}')" style="position:absolute; top:6px; right:10px; background:none; border:none; font-size:18px; font-weight:bold; color:#999; cursor:pointer; line-height:1; padding:0;" onmouseover="this.style.color='#333'" onmouseout="this.style.color='#999'">&times;</button>
         <div style="font-family:IBM Plex Mono,monospace; font-size:12px; font-weight:600; color:#005a8c; margin-bottom:4px; letter-spacing:0.5px;">CITATIONS BY YEAR &mdash; ${totalCites} total <span style="font-size:11px; font-weight:normal; color:#999;">(OpenAlex)</span></div>
         ${subtitleHtml}
         <div style="overflow-x:auto; margin-top:8px;">${chartSvg}</div>
+        ${citingLink}
       </div>`;
     }
   }
@@ -1946,6 +1970,11 @@ async function checkOpenAlex(doi, result) {
     if (result) {
       result._openAlexCitations = data.cited_by_count ?? null;
       result._openAlexFwci = data.fwci ?? null;
+
+      // Store OpenAlex work ID for linking (e.g. "https://openalex.org/W4412479499" → "W4412479499")
+      if (data.id) {
+        result._openAlexWorkId = data.id.replace('https://openalex.org/', '');
+      }
 
       // Citation counts by year for chart — sorted oldest to newest
       // OpenAlex shape: [{ year: 2024, cited_by_count: 12 }, ...]
