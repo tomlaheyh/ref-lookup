@@ -76,6 +76,37 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
+// --- Citation chart helpers ---
+// Close any currently open citation chart
+function _closeAllCiteCharts() {
+  document.querySelectorAll('[id^="cite-chart-"]').forEach(el => {
+    el.style.display = 'none';
+  });
+}
+
+// Toggle a citation chart open/closed; only one open at a time
+function _toggleCiteChart(chartId) {
+  const el = document.getElementById(chartId);
+  if (!el) return;
+  const isOpen = el.style.display !== 'none';
+  _closeAllCiteCharts();
+  if (!isOpen) el.style.display = 'block';
+}
+
+// Close a specific citation chart
+function _closeCiteChart(chartId) {
+  const el = document.getElementById(chartId);
+  if (el) el.style.display = 'none';
+}
+
+// Close citation chart when clicking outside it
+document.addEventListener('click', function(e) {
+  // If click is inside a chart or on the chart icon, do nothing
+  if (e.target.closest('[id^="cite-chart-"]')) return;
+  if (e.target.closest('[onclick*="_toggleCiteChart"]')) return;
+  _closeAllCiteCharts();
+});
+
 function displayError(message) {
   const resultsDiv = document.getElementById('results');
   if (resultsDiv) {
@@ -683,10 +714,11 @@ function showDOIModal(result, linksHtml) {
     html += '</div>';
   }
 
-  // Citations from all sources on one line — always show all five items
+  // Citations from all sources on one line — always show all six items + chart toggle
   {
     const crossRefCites = result.doiOrgCitationCount ?? result.raCitationCount ?? null;
     const oaCites       = result._openAlexCitations ?? null;
+    const oaFwci        = result._openAlexFwci ?? null;
     const ssCites       = result._semSchCitations ?? null;
     const ssInfluential = result._semSchInfluential ?? null;
     const iciteCites    = result._iciteCitations ?? null;
@@ -710,27 +742,131 @@ function showDOIModal(result, linksHtml) {
       ? `<a href="${iciteUrl}" target="_blank" style="color: #005a8c;">RCR: ${rcrLabel}</a>`
       : `RCR: ${rcrLabel}`;
 
+    const fwciLabel = oaFwci !== null ? String(Math.round(oaFwci * 100) / 100) : 'N/A';
+
+    // Citation chart toggle icon — active when we have yearly data with citations
+    const countsByYear = result._openAlexCountsByYear || [];
+    const totalCitedByYear = countsByYear.reduce((s, y) => s + y.count, 0);
+    const hasChartData = countsByYear.length > 0 && totalCitedByYear > 0;
+    const chartId = `cite-chart-${(summaryDoi || '').replace(/[^a-zA-Z0-9]/g, '-')}`;
+
+    // Small bar-chart icon (SVG) — colored when clickable, greyed out when not
+    const chartIconColor = hasChartData ? '#005a8c' : '#ccc';
+    const chartIconCursor = hasChartData ? 'cursor:pointer;' : 'cursor:default;';
+    const chartIconClick = hasChartData ? `onclick="_toggleCiteChart('${chartId}')"` : '';
+    const chartIconTitle = hasChartData ? 'title="Show citations by year (OpenAlex)"' : 'title="No citation data available"';
+    const chartIcon = `<span ${chartIconClick} ${chartIconTitle} style="${chartIconCursor} vertical-align:middle; margin-left:6px; display:inline-block;"><svg width="16" height="14" viewBox="0 0 16 14" style="vertical-align:middle;"><rect x="1" y="8" width="3" height="5" fill="${chartIconColor}" rx="0.5"/><rect x="6" y="4" width="3" height="9" fill="${chartIconColor}" rx="0.5"/><rect x="11" y="1" width="3" height="12" fill="${chartIconColor}" rx="0.5"/></svg></span>`;
+
     const parts = [
       `CrossRef: ${crossRefCites !== null ? crossRefCites : 'N/A'}`,
       `OpenAlex: ${oaCites !== null ? oaCites : 'N/A'}`,
+      `OpenAlex-FWCI: ${fwciLabel}`,
       semSchHtml,
       iciteHtml,
       rcrHtml,
     ];
 
-    html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">Citations &mdash; ${parts.join(' &nbsp;|&nbsp; ')}</div>`;
+    html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">Citations &mdash; ${parts.join(' &nbsp;|&nbsp; ')}${chartIcon}</div>`;
+
+    // Hidden chart container — rendered when icon is clicked
+    if (hasChartData) {
+      const totalCites = oaCites ?? crossRefCites ?? totalCitedByYear;
+      const pubDate = result.doiOrgPublishedDate || result.raPublishedOnline || result.raIssued || null;
+      const pubYear = pubDate ? parseInt(pubDate.substring(0, 4), 10) : null;
+      const earliestChartYear = countsByYear[0]?.year;
+      const earlierCites = (totalCites || 0) - totalCitedByYear;
+
+      // Determine subtitle
+      let chartSubtitle = '';
+      if (pubYear && !isNaN(pubYear)) {
+        const currentYear = new Date().getFullYear();
+        const age = currentYear - pubYear;
+        if (age <= 1 && totalCitedByYear <= 1) {
+          chartSubtitle = `Published ${pubYear} — too early for citation trend`;
+        } else if (earlierCites > 0 && earliestChartYear) {
+          chartSubtitle = `${earlierCites} earlier citation${earlierCites === 1 ? '' : 's'} not shown (published ${pubYear})`;
+        }
+      } else if (earlierCites > 0 && earliestChartYear) {
+        chartSubtitle = `${earlierCites} earlier citation${earlierCites === 1 ? '' : 's'} before ${earliestChartYear} not shown`;
+      }
+
+      // Build SVG bar chart
+      const maxCount = Math.max(...countsByYear.map(y => y.count), 1);
+      const barW = 32;
+      const gap = 6;
+      const chartW = countsByYear.length * (barW + gap) - gap + 60; // 60 for left/right padding
+      const chartH = 160;
+      const barAreaH = 110;
+      const padL = 30;
+      const padT = 10;
+
+      let bars = '';
+      countsByYear.forEach((y, i) => {
+        const barH = Math.max((y.count / maxCount) * barAreaH, y.count > 0 ? 3 : 0);
+        const x = padL + i * (barW + gap);
+        const barY = padT + barAreaH - barH;
+        // Bar
+        bars += `<rect x="${x}" y="${barY}" width="${barW}" height="${barH}" fill="#005a8c" rx="1.5"/>`;
+        // Count label above bar
+        if (y.count > 0) {
+          bars += `<text x="${x + barW / 2}" y="${barY - 4}" text-anchor="middle" font-size="11" font-family="IBM Plex Mono,monospace" fill="#333" font-weight="600">${y.count}</text>`;
+        }
+        // Year label below bar
+        bars += `<text x="${x + barW / 2}" y="${padT + barAreaH + 14}" text-anchor="middle" font-size="10" font-family="IBM Plex Mono,monospace" fill="#888">${y.year}</text>`;
+      });
+
+      // Baseline
+      bars += `<line x1="${padL - 4}" y1="${padT + barAreaH}" x2="${padL + countsByYear.length * (barW + gap) - gap + 4}" y2="${padT + barAreaH}" stroke="#d8d5cc" stroke-width="1"/>`;
+
+      const svgW = Math.max(chartW, 200);
+      const chartSvg = `<svg width="${svgW}" height="${chartH}" viewBox="0 0 ${svgW} ${chartH}" xmlns="http://www.w3.org/2000/svg" style="display:block;">${bars}</svg>`;
+
+      const subtitleHtml = chartSubtitle
+        ? `<div style="font-family:IBM Plex Mono,monospace; font-size:11px; color:#999; margin-top:2px;">${escapeHtml(chartSubtitle)}</div>`
+        : '';
+
+      html += `<div id="${chartId}" style="display:none; background:#fafaf8; border:1.5px solid #d8d5cc; padding:14px 16px; margin-bottom:10px; position:relative;">
+        <button onclick="_closeCiteChart('${chartId}')" style="position:absolute; top:6px; right:10px; background:none; border:none; font-size:18px; font-weight:bold; color:#999; cursor:pointer; line-height:1; padding:0;" onmouseover="this.style.color='#333'" onmouseout="this.style.color='#999'">&times;</button>
+        <div style="font-family:IBM Plex Mono,monospace; font-size:12px; font-weight:600; color:#005a8c; margin-bottom:4px; letter-spacing:0.5px;">CITATIONS BY YEAR &mdash; ${totalCites} total <span style="font-size:11px; font-weight:normal; color:#999;">(OpenAlex)</span></div>
+        ${subtitleHtml}
+        <div style="overflow-x:auto; margin-top:8px;">${chartSvg}</div>
+      </div>`;
+    }
   }
 
-  // ---- Grants: PubMed first, fall back to OpenAlex ----
+  // ---- Grants: PubMed first, fall back to CrossRef, then OpenAlex ----
   // PubMed grant shape: [{ grantId, agency, country }]
+  // CrossRef funder shape (raw): [{ name, DOI, award: [...] }]
   // OpenAlex grant shape: [{ agency, grantId, funderOa }]
   {
     const pmGrants  = result.pubmedGrants  || [];
     const oaGrants  = result._oaGrants     || [];
 
-    // Prefer PubMed when available; fall back to OpenAlex
-    const rawGrants  = pmGrants.length > 0 ? pmGrants : oaGrants;
-    const grantSource = pmGrants.length > 0 ? 'PubMed' : (oaGrants.length > 0 ? 'OpenAlex' : null);
+    // Parse CrossRef funder data into standard grant shape
+    // CrossRef stores it as JSON string in raFunder; each funder can have multiple award numbers
+    const crGrants = [];
+    if (result.raFunder) {
+      try {
+        const funders = typeof result.raFunder === 'string' ? JSON.parse(result.raFunder) : result.raFunder;
+        funders.forEach(f => {
+          const agency = f.name || null;
+          const funderDoi = f.DOI ? `https://doi.org/${f.DOI}` : null;
+          if (f.award && f.award.length > 0) {
+            // One entry per award number so dedup/grouping logic works correctly
+            f.award.forEach(awardId => {
+              crGrants.push({ agency, grantId: awardId, funderDoi });
+            });
+          } else {
+            // Funder listed but no specific award numbers
+            crGrants.push({ agency, grantId: null, funderDoi });
+          }
+        });
+      } catch (e) { /* raFunder parse failed — skip */ }
+    }
+
+    // Prefer PubMed when available; fall back to CrossRef, then OpenAlex
+    const rawGrants  = pmGrants.length > 0 ? pmGrants : (crGrants.length > 0 ? crGrants : oaGrants);
+    const grantSource = pmGrants.length > 0 ? 'PubMed' : (crGrants.length > 0 ? 'CrossRef' : (oaGrants.length > 0 ? 'OpenAlex' : null));
 
     // Store resolved grants on result for CSV export
     result._resolvedGrants       = rawGrants;
@@ -756,10 +892,12 @@ function showDOIModal(result, linksHtml) {
 
       const parts = [];
       byAgency.forEach((ids, agency) => {
-        // Link agency to its OpenAlex funder page if we have one
-        const funderOaUrl = rawGrants.find(g => g.agency === agency && g.funderOa)?.funderOa || null;
-        const agencyLabel = funderOaUrl
-          ? `<a href="${funderOaUrl}" target="_blank" style="color:#005a8c;">${escapeHtml(agency)}</a>`
+        // Link agency to its OpenAlex funder page or CrossRef funder DOI
+        const funderOaUrl  = rawGrants.find(g => g.agency === agency && g.funderOa)?.funderOa || null;
+        const funderDoiUrl = rawGrants.find(g => g.agency === agency && g.funderDoi)?.funderDoi || null;
+        const funderUrl = funderOaUrl || funderDoiUrl;
+        const agencyLabel = funderUrl
+          ? `<a href="${funderUrl}" target="_blank" style="color:#005a8c;">${escapeHtml(agency)}</a>`
           : escapeHtml(agency);
         const idStr = ids.length > 0 ? ` <span style="font-family:monospace;font-size:13px;color:#666;">(${ids.slice(0,3).map(escapeHtml).join(', ')}${ids.length > 3 ? ` +${ids.length - 3} more` : ''})</span>` : '';
         parts.push(`${agencyLabel}${idStr}`);
@@ -1802,6 +1940,16 @@ async function checkOpenAlex(doi, result) {
     const data = await response.json();
     if (result) {
       result._openAlexCitations = data.cited_by_count ?? null;
+      result._openAlexFwci = data.fwci ?? null;
+
+      // Citation counts by year for chart — sorted oldest to newest
+      // OpenAlex shape: [{ year: 2024, cited_by_count: 12 }, ...]
+      const cby = data.counts_by_year || [];
+      if (cby.length > 0) {
+        result._openAlexCountsByYear = cby
+          .map(y => ({ year: y.year, count: y.cited_by_count }))
+          .sort((a, b) => a.year - b.year);
+      }
 
       // Extract first/last author ORCIDs from authorships array
       // Each authorship: { author: { id, display_name, orcid }, author_position, ... }

@@ -641,7 +641,7 @@
       const cols = [
         'DOI','Title','Journal','Publisher','Year','Volume','Issue','Pages','Type','ISSN',
         'First Author','First Author ORCID','Last Author','Last Author ORCID',
-        'Citations (CrossRef)','Citations (OpenAlex)','Citations (Sem Sch)','RCR','SJR',
+        'Citations (CrossRef)','Citations (OpenAlex)','FWCI','Citations (Sem Sch)','RCR','SJR',
         'DOAJ','PubMed','Free PDF URL','Funders','Grant Numbers','Grant Source'
       ];
 
@@ -669,6 +669,7 @@
         r._displayLastAuthorOrcid || '',
         r.doiOrgCitationCount ?? r.raCitationCount ?? '',
         r._openAlexCitations ?? '',
+        r._openAlexFwci ?? '',
         r._semSchCitations ?? '',
         r._iciteRcr ?? '',
         r._sjrScore || '',
@@ -817,6 +818,7 @@
         // Citations
         citationsCrossref:  r.doiOrgCitationCount ?? r.raCitationCount ?? null,
         citationsOpenAlex:  r._openAlexCitations ?? null,
+        fwci:               r._openAlexFwci ?? null,
         citationsSemSch:    r._semSchCitations ?? null,
         citationsInfluential: r._semSchInfluential ?? null,
         citationsICite:     r._iciteCitations ?? null,

@@ -94,13 +94,16 @@ Note: SJR measures journal-level visibility, not individual article quality. It 
     // =====================
     {
       section: 'Citations & Metrics',
-      label: 'Citations — CrossRef, OpenAlex, Semantic Scholar, iCite',
+      label: 'Citations — CrossRef, OpenAlex, OpenAlex-FWCI, Semantic Scholar, iCite',
       description: `Citation counts are shown from up to four sources. Counts may differ because each source has a different corpus and update cadence:
 
 <strong>CrossRef:</strong> Publisher-deposited citation links. Broadest coverage.
 <strong>OpenAlex:</strong> Open bibliometric database built from multiple sources including CrossRef and MAG.
+<strong>OpenAlex-FWCI:</strong> Field-Weighted Citation Impact — the ratio of citations received to citations expected for the publication year, document type, and subfield. An FWCI of 1.0 means average for its field; above 1.0 means more cited than expected.
 <strong>Semantic Scholar:</strong> AI-powered academic search. Also reports "influential citations" — citations where the citing paper meaningfully builds on this work, detected via machine learning.
-<strong>iCite:</strong> NIH's citation analysis tool. Only available for articles with a PubMed ID (PMID).`,
+<strong>iCite:</strong> NIH's citation analysis tool. Only available for articles with a PubMed ID (PMID).
+
+Click the small bar-chart icon (▊▊▊) at the end of the citations line to see a "Citations by Year" chart (from OpenAlex). The chart shows the last 10 years of data; for older articles, earlier citations are noted separately. The icon is greyed out when there are no citations.`,
       ref: 'https://icite.od.nih.gov/'
     },
     {
@@ -110,7 +113,7 @@ Note: SJR measures journal-level visibility, not individual article quality. It 
     },
     {
       label: 'Grants / Funders',
-      description: 'Funding information is shown from PubMed (preferred) or OpenAlex (fallback). Grants are grouped by agency and deduplicated. Grant IDs are shown in monospace. If the article is in PubMed but no grants are reported, "None reported" is shown explicitly so you know it was checked.',
+      description: 'Funding information is shown from PubMed (preferred), CrossRef (fallback), or OpenAlex (second fallback). CrossRef funder data comes from the Open Funder Registry — funder names link to their registry DOI when available. Grants are grouped by agency and deduplicated. Grant IDs are shown in monospace. The source is labelled in parentheses (e.g. "PubMed", "CrossRef", "OpenAlex"). If the article is in PubMed but no grants are reported, "None reported" is shown explicitly so you know it was checked.',
       ref: null
     },
     {
@@ -275,7 +278,7 @@ Blue links are available; greyed-out links mean the service did not have data fo
 CrossRef, DataCite, JaLC, mEDRA (Registration Agency APIs)
 PubMed / NCBI (eSearch, eSummary, eFetch)
 iCite (NIH citation metrics)
-OpenAlex (bibliometrics, author metrics, grants)
+OpenAlex (bibliometrics, FWCI, citation trends, author metrics, grants)
 Semantic Scholar (citations, influential citations)
 Unpaywall (open access detection)
 DOAJ (open access journal directory)
