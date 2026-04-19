@@ -524,6 +524,111 @@
     transition: color 0.12s, background 0.12s;
   }
   .live-row-uncheck:hover { color: #cc3300; background: #fde8e4; }
+
+  /* ─── FULL REFERENCE LIST ─── */
+  #full-list-section {
+    max-width: 900px;
+    margin: 32px auto 60px;
+  }
+  .full-list-toggle-btn {
+    display: block;
+    width: 100%;
+    padding: 11px 18px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-family: 'DM Serif Display', serif;
+    font-size: 1rem;
+    color: var(--ink2);
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .full-list-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .full-list-toggle-btn .toggle-arrow { transition: transform 0.2s; }
+  .full-list-toggle-btn.open .toggle-arrow { transform: rotate(90deg); }
+
+  #full-list-content {
+    display: none;
+    margin-top: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .full-list-copy-bar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 14px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+  }
+  .full-list-copy-btn {
+    padding: 5px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink2);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .full-list-copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .full-list-copy-btn.copied { border-color: #4a8a4a; color: #4a8a4a; }
+
+  #full-list-body {
+    max-height: 70vh;
+    overflow-y: auto;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem;
+    line-height: 1.6;
+  }
+
+  .fl-group {
+    padding: 14px 18px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .fl-group:last-child { border-bottom: none; }
+  .fl-group-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1rem;
+    color: var(--ink);
+    margin-bottom: 8px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--border);
+  }
+  .fl-item {
+    padding: 5px 0 5px 8px;
+    border-left: 2px solid transparent;
+    margin-bottom: 4px;
+  }
+  .fl-item:hover { border-left-color: var(--accent); }
+  .fl-item-name {
+    font-weight: 500;
+    color: var(--ink);
+  }
+  .fl-item-url {
+    color: var(--accent);
+    text-decoration: none;
+    word-break: break-all;
+    font-size: 0.78rem;
+  }
+  .fl-item-url:hover { text-decoration: underline; }
+  .fl-item-desc {
+    color: var(--ink3);
+    font-size: 0.78rem;
+    margin-top: 1px;
+  }
+
+  /* Alternating group shades */
+  .fl-group:nth-child(odd)  { background: var(--surface); }
+  .fl-group:nth-child(even) { background: var(--surface2); }
 </style>
 </head>
 <body>
@@ -550,6 +655,19 @@
 
   <div class="section-label">✦ Custom Sections — build your own set by ID</div>
   <div id="custom-container"></div>
+
+  <div id="full-list-section">
+    <button class="full-list-toggle-btn" id="full-list-btn" onclick="toggleFullList()">
+      <span>✦ Full Reference List — all groups &amp; items</span>
+      <span class="toggle-arrow">▶</span>
+    </button>
+    <div id="full-list-content">
+      <div class="full-list-copy-bar">
+        <button class="full-list-copy-btn" onclick="copyFullList()">Copy all as text</button>
+      </div>
+      <div id="full-list-body"></div>
+    </div>
+  </div>
 
 </main>
 
@@ -1091,6 +1209,89 @@ function uncheckItem(id) {
 // ── ACTIVE GROUP TRACKING ──
 let activeGroupId = null;
 
+
+// ── FULL REFERENCE LIST ──
+const GROUP_COLORS = [
+  '#f8f4f0','#f4f8f4','#f4f6f8','#f8f8f4','#f8f4f8',
+  '#f4f8f8','#f8f6f4','#f4f4f8','#f8f8f8','#f4f8f6',
+  '#f8f4f4','#f6f8f4','#f4f6f4','#f8f6f8'
+];
+
+function toggleFullList() {
+  const btn = document.getElementById('full-list-btn');
+  const content = document.getElementById('full-list-content');
+  const body = document.getElementById('full-list-body');
+  const isOpen = btn.classList.contains('open');
+
+  if (isOpen) {
+    btn.classList.remove('open');
+    content.style.display = 'none';
+  } else {
+    btn.classList.add('open');
+    content.style.display = 'block';
+    if (!body.hasChildNodes()) buildFullList();
+  }
+}
+
+function buildFullList() {
+  const body = document.getElementById('full-list-body');
+  body.innerHTML = '';
+
+  GROUPS.forEach((group, gi) => {
+    const section = document.createElement('div');
+    section.className = 'fl-group';
+    section.style.background = GROUP_COLORS[gi % GROUP_COLORS.length];
+
+    const title = document.createElement('div');
+    title.className = 'fl-group-title';
+    title.textContent = group.title;
+    section.appendChild(title);
+
+    group.items.forEach(item => {
+      const name = item.title.replace(/^\*/, '');
+      const url = item.defaultUrl || item.url;
+
+      const row = document.createElement('div');
+      row.className = 'fl-item';
+      row.innerHTML = `
+        <div class="fl-item-name">${name} <span style="font-size:0.68rem;color:var(--ink3);font-weight:400;">#${item.id}</span></div>
+        <div><a class="fl-item-url" href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></div>
+        <div class="fl-item-desc">${item.hint || ''}</div>
+      `;
+      section.appendChild(row);
+    });
+
+    body.appendChild(section);
+  });
+}
+
+function copyFullList() {
+  const lines = [];
+  GROUPS.forEach(group => {
+    lines.push('═══ ' + group.title + ' ═══');
+    group.items.forEach(item => {
+      const name = item.title.replace(/^\*/, '');
+      const url = item.defaultUrl || item.url;
+      lines.push(name);
+      lines.push(url);
+      if (item.hint) lines.push(item.hint);
+      lines.push('');
+    });
+    lines.push('');
+  });
+
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    const btn = document.querySelector('.full-list-copy-btn');
+    if (btn) {
+      btn.textContent = '✓ Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy all as text';
+        btn.classList.remove('copied');
+      }, 2500);
+    }
+  });
+}
 // ── INIT ──
 renderGroups();
 renderCustomSections();
