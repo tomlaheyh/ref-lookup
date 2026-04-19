@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Research Search Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f1eb;
+    --surface: #ffffff;
+    --surface2: #faf8f4;
+    --border: #ddd8ce;
+    --ink: #1a1714;
+    --ink2: #5a534a;
+    --ink3: #9a9088;
+    --accent: #005a8c;
+    --accent2: #0072b0;
+    --accent-light: #e8f2f9;
+    --toppick: #1a1714;
+    --no-param: #7a8a6a;
+    --no-param-bg: #f2f5ee;
+    --shadow: 0 2px 12px rgba(0,0,0,0.07);
+    --shadow-hover: 0 4px 24px rgba(0,0,0,0.12);
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    background: var(--ink);
+    color: #fff;
+    padding: 18px 32px 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.25);
+  }
+
+  header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.5rem;
+    letter-spacing: -0.01em;
+    margin-bottom: 14px;
+    color: #fff;
+  }
+  header h1 span {
+    color: var(--accent2);
+  }
+
+  .search-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  #global-query {
+    flex: 1;
+    padding: 11px 18px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    border: 2px solid transparent;
+    border-radius: var(--radius);
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    outline: none;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  #global-query::placeholder { color: rgba(255,255,255,0.45); }
+  #global-query:focus {
+    background: rgba(255,255,255,0.18);
+    border-color: var(--accent2);
+  }
+
+  .clear-btn {
+    padding: 10px 16px;
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.7);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+  }
+  .clear-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+
+  /* ─── LAYOUT ─── */
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 0.78rem;
+    color: var(--ink3);
+    flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+  }
+  .legend-dot.top { background: var(--accent); }
+  .legend-dot.no-param { background: var(--no-param); }
+
+  /* ─── GROUP CARD ─── */
+  .group-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 5px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    transition: box-shadow 0.2s;
+  }
+  .group-card:hover { box-shadow: var(--shadow-hover); }
+
+  .group-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 18px;
+    cursor: pointer;
+    user-select: none;
+    background: var(--surface);
+    transition: background 0.15s;
+  }
+  .group-header:hover { background: var(--surface2); }
+
+  .group-arrow {
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 5px;
+    background: var(--surface2);
+    color: var(--ink2);
+    font-size: 0.7rem;
+    transition: transform 0.2s, background 0.15s;
+    flex-shrink: 0;
+  }
+  .group-card.open .group-arrow {
+    transform: rotate(90deg);
+    background: var(--accent-light);
+    color: var(--accent);
+  }
+
+  .group-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 0.92rem;
+    color: var(--ink);
+    flex: 1;
+  }
+
+  .group-meta {
+    font-size: 0.7rem;
+    color: var(--ink3);
+    white-space: nowrap;
+  }
+
+  /* ─── GROUP BODY ─── */
+  .group-body {
+    display: none;
+    border-top: 1px solid var(--border);
+  }
+  .group-card.open .group-body { display: block; }
+
+  .group-hint {
+    padding: 10px 18px 8px;
+    font-size: 0.8rem;
+    color: var(--ink3);
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    font-style: italic;
+  }
+
+  .items-grid {
+    padding: 12px 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* ─── ITEM CHIP ─── */
+  .item-chip {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px 6px 8px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--ink2);
+    background: var(--surface);
+    transition: all 0.15s;
+    position: relative;
+  }
+  .item-chip:hover { border-color: var(--accent); color: var(--ink); }
+  .item-chip.checked {
+    border-color: var(--accent);
+    background: var(--accent-light);
+    color: var(--ink);
+  }
+  .item-chip.top-pick { font-weight: 500; }
+  .item-chip.top-pick .item-name::before {
+    content: '★ ';
+    color: var(--accent);
+    font-size: 0.7rem;
+  }
+  .item-chip.no-param {
+    border-color: #d5dece;
+    color: var(--no-param);
+    background: var(--no-param-bg);
+  }
+  .item-chip.no-param:hover { border-color: var(--no-param); }
+  .item-chip.no-param.checked {
+    border-color: var(--no-param);
+    background: #e6eddf;
+  }
+
+  .chip-cb {
+    width: 15px; height: 15px;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    background: #fff;
+    transition: all 0.12s;
+  }
+  .item-chip.checked .chip-cb {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .item-chip.no-param.checked .chip-cb {
+    background: var(--no-param);
+    border-color: var(--no-param);
+  }
+  .chip-cb::after {
+    content: '';
+    width: 8px; height: 5px;
+    border-left: 2px solid #fff;
+    border-bottom: 2px solid #fff;
+    transform: rotate(-45deg) translateY(-1px);
+    display: none;
+  }
+  .item-chip.checked .chip-cb::after { display: block; }
+
+  .no-param-badge {
+    font-size: 0.65rem;
+    background: #c8d8b8;
+    color: #4a6a3a;
+    padding: 1px 5px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  /* ─── GROUP FOOTER / SEARCH BTN ─── */
+  .group-footer {
+    padding: 10px 18px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .group-select-actions {
+    display: flex;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: var(--ink3);
+  }
+  .group-select-actions button {
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-family: 'DM Sans', sans-serif;
+    padding: 2px 4px;
+    border-radius: 4px;
+  }
+  .group-select-actions button:hover { background: var(--accent-light); }
+
+  /* ─── CUSTOM SECTIONS ─── */
+  .custom-card {
+    background: var(--surface);
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    margin-bottom: 5px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .custom-card:focus-within { border-color: var(--accent); }
+
+  .custom-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .custom-header:hover { background: var(--surface2); }
+
+  .custom-label-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .custom-label-edit {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.05rem;
+    color: var(--ink);
+    border: none;
+    background: transparent;
+    outline: none;
+    cursor: text;
+    width: 100%;
+  }
+  .custom-label-edit:focus { border-bottom: 1.5px solid var(--accent); }
+
+  .custom-ids-row {
+    padding: 12px 18px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    border-top: 1px solid var(--border);
+    background: var(--surface2);
+  }
+
+  .custom-ids-input {
+    flex: 1;
+    padding: 8px 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    border: 1.5px solid var(--border);
+    border-radius: 7px;
+    outline: none;
+    background: #fff;
+    color: var(--ink);
+  }
+  .custom-ids-input:focus { border-color: var(--accent); }
+
+  .apply-ids-btn {
+    padding: 8px 16px;
+    background: var(--ink);
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem;
+    transition: background 0.15s;
+  }
+  .apply-ids-btn:hover { background: var(--accent); }
+
+  .custom-items-area {
+    padding: 12px 18px 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 20px;
+  }
+  .custom-items-empty {
+    font-size: 0.8rem;
+    color: var(--ink3);
+    font-style: italic;
+  }
+
+
+  /* ─── QUEUE PANEL ─── */
+  #queue-panel {
+    position: fixed;
+    top: 0;
+    right: -360px;
+    width: 340px;
+    height: 100vh;
+    background: var(--surface);
+    border-left: 2px solid var(--border);
+    box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+    display: flex;
+    flex-direction: column;
+    z-index: 500;
+    transition: right 0.25s ease;
+  }
+  #queue-panel.open { right: 0; }
+
+  #queue-panel-header {
+    padding: 14px 16px 10px;
+    background: var(--ink);
+    color: #fff;
+    flex-shrink: 0;
+    position: relative;
+  }
+  #queue-panel-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1rem;
+    margin-bottom: 2px;
+    padding-right: 24px;
+  }
+  #queue-panel-subtitle {
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.55);
+    line-height: 1.4;
+  }
+  #queue-panel-close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.6);
+    font-size: 1.2rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 2px 4px;
+  }
+  #queue-panel-close:hover { color: #fff; }
+
+  /* ─── TOAST ─── */
+  #toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--ink);
+    color: #fff;
+    padding: 10px 22px;
+    border-radius: 24px;
+    font-size: 0.85rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 999;
+  }
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ─── SECTION TITLE ─── */
+  .section-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink3);
+    margin: 22px 0 10px;
+  }
+
+  @media (max-width: 600px) {
+    header { padding: 18px 14px; }
+    main { padding: 16px 12px 60px; }
+    .items-grid { padding: 10px 12px; }
+    .group-header { padding: 12px 14px; }
+    .group-footer { padding: 8px 12px 12px; }
+  }
+
+  /* ─── LIVE PANEL ─── */
+  .live-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    border-bottom: 1px solid #f0ece4;
+    font-size: 0.81rem;
+    color: var(--ink2);
+  }
+  .live-row-group {
+    font-size: 0.65rem;
+    color: var(--ink3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 80px;
+    flex-shrink: 0;
+  }
+  .live-row-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .live-row-open {
+    width: 22px; height: 22px;
+    border: 1.5px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.78rem;
+    flex-shrink: 0;
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.12s;
+  }
+  .live-row-open:hover { background: var(--accent2); border-color: var(--accent2); }
+  .live-row-open:disabled { opacity: 0.5; cursor: default; }
+  .live-row-uncheck {
+    width: 18px; height: 18px;
+    border: none;
+    background: none;
+    color: var(--ink3);
+    cursor: pointer;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+    border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    transition: color 0.12s, background 0.12s;
+  }
+  .live-row-uncheck:hover { color: #cc3300; background: #fde8e4; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 style="display:flex; align-items:baseline; justify-content:space-between;">
+    <span>Research <span>Search Hub</span></span>
+    <a href="./index.html" style="font-family:'DM Sans',sans-serif; font-size:0.78rem; font-weight:400; color:rgba(255,255,255,0.6); text-decoration:none; letter-spacing:0.01em; transition:color 0.15s;" onmouseover="this.style.color='rgba(255,255,255,0.95)'" onmouseout="this.style.color='rgba(255,255,255,0.6)'">DOI Lookup →</a>
+  </h1>
+  <div class="search-bar">
+    <input type="text" id="global-query" placeholder="Enter your search term…" autocomplete="off" />
+    <button class="clear-btn" onclick="clearQuery()">✕ Clear</button>
+  </div>
+</header>
+
+<main>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot top"></div> ★ Top Pick (default checked)</div>
+    <div class="legend-item"><div class="legend-dot no-param"></div> Opens homepage (no search param)</div>
+    <span style="margin-left:auto; font-size:0.75rem; color:var(--ink3)">Selections are saved automatically</span>
+  </div>
+
+  <div id="groups-container"></div>
+
+  <div class="section-label">✦ Custom Sections — build your own set by ID</div>
+  <div id="custom-container"></div>
+
+</main>
+
+<div id="queue-panel">
+  <button id="queue-panel-close" onclick="closeQueuePanel()" title="Close">✕</button>
+  <div id="queue-panel-header">
+    <div id="queue-panel-title">Checked Items</div>
+    <div id="queue-panel-subtitle" id="panel-subtitle">Open a group to begin</div>
+  </div>
+
+  <div id="live-panel-empty" style="padding:20px 16px; font-size:0.8rem; color:var(--ink3); font-style:italic; display:none;">
+    Open a group to see its checked items here.
+  </div>
+  <div id="live-panel-list" style="flex:1; overflow-y:auto; padding:6px 0;"></div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── CONFIG (inlined from config.json, with global IDs assigned) ──
+const RAW_CONFIG = {"version": "1.0", "lastUpdated": "2024-12-01", "groups": [{"groupId": 1, "title": "Top Publishers", "tags": ["academic", "research", "publishing"], "hint": "Major academic publishers and research platforms", "items": [{"title": "*New England J Med", "url": "https://www.nejm.org/search?q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "The New England Journal of Medicine: Highly prestigious for medical research, publishing key studies and clinical trials that influence medical practice worldwide.", "id": 100, "defaultUrl": "https://www.nejm.org/search"}, {"title": "*The Lancet", "url": "https://www.thelancet.com/action/doSearch?text1=", "enabled": 1, "searching": 1, "topPick": true, "hint": "The Lancet: Another top-tier medical journal, known for its high-impact publications in health sciences, including global health issues and medical breakthroughs.", "id": 101, "defaultUrl": "https://www.thelancet.com/action/doSearch"}, {"title": "*ScienceDirect", "url": "https://www.sciencedirect.com/search?qs=", "enabled": 1, "searching": 1, "topPick": true, "hint": "ScienceDirect: Hosts a vast array of scientific, technical, and medical journals, covering numerous fields beyond just life sciences.", "id": 102, "defaultUrl": "https://www.sciencedirect.com/search"}, {"title": "*Springer Nature", "url": "https://link.springer.com/search?query=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Springer Nature: Publishes in various fields including science, technology, medicine, and humanities. It includes high-impact journals like Nature.", "id": 103, "defaultUrl": "https://link.springer.com/search"}, {"title": "*Google Scholar", "url": "https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Google Scholar: A great academic resource.", "id": 104, "defaultUrl": "https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5"}, {"title": "*PubMed (NIH)", "url": "https://pubmed.ncbi.nlm.nih.gov/?term=", "enabled": 1, "searching": 1, "topPick": true, "hint": "PubMed: A free resource from the National Library of Medicine providing access to millions of citations and abstracts in biomedical and life sciences literature.", "id": 105, "defaultUrl": "https://pubmed.ncbi.nlm.nih.gov/"}, {"title": "*Pro AcademySci", "url": "https://www.pnas.org/action/doSearch?AllField=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Proceedings of the National Academy of Sciences (PNAS): A peer-reviewed journal of the National Academy of Sciences, an authoritative source of high-impact original research.", "id": 106, "defaultUrl": "https://www.pnas.org/action/doSearch"}, {"title": "Plos One", "url": "https://journals.plos.org/plosone/search?filterJournals=PLoSONE&q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "PLOS: A nonprofit, Open Access publisher empowering researchers to accelerate progress in science and medicine.", "id": 107, "defaultUrl": "https://journals.plos.org/plosone/search?filterJournals=PLoSONE"}, {"title": "JAMA", "url": "https://jamanetwork.com/searchresults?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "JAMA Network: Offers a broad spectrum of medical research, news, and commentary, with significant influence in the medical community.", "id": 108, "defaultUrl": "https://jamanetwork.com/searchresults"}, {"title": "BMJ", "url": "https://www.bmj.com/search/advanced/", "enabled": 1, "searching": 1, "topPick": false, "hint": "British Medical Journal (BMJ): Renowned for its rigorous research in the field of medicine, also provides extensive resources for doctors and health professionals.", "id": 109, "defaultUrl": "https://www.bmj.com/search/advanced/"}, {"title": "Wiley Online", "url": "https://onlinelibrary.wiley.com/action/doSearch?AllField=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Wiley Online: Offers content across scientific, technical, medical, and scholarly fields.", "id": 110, "defaultUrl": "https://onlinelibrary.wiley.com/action/doSearch"}, {"title": "Taylor & Francis", "url": "https://www.tandfonline.com/action/doSearch?AllField=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Taylor & Francis Online: Article search in leading research publications.", "id": 111, "defaultUrl": "https://www.tandfonline.com/action/doSearch"}, {"title": "Oxford Press", "url": "https://academic.oup.com/journals/search-results?page=1&q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Oxford University Press: Covers a wide range of subjects from humanities to sciences, with prestigious journals like Oxford Journals.", "id": 112, "defaultUrl": "https://academic.oup.com/journals/search-results?page=1"}, {"title": "Amer PsyAssoc", "url": "https://www.apa.org/pubs/search?query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "American Psychological Association (APA): Primarily focused on psychology but also publishes in related fields like education, health, and neuroscience.", "id": 113, "defaultUrl": "https://www.apa.org/pubs/search"}, {"title": "Amer EconAssoc", "url": "https://www.aeaweb.org/search?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "American Economic Association: Publishes economics-related journals, with its flagship being the American Economic Review.", "id": 114, "defaultUrl": "https://www.aeaweb.org/search"}, {"title": "Univ ChicagoPress", "url": "https://www.journals.uchicago.edu/action/doSearch?AllField=", "enabled": 1, "searching": 1, "topPick": false, "hint": "University of Chicago Press: One of the oldest continuously operating university presses in the United States.", "id": 115, "defaultUrl": "https://www.journals.uchicago.edu/action/doSearch"}, {"title": "IEEE", "url": "https://ieeexplore.ieee.org/search/searchresult.jsp?newsearch=true&queryText=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Institute of Electrical and Electronics Engineers (IEEE): Focuses on engineering, technology, and related sciences.", "id": 116, "defaultUrl": "https://ieeexplore.ieee.org/search/searchresult.jsp?newsearch=true"}, {"title": "SAGE Publishing", "url": "https://journals.sagepub.com/", "enabled": 1, "searching": 0, "topPick": false, "hint": "SAGE Publishing: A global academic publisher of books, journals, and library resources.", "id": 117, "defaultUrl": "https://journals.sagepub.com/"}, {"title": "JSTOR", "url": "https://www.jstor.org/action/doBasicSearch?Query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "JSTOR: Provides access to more than 12 million journal articles, books, images, and primary sources in 75 disciplines.", "id": 118, "defaultUrl": "https://www.jstor.org/action/doBasicSearch"}, {"title": "DOAJ", "url": "https://doaj.org/", "enabled": 1, "searching": 0, "topPick": false, "hint": "DOAJ: A unique and extensive index of diverse open access journals from around the world.", "id": 119, "defaultUrl": "https://doaj.org/"}, {"title": "arXiv", "url": "https://arxiv.org/search/?query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "arXiv: A free distribution service and open-access archive for nearly 2.4 million scholarly articles in physics, math, computer science, and more.", "id": 120, "defaultUrl": "https://arxiv.org/search/"}, {"title": "*Semantic Scholar", "url": "https://www.semanticscholar.org/search?q=", "defaultUrl": "https://www.semanticscholar.org/", "enabled": 1, "searching": 1, "topPick": true, "hint": "Semantic Scholar: A free, AI-powered research tool for scientific literature, covering millions of papers across all fields of science.", "id": 314}, {"title": "*BASE", "url": "https://www.base-search.net/Search/Results?lookfor=", "defaultUrl": "https://www.base-search.net/", "enabled": 1, "searching": 1, "topPick": true, "hint": "BASE (Bielefeld Academic Search Engine): One of the world's most voluminous search engines for academic web resources, with a strong focus on open access content.", "id": 315}, {"title": "*OpenAlex", "url": "https://openalex.org/works?search=", "defaultUrl": "https://openalex.org/", "enabled": 1, "searching": 1, "topPick": true, "hint": "OpenAlex: A fully open catalog of the global research system, indexing over 250 million scholarly works with rich metadata and citation data.", "id": 317}]}, {"groupId": 2, "title": "Education", "tags": ["education", "learning", "academic", "teaching"], "hint": "Some great educational resources.", "items": [{"title": "*ERIC", "url": "https://eric.ed.gov/?q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Education Resources Information Center (ERIC): One of the most comprehensive sources for educational literature.", "id": 121, "defaultUrl": "https://eric.ed.gov/"}, {"title": "*NCES Search", "url": "https://nces.ed.gov/search/?q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "National Center for Education Statistics: Provides a wealth of data on education in the U.S.", "id": 122, "defaultUrl": "https://nces.ed.gov/search/"}, {"title": "*Google Scholar", "url": "https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Google Scholar: A great academic resource.", "id": 123, "defaultUrl": "https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5"}, {"title": "*Psyc-Net", "url": "https://psycnet.apa.org/search/results?type=direct&db=pi,pb,pa,pe,pt,pbc&fields=AnyField&term=", "enabled": 1, "searching": 1, "topPick": true, "hint": "APA PsycNet: While primarily a psychological database, it includes research on educational psychology.", "id": 124, "defaultUrl": "https://psycnet.apa.org/search/results?type=direct&db=pi,pb,pa,pe,pt,pbc&fields=AnyField"}, {"title": "Digest EdStat", "url": "https://nces.ed.gov/programs/digest/current_tables.asp", "enabled": 1, "searching": 0, "topPick": false, "hint": "Digest of Education Statistics: Contains tables covering the broad field of American education from prekindergarten through graduate school.", "id": 125, "defaultUrl": "https://nces.ed.gov/programs/digest/current_tables.asp"}, {"title": "USA.gov Ed", "url": "https://search.usa.gov/search?utf8=%E2%9C%93&affiliate=ed.gov&query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "A broad search engine for education-related content on federal government websites.", "id": 126, "defaultUrl": "https://search.usa.gov/search?utf8=%E2%9C%93&affiliate=ed.gov"}, {"title": "GovInfo", "url": "https://www.govinfo.gov/app/search/%7B%22query%22%3A%22", "enabled": 1, "searching": 0, "topPick": false, "hint": "Provides access to official publications from all three branches of the U.S. Government.", "id": 127, "defaultUrl": "https://www.govinfo.gov/app/search/%7B%22query%22%3A%22"}, {"title": "Nat Early Ed", "url": "https://nieer.org/search?search=K12#gsc.tab=0&gsc.q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "National Institute for Early Education Research (NIEER): Focused on early childhood education.", "id": 128, "defaultUrl": "https://nieer.org/search?search=K12#gsc.tab=0"}, {"title": "Childstats.gov", "url": "https://www.childstats.gov/search/?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Federal Interagency Forum on Child and Family Statistics.", "id": 129, "defaultUrl": "https://www.childstats.gov/search/"}, {"title": "Ed Week", "url": "https://www.edweek.org/search?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "EducationWeek: Education news, analysis, and opinion about effective school and district leadership.", "id": 130, "defaultUrl": "https://www.edweek.org/search"}, {"title": "Khan Acad", "url": "https://www.khanacademy.org/search?referer=%2F&page_search_query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Khan Academy: Our mission is to provide a free, world-class education to anyone, anywhere.", "id": 131, "defaultUrl": "https://www.khanacademy.org/search?referer=%2F"}, {"title": "Amer Ed Research", "url": "https://www.aera.net/Search-Results?Search=", "enabled": 1, "searching": 1, "topPick": false, "hint": "American Educational Research Association (AERA).", "id": 132, "defaultUrl": "https://www.aera.net/Search-Results"}, {"title": "Edutopia", "url": "https://www.edutopia.org/search?query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Edutopia: A free source of information, inspiration, and practical strategies for learning and teaching in preK-12 education.", "id": 133, "defaultUrl": "https://www.edutopia.org/search"}, {"title": "Nat LearnDisab", "url": "https://ncld.org/", "enabled": 1, "searching": 0, "topPick": false, "hint": "National Center for Learning Disabilities: Provides valuable insights into special education research.", "id": 134, "defaultUrl": "https://ncld.org/"}, {"title": "Ed Progress", "url": "https://nces.ed.gov/nationsreportcard/sitemap.asp", "enabled": 1, "searching": 0, "topPick": false, "hint": "IES - NAEP (National Assessment of Educational Progress): The nation's report card.", "id": 135, "defaultUrl": "https://nces.ed.gov/nationsreportcard/sitemap.asp"}, {"title": "WorldBank Ed", "url": "https://www.worldbank.org/en/topic/education", "enabled": 1, "searching": 0, "topPick": false, "hint": "World Bank Education: Works on global education initiatives.", "id": 136, "defaultUrl": "https://www.worldbank.org/en/topic/education"}, {"title": "New York City Ed", "url": "https://www.schools.nyc.gov/search-results?keyword=", "enabled": 1, "searching": 1, "topPick": false, "hint": "New York City Department of Education.", "id": 137, "defaultUrl": "https://www.schools.nyc.gov/search-results"}, {"title": "LA Ed", "url": "https://www.lacoe.edu/", "enabled": 1, "searching": 0, "topPick": false, "hint": "Los Angeles County Office of Education: The nation's largest regional education agency.", "id": 138, "defaultUrl": "https://www.lacoe.edu/"}, {"title": "UCLA CRESST", "url": "https://cresst.org/?s=", "enabled": 1, "searching": 1, "topPick": false, "hint": "UCLA CRESST: Conducts comprehensive research, development, and evaluation in education.", "id": 139, "defaultUrl": "https://cresst.org/"}, {"title": "Harvard List", "url": "https://www.gse.harvard.edu/community/library/online-resources-educators", "enabled": 1, "searching": 0, "topPick": false, "hint": "Harvard - Websites for Educators: Great listing of educational resources.", "id": 140, "defaultUrl": "https://www.gse.harvard.edu/community/library/online-resources-educators"}]}, {"groupId": 3, "title": "Engineering / Science", "tags": ["engineering", "science", "technology", "research"], "hint": "Major engineering and scientific resources", "items": [{"title": "*Springer Link", "url": "https://link.springer.com/search?query=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Springer Link: Access to millions of scientific documents.", "id": 141, "defaultUrl": "https://link.springer.com/search"}, {"title": "*Science Direct", "url": "https://www.sciencedirect.com/search?qs=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Science Direct by Elsevier: Focused search on Science Direct.", "id": 142, "defaultUrl": "https://www.sciencedirect.com/search"}, {"title": "*Wiley Library", "url": "https://onlinelibrary.wiley.com/action/doSearch?AllField=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Wiley Online Library: Search for articles in a global leader in research and education.", "id": 143, "defaultUrl": "https://onlinelibrary.wiley.com/action/doSearch"}, {"title": "*IEEE Xplore", "url": "https://ieeexplore.ieee.org/search/searchresult.jsp?newsearch=true&queryText=", "enabled": 1, "searching": 1, "topPick": true, "hint": "IEEE Xplore: Gateway to trusted research in engineering and technology.", "id": 144, "defaultUrl": "https://ieeexplore.ieee.org/search/searchresult.jsp?newsearch=true"}, {"title": "Elsevier", "url": "https://www.elsevier.com/search-results?query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Elsevier: General and broad search for books and publications.", "id": 145, "defaultUrl": "https://www.elsevier.com/search-results"}, {"title": "Taylor Francis", "url": "https://www.tandfonline.com/action/doSearch?AllField=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Taylor & Francis Online: Article search in leading research publications.", "id": 146, "defaultUrl": "https://www.tandfonline.com/action/doSearch"}, {"title": "arXiv", "url": "https://arxiv.org/search/?query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "arXiv: A free distribution service and open-access archive for nearly 2.4 million scholarly articles.", "id": 147, "defaultUrl": "https://arxiv.org/search/"}, {"title": "Nat I StandTech", "url": "https://www.nist.gov/search?s=", "enabled": 1, "searching": 1, "topPick": false, "hint": "National Institute of Standards and Technology (NIST): One of the nation's oldest physical science laboratories.", "id": 148, "defaultUrl": "https://www.nist.gov/search"}, {"title": "Amer Chem Soc", "url": "https://search.acs.org/?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "American Chemical Society (ACS): One of the world's largest scientific organizations.", "id": 149, "defaultUrl": "https://search.acs.org/"}, {"title": "Amer Civil Eng", "url": "https://www.asce.org/search#q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "American Society of Civil Engineers (ASCE): Represents more than 160,000 members of the civil engineering profession.", "id": 150, "defaultUrl": "https://www.asce.org/search"}, {"title": "Dir Open Jour", "url": "https://doaj.org/", "enabled": 1, "searching": 0, "topPick": false, "hint": "Directory of Open Access Journals (DOAJ): Extensive index of diverse open access journals from around the world.", "id": 151, "defaultUrl": "https://doaj.org/"}, {"title": "Google Scholar", "url": "https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Google Scholar: A great academic resource.", "id": 152, "defaultUrl": "https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5"}, {"title": "PLOS One", "url": "https://journals.plos.org/plosone/search?filterJournals=PLoSONE&q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "PLOS: A nonprofit, Open Access publisher empowering researchers to accelerate progress in science and medicine.", "id": 153, "defaultUrl": "https://journals.plos.org/plosone/search?filterJournals=PLoSONE"}, {"title": "ResearchGate", "url": "https://www.researchgate.net/search?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "ResearchGate: Has an active community and a large number of articles (not peer reviewed).", "id": 154, "defaultUrl": "https://www.researchgate.net/search"}, {"title": "Semantic Scholar", "url": "https://www.semanticscholar.org/search?q=", "defaultUrl": "https://www.semanticscholar.org/", "enabled": 1, "searching": 1, "topPick": false, "hint": "Semantic Scholar: A free, AI-powered research tool for scientific literature covering millions of papers across all fields.", "id": 323}]}, {"groupId": 4, "title": "Standard Reference", "tags": ["reference", "general", "search", "social-media"], "hint": "Standard references including top search engines and social media platforms.", "items": [{"title": "*Google", "url": "https://www.google.com/search?q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Google: The number one search engine.", "id": 155, "defaultUrl": "https://www.google.com/search"}, {"title": "*Wikipedia", "url": "https://en.wikipedia.org/wiki/", "enabled": 1, "searching": 1, "topPick": true, "hint": "Wikipedia: World's biggest reference.", "id": 156, "defaultUrl": "https://en.wikipedia.org/wiki/"}, {"title": "*Google Scholar", "url": "https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Google Scholar: A great academic resource.", "id": 157, "defaultUrl": "https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5"}, {"title": "*IGO Search", "url": "https://uia.org/igosearch", "enabled": 1, "searching": 0, "topPick": true, "hint": "IGO Search: Search websites of all intergovernmental organizations.", "id": 158, "defaultUrl": "https://uia.org/igosearch"}, {"title": "Britannica", "url": "https://www.britannica.com/search?query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Britannica: For more than 250 years, Britannica has kindled the spark of curiosity.", "id": 159, "defaultUrl": "https://www.britannica.com/search"}, {"title": "Dictionary.com", "url": "https://www.dictionary.com/browse/", "enabled": 1, "searching": 1, "topPick": false, "hint": "Dictionary.com: One of the top online dictionaries.", "id": 160, "defaultUrl": "https://www.dictionary.com/browse/"}, {"title": "Thesaurus.com", "url": "https://www.thesaurus.com/browse/", "enabled": 1, "searching": 1, "topPick": false, "hint": "Thesaurus.com: One of the top online thesaurus sites.", "id": 161, "defaultUrl": "https://www.thesaurus.com/browse/"}, {"title": "Google :Define", "url": "https://www.google.com/search?q=Google+%3ADefine+", "enabled": 1, "searching": 1, "topPick": false, "hint": "Google Define: Brings up the Google dictionary.", "id": 162, "defaultUrl": "https://www.google.com/search?q=Google+%3ADefine+"}, {"title": "Google News", "url": "https://news.google.com/search?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Google News: Shows top news items.", "id": 163, "defaultUrl": "https://news.google.com/search"}, {"title": "Google Trends", "url": "https://trends.google.com/trends/explore?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Google Trends: Useful resource with filters for time and area.", "id": 164, "defaultUrl": "https://trends.google.com/trends/explore"}, {"title": "YouTube", "url": "https://www.youtube.com/results?search_query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "YouTube: Has lots of great videos on almost any topic.", "id": 165, "defaultUrl": "https://www.youtube.com/results"}, {"title": "ScholarDisease", "url": "https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=disease%20", "enabled": 1, "searching": 1, "topPick": false, "hint": "Google Scholar + disease: Searches with 'disease' added to your query.", "id": 166, "defaultUrl": "https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=disease%20"}, {"title": "Scholar+ClinT", "url": "https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=clinical+trial+", "enabled": 1, "searching": 1, "topPick": false, "hint": "Google Scholar + Clinical Trials: Searches with 'clinical trial' added to your query.", "id": 167, "defaultUrl": "https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=clinical+trial+"}, {"title": "X (Twitter)", "url": "https://twitter.com/search?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Twitter/X: World's largest posting platform.", "id": 168, "defaultUrl": "https://twitter.com/search"}, {"title": "Bluesky", "url": "https://bsky.app/search?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Bluesky: A growing platform like X (Twitter).", "id": 169, "defaultUrl": "https://bsky.app/search"}, {"title": "Facebook", "url": "https://www.facebook.com/search/top?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Facebook: The social media platform.", "id": 170, "defaultUrl": "https://www.facebook.com/search/top"}, {"title": "Instagram", "url": "https://www.instagram.com/explore/search/keyword/?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Instagram: Social media platform.", "id": 171, "defaultUrl": "https://www.instagram.com/explore/search/keyword/"}, {"title": "Reddit", "url": "https://www.reddit.com/search/?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Reddit: An active and popular social media platform.", "id": 172, "defaultUrl": "https://www.reddit.com/search/"}, {"title": "Discord", "url": "https://discord.com/discovery/servers", "enabled": 1, "searching": 0, "topPick": false, "hint": "Discord: A platform that has more than just game groups.", "id": 173, "defaultUrl": "https://discord.com/discovery/servers"}, {"title": "IMDb", "url": "https://www.imdb.com/find/?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "IMDb: Everything on movies.", "id": 174, "defaultUrl": "https://www.imdb.com/find/"}, {"title": "Amazon Books", "url": "https://www.amazon.com/s?k=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Amazon Books: An Amazon search within the book category.", "id": 175, "defaultUrl": "https://www.amazon.com/s"}, {"title": "Google Books", "url": "https://www.google.com/search?tbm=bks&q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Google Books: Search within Google Books.", "id": 176, "defaultUrl": "https://www.google.com/search?tbm=bks"}, {"title": "ProjectGutenberg", "url": "https://www.gutenberg.org/ebooks/subjects/search/?query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Project Gutenberg: A library of over 60,000 free eBooks.", "id": 177, "defaultUrl": "https://www.gutenberg.org/ebooks/subjects/search/"}, {"title": "Baidu (China)", "url": "https://www.baidu.com/s?wd=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Baidu: Popular search engine in China.", "id": 178, "defaultUrl": "https://www.baidu.com/s"}, {"title": "DuckDuckGo", "url": "https://duckduckgo.com/?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "DuckDuckGo: Highly regarded, does not track users or store personal information.", "id": 179, "defaultUrl": "https://duckduckgo.com/"}, {"title": "Brave Search", "url": "https://search.brave.com/search?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Brave Search: Emphasizes user privacy with its own search index.", "id": 180, "defaultUrl": "https://search.brave.com/search"}, {"title": "Qwant", "url": "https://www.qwant.com/?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Qwant: A privacy-focused search engine that doesn't track users.", "id": 181, "defaultUrl": "https://www.qwant.com/"}]}, {"groupId": 5, "title": "Art", "tags": ["art", "culture", "visual-arts", "art-history"], "hint": "Amazing resources for art history and contemporary visual arts.", "items": [{"title": "*Getty Research", "url": "https://www.getty.edu/research/", "enabled": 1, "searching": 1, "topPick": true, "hint": "Getty Research Institute: Provides access to a vast collection of art books, archives, and digital resources.", "id": 182, "defaultUrl": "https://www.getty.edu/research/"}, {"title": "*Met Art Hist", "url": "https://www.metmuseum.org/toah", "enabled": 1, "searching": 0, "topPick": true, "hint": "Metropolitan Museum of Art's Heilbrunn Timeline of Art History: Combines essays and works of art with chronologies.", "id": 183, "defaultUrl": "https://www.metmuseum.org/toah"}, {"title": "*Artstor", "url": "https://www.jstor.org/action/doBasicSearch?Query=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Artstor: A digital library with over 2.5 million images in the arts, architecture, humanities, and sciences.", "id": 184, "defaultUrl": "https://www.jstor.org/action/doBasicSearch"}, {"title": "Smarthistory", "url": "https://smarthistory.org/", "enabled": 1, "searching": 0, "topPick": true, "hint": "Smarthistory: An open-access educational platform providing high-quality essays and videos on art and cultural heritage.", "id": 185, "defaultUrl": "https://smarthistory.org/"}, {"title": "*ArtForum", "url": "https://www.artforum.com/", "enabled": 1, "searching": 0, "topPick": true, "hint": "ArtForum: A leading magazine for contemporary art, covering reviews, criticism, and artist profiles.", "id": 186, "defaultUrl": "https://www.artforum.com/"}, {"title": "Art UK", "url": "https://artuk.org/", "enabled": 1, "searching": 0, "topPick": false, "hint": "Art UK: A leading platform for discovering art collections in the UK.", "id": 187, "defaultUrl": "https://artuk.org/"}, {"title": "Europeana", "url": "https://www.europeana.eu/en/search?page=1&view=grid&query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Europeana: Provides cultural heritage enthusiasts access to Europe's digital cultural heritage.", "id": 188, "defaultUrl": "https://www.europeana.eu/en/search?page=1&view=grid"}, {"title": "Critical Inquiry", "url": "https://criticalinquiry.uchicago.edu/search/?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Critical Inquiry: An interdisciplinary, peer-reviewed journal devoted to critical thought in the arts and humanities.", "id": 189, "defaultUrl": "https://criticalinquiry.uchicago.edu/search/"}, {"title": "Burlington Mag", "url": "https://www.burlington.org.uk/search/keywords:", "enabled": 1, "searching": 1, "topPick": false, "hint": "The Burlington Magazine: A leading monthly publication devoted to the fine and decorative arts.", "id": 190, "defaultUrl": "https://www.burlington.org.uk/search/keywords:"}, {"title": "Int ArtDesignEd", "url": "https://onlinelibrary.wiley.com/journal/14768070", "enabled": 1, "searching": 0, "topPick": false, "hint": "International Journal of Art & Design Education: Features research articles, critical reviews, and case studies.", "id": 191, "defaultUrl": "https://onlinelibrary.wiley.com/journal/14768070"}, {"title": "Art Bulletin", "url": "https://caa.tandfonline.com/action/doSearch?AllField=", "enabled": 1, "searching": 1, "topPick": false, "hint": "The Art Bulletin: Publishes leading scholarship in all aspects of art history.", "id": 192, "defaultUrl": "https://caa.tandfonline.com/action/doSearch"}, {"title": "Art in America", "url": "https://www.artnews.com/results/?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Art in America: Offers in-depth coverage of the art world, including news, reviews, and historical perspectives.", "id": 193, "defaultUrl": "https://www.artnews.com/results/"}, {"title": "Frieze", "url": "https://www.frieze.com/search?search=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Frieze: Publishes on contemporary art and culture, with a focus on art fairs, exhibitions, and artists.", "id": 194, "defaultUrl": "https://www.frieze.com/search"}, {"title": "e-flux", "url": "https://www.e-flux.com/search?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "e-flux: An online platform for contemporary art, providing announcements, journals, and critical essays.", "id": 195, "defaultUrl": "https://www.e-flux.com/search"}, {"title": "Hyperallergic", "url": "https://hyperallergic.com/?s=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Hyperallergic: Known for its insightful articles on art, culture, and happenings in the art world.", "id": 196, "defaultUrl": "https://hyperallergic.com/"}, {"title": "Artsy", "url": "https://www.artsy.net/search?term=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Artsy: For articles, artist insights, and curated content about visual arts.", "id": 197, "defaultUrl": "https://www.artsy.net/search"}, {"title": "Museum ModArt", "url": "https://www.moma.org/search/?query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "MoMA (Museum of Modern Art): Explores the intersection of art and culture through its programming.", "id": 198, "defaultUrl": "https://www.moma.org/search/"}, {"title": "Oxford Art Journ", "url": "https://academic.oup.com/oaj/?login=false", "enabled": 1, "searching": 0, "topPick": false, "hint": "Oxford Art Journal: Publishes innovative research and critical discussions in art history.", "id": 199, "defaultUrl": "https://academic.oup.com/oaj/?login=false"}, {"title": "Amer Art Journ", "url": "https://americanart.si.edu/research/journal", "enabled": 1, "searching": 0, "topPick": false, "hint": "American Art Journal: The academic journal of the Smithsonian American Art Museum.", "id": 200, "defaultUrl": "https://americanart.si.edu/research/journal"}, {"title": "Netherlands Art", "url": "https://www.rkd.nl/en", "enabled": 1, "searching": 0, "topPick": false, "hint": "Netherlands Institute for Art History (RKD): Offers comprehensive databases on Western art.", "id": 201, "defaultUrl": "https://www.rkd.nl/en"}, {"title": "Artnet News", "url": "https://www.artnet.com/search/artworks/?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "artnet News: The world's first dedicated 24-hour global art market newswire.", "id": 202, "defaultUrl": "https://www.artnet.com/search/artworks/"}]}, {"groupId": 6, "title": "Pharmaceuticals / Drugs", "tags": ["pharmaceuticals", "drugs", "medical", "FDA"], "hint": "Top resources for drug and pharmaceutical information.", "items": [{"title": "*MedlinePlus Drugs", "url": "https://vsearch.nlm.nih.gov/vivisimo/cgi-bin/query-meta?v%3Aproject=medlineplus&v%3Asources=medlineplus-bundle&query=", "enabled": 1, "searching": 1, "topPick": true, "hint": "MedlinePlus Drugs: Learn about your prescription drugs and over-the-counter medicines. Includes side effects, dosage, special precautions, and more.", "id": 203, "defaultUrl": "https://vsearch.nlm.nih.gov/vivisimo/cgi-bin/query-meta?v%3Aproject=medlineplus&v%3Asources=medlineplus-bundle"}, {"title": "*Dietary Facts", "url": "https://search.usa.gov/search?affiliate=nih-ods&query=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Dietary Supplement Fact Sheets (NIH).", "id": 204, "defaultUrl": "https://search.usa.gov/search?affiliate=nih-ods"}, {"title": "*FDA Med guide", "url": "https://dps.fda.gov/medguide", "enabled": 1, "searching": 0, "topPick": true, "hint": "FDA Medication Guides: Database containing Medication Guides for FDA-approved human prescription drugs.", "id": 205, "defaultUrl": "https://dps.fda.gov/medguide"}, {"title": "*FDA-Approved D", "url": "https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm", "enabled": 1, "searching": 0, "topPick": true, "hint": "FDA-Approved Drugs: Drugs@FDA includes information about drugs approved for human use in the United States.", "id": 206, "defaultUrl": "https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm"}, {"title": "*PubMed (NIH)", "url": "https://pubmed.ncbi.nlm.nih.gov/?term=", "enabled": 1, "searching": 1, "topPick": true, "hint": "PubMed (NIH): The National Library of Medicine's free, searchable bibliographic database.", "id": 207, "defaultUrl": "https://pubmed.ncbi.nlm.nih.gov/"}, {"title": "clinicaltrials.gov", "url": "https://clinicaltrials.gov/search?cond=", "enabled": 1, "searching": 1, "topPick": false, "hint": "ClinicalTrials.gov: A place to learn about clinical studies from around the world.", "id": 208, "defaultUrl": "https://clinicaltrials.gov/search"}, {"title": "Orange Bk FDA", "url": "https://www.accessdata.fda.gov/scripts/cder/ob/index.cfm", "enabled": 1, "searching": 0, "topPick": false, "hint": "FDA Orange Book: Approved Drug Products with Therapeutic Equivalence Evaluations.", "id": 209, "defaultUrl": "https://www.accessdata.fda.gov/scripts/cder/ob/index.cfm"}, {"title": "Medwatch", "url": "https://www.fda.gov/safety/medwatch-fda-safety-information-and-adverse-event-reporting-program", "enabled": 1, "searching": 0, "topPick": false, "hint": "FDA Medwatch: The FDA's medical product safety reporting program.", "id": 210, "defaultUrl": "https://www.fda.gov/safety/medwatch-fda-safety-information-and-adverse-event-reporting-program"}, {"title": "DailyMed", "url": "https://dailymed.nlm.nih.gov/dailymed/search.cfm?labeltype=all&query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "DailyMed by National Library of Medicine: Contains drug labeling submitted to the FDA by companies.", "id": 211, "defaultUrl": "https://dailymed.nlm.nih.gov/dailymed/search.cfm?labeltype=all"}, {"title": "LacMed (NIH)", "url": "https://www.ncbi.nlm.nih.gov/books/NBK501922/", "enabled": 1, "searching": 0, "topPick": false, "hint": "Drugs and Lactation Database (NIH): Contains information on drugs to which breastfeeding mothers may be exposed.", "id": 212, "defaultUrl": "https://www.ncbi.nlm.nih.gov/books/NBK501922/"}, {"title": "EU Med Agency", "url": "https://www.ema.europa.eu/en/search?search_api_fulltext=", "enabled": 1, "searching": 1, "topPick": false, "hint": "European Medicines Agency (EMA): Responsible for scientific evaluation, supervision and safety monitoring of medicines in the EU.", "id": 213, "defaultUrl": "https://www.ema.europa.eu/en/search"}, {"title": "Drugs.com", "url": "https://www.drugs.com/search.php?searchterm=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Drugs.com: Largest, most widely visited, independent medicine information website on the Internet.", "id": 214, "defaultUrl": "https://www.drugs.com/search.php"}, {"title": "Medscape", "url": "https://search.medscape.com/search/?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Medscape: Leading destination for physicians and healthcare professionals worldwide.", "id": 215, "defaultUrl": "https://search.medscape.com/search/"}, {"title": "Web MD", "url": "https://www.webmd.com/drugs/2/search?type=drugs&query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "WebMD: Provides credible information, supportive communities, and in-depth reference material about health subjects.", "id": 216, "defaultUrl": "https://www.webmd.com/drugs/2/search?type=drugs"}, {"title": "WebMD Interact", "url": "https://www.webmd.com/interaction-checker/default.htm", "enabled": 1, "searching": 0, "topPick": false, "hint": "WebMD Drugs Interaction Checker.", "id": 217, "defaultUrl": "https://www.webmd.com/interaction-checker/default.htm"}, {"title": "UpToDate", "url": "https://www.uptodate.com/contents/search?search=", "enabled": 1, "searching": 1, "topPick": false, "hint": "UpToDate: Physician authors and editors present evidence with insight and produce clear, actionable recommendations.", "id": 218, "defaultUrl": "https://www.uptodate.com/contents/search"}, {"title": "Mayo Clinic", "url": "https://www.mayoclinic.org/search/search-results?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Mayo Clinic: More No. 1 rankings than any other hospital in the nation according to U.S. News & World Report.", "id": 219, "defaultUrl": "https://www.mayoclinic.org/search/search-results"}, {"title": "Merck Manual", "url": "https://www.merckmanuals.com/home/SearchResults?query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Merck Manual: First published in 1899, one of the most widely used comprehensive medical resources.", "id": 220, "defaultUrl": "https://www.merckmanuals.com/home/SearchResults"}, {"title": "Merck Interact", "url": "https://www.merckmanuals.com/home/drugs/factors-affecting-response-to-drugs/drug-interactions", "enabled": 1, "searching": 0, "topPick": false, "hint": "Merck Manual Info on Drug Interactions.", "id": 221, "defaultUrl": "https://www.merckmanuals.com/home/drugs/factors-affecting-response-to-drugs/drug-interactions"}, {"title": "Open MD", "url": "https://openmd.com/search?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Open MD: High-quality medical information easily accessible to everyone.", "id": 222, "defaultUrl": "https://openmd.com/search"}, {"title": "Drug Bank", "url": "https://go.drugbank.com/drugs", "enabled": 1, "searching": 0, "topPick": false, "hint": "DrugBank Online: A comprehensive, free-to-access database containing information on drugs and drug targets.", "id": 223, "defaultUrl": "https://go.drugbank.com/drugs"}, {"title": "Drug Abuse", "url": "https://nida.nih.gov/", "enabled": 1, "searching": 0, "topPick": false, "hint": "National Institute on Drug Abuse (NIH): Advances science on the causes and consequences of drug use and addiction.", "id": 224, "defaultUrl": "https://nida.nih.gov/"}, {"title": "Harvard Vitamin", "url": "https://www.health.harvard.edu/staying-healthy/listing_of_vitamins", "enabled": 1, "searching": 0, "topPick": false, "hint": "Harvard Health Publishing - Listing of vitamins.", "id": 225, "defaultUrl": "https://www.health.harvard.edu/staying-healthy/listing_of_vitamins"}, {"title": "Europe PMC", "url": "https://europepmc.org/search?query=", "defaultUrl": "https://europepmc.org/", "enabled": 1, "searching": 1, "topPick": false, "hint": "Europe PMC: A free, open access platform providing access to millions of life science publications and preprints.", "id": 324}]}, {"groupId": 7, "title": "Consumer Health", "tags": ["health", "medical", "consumer", "wellness"], "hint": "Great consumer-oriented health resources.", "items": [{"title": "*Medline Plus", "url": "https://vsearch.nlm.nih.gov/vivisimo/cgi-bin/query-meta?v%3Aproject=medlineplus&v%3Asources=medlineplus-bundle&query=", "enabled": 1, "searching": 1, "topPick": true, "hint": "MedlinePlus: A US government (NIH) online health information resource for patients and their families and friends.", "id": 226, "defaultUrl": "https://vsearch.nlm.nih.gov/vivisimo/cgi-bin/query-meta?v%3Aproject=medlineplus&v%3Asources=medlineplus-bundle"}, {"title": "*Mayo Clinic", "url": "https://www.mayoclinic.org/search/search-results?q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Mayo Clinic: A nonprofit organization committed to clinical practice, education and research.", "id": 227, "defaultUrl": "https://www.mayoclinic.org/search/search-results"}, {"title": "*Cleveland Clin", "url": "https://my.clevelandclinic.org/search?q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Cleveland Clinic: A non-profit academic medical center and leader in research, education and health information.", "id": 228, "defaultUrl": "https://my.clevelandclinic.org/search"}, {"title": "*Web MD", "url": "https://www.webmd.com/search/search_results/default.aspx?query=", "enabled": 1, "searching": 1, "topPick": true, "hint": "WebMD: Provides credible information, supportive communities, and in-depth reference material about health subjects.", "id": 229, "defaultUrl": "https://www.webmd.com/search/search_results/default.aspx"}, {"title": "*CDC", "url": "https://search.cdc.gov/search/?query=", "enabled": 1, "searching": 1, "topPick": true, "hint": "CDC: Centers for Disease Control and Prevention: The nation's leading science-based, data-driven service organization that protects the public's health.", "id": 230, "defaultUrl": "https://search.cdc.gov/search/"}, {"title": "*Amer HrtAssoc", "url": "https://www.heart.org/en/search#q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "American Heart Association (AHA): Committed to advancing health and hope for everyone, everywhere.", "id": 231, "defaultUrl": "https://www.heart.org/en/search"}, {"title": "*Women Health", "url": "https://search.usa.gov/search?utf8=%E2%9C%93&affiliate=orwh&query=", "enabled": 1, "searching": 1, "topPick": true, "hint": "NIH Office of Research on Women's Health.", "id": 232, "defaultUrl": "https://search.usa.gov/search?utf8=%E2%9C%93&affiliate=orwh"}, {"title": "*Healthy Child", "url": "https://www.aap.org/en/search/?context=Healthy%20Children&source=Healthychildren.org&lang=English&k=", "enabled": 1, "searching": 1, "topPick": true, "hint": "HealthyChildren.org: The reference for children's health from the American Academy of Pediatrics (AAP).", "id": 233, "defaultUrl": "https://www.aap.org/en/search/?context=Healthy%20Children&source=Healthychildren.org&lang=English"}, {"title": "*Nat Health Ser", "url": "https://www.nhs.uk/search/results?q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "The National Health Service (NHS): The publicly funded healthcare system of the United Kingdom.", "id": 234, "defaultUrl": "https://www.nhs.uk/search/results"}, {"title": "UpToDate", "url": "https://www.uptodate.com/contents/search?search=", "enabled": 1, "searching": 1, "topPick": false, "hint": "UpToDate: Evidence-based clinical information with actionable recommendations.", "id": 235, "defaultUrl": "https://www.uptodate.com/contents/search"}, {"title": "Medscape", "url": "https://search.medscape.com/search/?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Medscape: Global destination for physicians and healthcare professionals worldwide.", "id": 236, "defaultUrl": "https://search.medscape.com/search/"}, {"title": "Epocrates Free", "url": "https://online.epocrates.com/results?query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Epocrates: Has served essential, continually researched and updated clinical content since 1998.", "id": 237, "defaultUrl": "https://online.epocrates.com/results"}, {"title": "Merck M Consumer", "url": "https://www.merckmanuals.com/home/SearchResults?query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Merck Manuals: One of the most widely used comprehensive medical resources for professionals and consumers.", "id": 238, "defaultUrl": "https://www.merckmanuals.com/home/SearchResults"}, {"title": "Drug.com", "url": "https://www.drugs.com/search.php?searchterm=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Drug.com: The largest, most widely visited, independent medicine information website.", "id": 239, "defaultUrl": "https://www.drugs.com/search.php"}, {"title": "NIH Mental H", "url": "https://www.nimh.nih.gov/search-nimh?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "National Institute of Mental Health: The lead federal agency for research on mental disorders.", "id": 240, "defaultUrl": "https://www.nimh.nih.gov/search-nimh"}, {"title": "usa.gov health", "url": "https://search.usa.gov/search?affiliate=usagov_all_gov&query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "USA.gov health resource list.", "id": 241, "defaultUrl": "https://search.usa.gov/search?affiliate=usagov_all_gov"}, {"title": "Complement Med", "url": "https://www.nccih.nih.gov/search?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "National Center for Complementary and Integrative Health (NCCIH).", "id": 242, "defaultUrl": "https://www.nccih.nih.gov/search"}, {"title": "*AHRQ", "url": "https://www.ahrq.gov/search/index.html?q=", "defaultUrl": "https://www.ahrq.gov/", "enabled": 1, "searching": 1, "topPick": true, "hint": "Agency for Healthcare Research and Quality (AHRQ): The lead federal agency for research on healthcare quality, safety, efficiency, and effectiveness.", "id": 335}, {"title": "CMS Data", "url": "https://data.cms.gov/search", "defaultUrl": "https://data.cms.gov/search", "enabled": 1, "searching": 0, "topPick": false, "hint": "CMS (Centers for Medicare & Medicaid Services) Data: A rich data portal covering Medicare/Medicaid, hospital quality, and healthcare cost information.", "id": 339}]}, {"groupId": 8, "title": "Clinical Medical Research", "tags": ["medical", "research", "clinical", "healthcare"], "hint": "Resources for clinical medical research.", "items": [{"title": "*PubMed (NIH)", "url": "https://pubmed.ncbi.nlm.nih.gov/?term=", "enabled": 1, "searching": 1, "topPick": true, "hint": "PubMed: A free resource from the National Library of Medicine providing access to millions of citations and abstracts.", "id": 243, "defaultUrl": "https://pubmed.ncbi.nlm.nih.gov/"}, {"title": "*clinicaltrials.gov", "url": "https://clinicaltrials.gov/search?cond=", "enabled": 1, "searching": 1, "topPick": true, "hint": "ClinicalTrials.gov: A database of privately and publicly funded clinical studies conducted around the world.", "id": 244, "defaultUrl": "https://clinicaltrials.gov/search"}, {"title": "*WHO-Trials", "url": "https://trialsearch.who.int/", "enabled": 1, "searching": 0, "topPick": true, "hint": "WHO (World Health Organization): Offers global health data, reports, and guidelines on a wide range of medical topics.", "id": 245, "defaultUrl": "https://trialsearch.who.int/"}, {"title": "Cochrane Library", "url": "https://www.cochranelibrary.com/search?p_p_id=search_portlet&p_p_lifecycle=0&p_p_state=normal&p_p_mode=view&_search_portlet_searchType=basic&q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Cochrane Library: Provides trusted evidence for informed health care decision-making.", "id": 246, "defaultUrl": "https://www.cochranelibrary.com/search?p_p_id=search_portlet&p_p_lifecycle=0&p_p_state=normal&p_p_mode=view&_search_portlet_searchType=basic"}, {"title": "BMJ", "url": "https://www.bmj.com/search/advanced/", "enabled": 1, "searching": 1, "topPick": false, "hint": "British Medical Journal (BMJ): Renowned for its rigorous research in the field of medicine.", "id": 247, "defaultUrl": "https://www.bmj.com/search/advanced/"}, {"title": "NEJM", "url": "https://www.nejm.org/search?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "New England Journal of Medicine: Highly prestigious for medical research.", "id": 248, "defaultUrl": "https://www.nejm.org/search"}, {"title": "JAMA", "url": "https://jamanetwork.com/searchresults?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "JAMA Network: Offers a broad spectrum of medical research, news, and commentary.", "id": 249, "defaultUrl": "https://jamanetwork.com/searchresults"}, {"title": "TRIP", "url": "https://www.tripdatabase.com/Searchresult?criteria=", "enabled": 1, "searching": 1, "topPick": false, "hint": "TRIP (Turning Research Into Practice): A clinical search engine for finding high-quality research evidence.", "id": 250, "defaultUrl": "https://www.tripdatabase.com/Searchresult"}, {"title": "Epocrates", "url": "https://www.epocrates.com/online/results?query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Epocrates: Offers drug reference tools, clinical guidelines, and diagnostic resources.", "id": 251, "defaultUrl": "https://www.epocrates.com/online/results"}, {"title": "Complement Med", "url": "https://www.nccih.nih.gov/search?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "National Center for Complementary and Integrative Health (NCCIH).", "id": 252, "defaultUrl": "https://www.nccih.nih.gov/search"}, {"title": "*Europe PMC", "url": "https://europepmc.org/search?query=", "defaultUrl": "https://europepmc.org/", "enabled": 1, "searching": 1, "topPick": true, "hint": "Europe PMC: A free, open access platform providing access to millions of life science publications, maintained by a consortium of research funders.", "id": 325}, {"title": "*AHRQ", "url": "https://www.ahrq.gov/search/index.html?q=", "defaultUrl": "https://www.ahrq.gov/", "enabled": 1, "searching": 1, "topPick": true, "hint": "Agency for Healthcare Research and Quality (AHRQ): Produces evidence-based guidelines, systematic reviews, and research to improve healthcare quality and patient safety.", "id": 336}, {"title": "*NIH RePORTER", "url": "https://reporter.nih.gov/", "defaultUrl": "https://reporter.nih.gov/", "enabled": 1, "searching": 0, "topPick": true, "hint": "NIH RePORTER: A database of NIH-funded research projects, grants, and publications — useful for tracking what research the NIH is actively funding.", "id": 337}, {"title": "*CMS Data", "url": "https://data.cms.gov/search", "defaultUrl": "https://data.cms.gov/search", "enabled": 1, "searching": 0, "topPick": true, "hint": "CMS (Centers for Medicare & Medicaid Services) Data: Authoritative source for Medicare/Medicaid claims, hospital quality ratings, physician data, and health cost reports.", "id": 338}]}, {"groupId": 9, "title": "Genetics", "tags": ["genetics", "genomics", "biology", "research"], "hint": "Resources for genetic and genomic research.", "items": [{"title": "*ClinVar (NIH)", "url": "https://www.ncbi.nlm.nih.gov/clinvar/?term=", "enabled": 1, "searching": 1, "topPick": true, "hint": "ClinVar (NIH): Public archive of reports on the relationships between human variations and phenotypes.", "id": 253, "defaultUrl": "https://www.ncbi.nlm.nih.gov/clinvar/"}, {"title": "*MendelianInher", "url": "https://www.omim.org/search?index=entry&start=1&limit=10&sort=score+desc%2C+prefix_sort+desc&search=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Online Mendelian Inheritance in Man (OMIM): A comprehensive, authoritative compendium of human genes and genetic phenotypes.", "id": 254, "defaultUrl": "https://www.omim.org/search?index=entry&start=1&limit=10&sort=score+desc%2C+prefix_sort+desc"}, {"title": "*UCSC GenomeB", "url": "https://genome.ucsc.edu/cgi-bin/hgSearch?search=", "enabled": 1, "searching": 1, "topPick": true, "hint": "UCSC Genome Browser: Provides genome sequence data and tools for visualizing genomic information.", "id": 255, "defaultUrl": "https://genome.ucsc.edu/cgi-bin/hgSearch"}, {"title": "*Gene (NIH)", "url": "https://www.ncbi.nlm.nih.gov/gene/?term=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Gene (NIH): Comprehensive information on genes, their genomic context, and their biological significance.", "id": 256, "defaultUrl": "https://www.ncbi.nlm.nih.gov/gene/"}, {"title": "*GWAS Catalog", "url": "https://www.ebi.ac.uk/gwas/search?query=", "enabled": 1, "searching": 1, "topPick": true, "hint": "GWAS Catalog: Public database of genotype-phenotype associations from published GWAS studies.", "id": 257, "defaultUrl": "https://www.ebi.ac.uk/gwas/search"}, {"title": "*MedGen (NIH)", "url": "https://www.ncbi.nlm.nih.gov/medgen/?term=", "enabled": 1, "searching": 1, "topPick": true, "hint": "MedGen (NIH): Provides information on human disorders, phenotypes, genes, and clinical tests.", "id": 258, "defaultUrl": "https://www.ncbi.nlm.nih.gov/medgen/"}, {"title": "*Gene Nomenclat", "url": "https://www.genenames.org/tools/search/#!/?query=", "enabled": 1, "searching": 1, "topPick": true, "hint": "HGNC (HUGO Gene Nomenclature Committee): Central resource for approved gene symbols and associated information.", "id": 259, "defaultUrl": "https://www.genenames.org/tools/search/#!/"}, {"title": "DECIPHER", "url": "https://www.deciphergenomics.org/gene/", "enabled": 1, "searching": 1, "topPick": false, "hint": "DECIPHER: Used by the clinical community to share and compare phenotypic and genotypic data.", "id": 260, "defaultUrl": "https://www.deciphergenomics.org/gene/"}, {"title": "PubMed (NIH)", "url": "https://pubmed.ncbi.nlm.nih.gov/?term=", "enabled": 1, "searching": 1, "topPick": false, "hint": "PubMed: A free resource from the National Library of Medicine.", "id": 261, "defaultUrl": "https://pubmed.ncbi.nlm.nih.gov/"}, {"title": "dbSNP (NIH)", "url": "https://www.ncbi.nlm.nih.gov/snp/?term=", "enabled": 1, "searching": 1, "topPick": false, "hint": "dbSNP: Repository for genetic variation data including SNPs and small-scale insertions/deletions.", "id": 262, "defaultUrl": "https://www.ncbi.nlm.nih.gov/snp/"}, {"title": "Ensembl GenomeB", "url": "https://useast.ensembl.org/Multi/Search/Results?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Ensembl Genome Browser: Offers detailed annotation of genes, variants, regulatory regions, and comparative genomics data.", "id": 263, "defaultUrl": "https://useast.ensembl.org/Multi/Search/Results"}, {"title": "GnomAD", "url": "https://gnomad.broadinstitute.org/", "enabled": 1, "searching": 0, "topPick": false, "hint": "GnomAD (Genome Aggregation Database): Composed of exome and genome sequences from around the world.", "id": 264, "defaultUrl": "https://gnomad.broadinstitute.org/"}, {"title": "UnivPitt RefList", "url": "https://www.hsls.pitt.edu/obrc/index.php?page=human_genome", "enabled": 1, "searching": 0, "topPick": false, "hint": "Human Genome Resources (Pitt): Comprehensive list of curated tools and datasets for human genome research.", "id": 265, "defaultUrl": "https://www.hsls.pitt.edu/obrc/index.php?page=human_genome"}, {"title": "Welch RefList", "url": "https://browse.welch.jhmi.edu/datasets/genomic-databases", "enabled": 1, "searching": 0, "topPick": false, "hint": "Welch Genomic Databases (JHU): Lists genomic databases and datasets at Johns Hopkins.", "id": 266, "defaultUrl": "https://browse.welch.jhmi.edu/datasets/genomic-databases"}]}, {"groupId": 10, "title": "Humanities", "tags": ["humanities", "philosophy", "history", "literature", "arts"], "hint": "Humanities resources: philosophy, history, literature, and more.", "items": [{"title": "*Stanford Philos", "url": "https://plato.stanford.edu/search/searcher.py?query=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Stanford Encyclopedia of Philosophy: A dynamic and authoritative reference for scholarly articles on philosophy.", "id": 267, "defaultUrl": "https://plato.stanford.edu/search/searcher.py"}, {"title": "*Library Congress", "url": "https://www.loc.gov/search/?in=&q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Library of Congress: The largest library in the world, with millions of books, films, audio recordings, photographs, and manuscripts.", "id": 268, "defaultUrl": "https://www.loc.gov/search/?in="}, {"title": "*World Hist En", "url": "https://www.worldhistory.org/search/?q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "World History Encyclopedia: An open-access resource with detailed articles, timelines, and multimedia on global history.", "id": 269, "defaultUrl": "https://www.worldhistory.org/search/"}, {"title": "*Perseus Library", "url": "https://www.perseus.tufts.edu/hopper/", "enabled": 1, "searching": 0, "topPick": true, "hint": "Perseus Digital Library: A digital library of classical texts in their original languages and English translation.", "id": 270, "defaultUrl": "https://www.perseus.tufts.edu/hopper/"}, {"title": "*Smarthistory", "url": "https://smarthistory.org/?s=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Smarthistory: A free educational resource providing essays and videos on art history and cultural heritage.", "id": 271, "defaultUrl": "https://smarthistory.org/"}, {"title": "*JSTOR", "url": "https://www.jstor.org/action/doBasicSearch?Query=", "enabled": 1, "searching": 1, "topPick": true, "hint": "JSTOR: Provides access to more than 12 million journal articles, books, images, and primary sources in 75 disciplines.", "id": 272, "defaultUrl": "https://www.jstor.org/action/doBasicSearch"}, {"title": "Project MUSE", "url": "https://muse.jhu.edu/search?action=search&query=content:", "enabled": 1, "searching": 1, "topPick": false, "hint": "Project MUSE: Curates quality scholarship in the humanities and social sciences.", "id": 273, "defaultUrl": "https://muse.jhu.edu/search?action=search&query=content:"}, {"title": "Google Art Cult", "url": "https://artsandculture.google.com/search?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Google Arts and Culture: Preserves and brings the world's art and culture online.", "id": 274, "defaultUrl": "https://artsandculture.google.com/search"}, {"title": "Literary Hub", "url": "https://lithub.com/?s=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Literary Hub (LitHub): A platform for literary news, essays, and interviews.", "id": 275, "defaultUrl": "https://lithub.com/"}, {"title": "Chronicling Amer", "url": "https://www.loc.gov/collections/chronicling-america/?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Chronicling America: A Library of Congress project providing free access to historic U.S. newspapers.", "id": 276, "defaultUrl": "https://www.loc.gov/collections/chronicling-america/"}, {"title": "Europeana", "url": "https://www.europeana.eu/en/search?page=1&view=grid&query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Europeana: A digital platform with millions of cultural and historical artifacts from European museums, libraries, and archives.", "id": 277, "defaultUrl": "https://www.europeana.eu/en/search?page=1&view=grid"}, {"title": "Public Lib Amer", "url": "https://dp.la/search?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Digital Public Library of America (DPLA): Access to millions of texts, images, and videos from cultural institutions.", "id": 278, "defaultUrl": "https://dp.la/search"}, {"title": "Art Hist at Met", "url": "https://www.metmuseum.org/search-results?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Metropolitan Museum of Art search.", "id": 279, "defaultUrl": "https://www.metmuseum.org/search-results"}, {"title": "Proj Gutenberg", "url": "https://www.gutenberg.org/ebooks/search/?query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Project Gutenberg: A key resource for free eBooks in the humanities.", "id": 280, "defaultUrl": "https://www.gutenberg.org/ebooks/search/"}, {"title": "Ethnologue", "url": "https://www.ethnologue.com/search/?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Ethnologue: A comprehensive database of the world's languages.", "id": 281, "defaultUrl": "https://www.ethnologue.com/search/"}, {"title": "Glottolog", "url": "https://glottolog.org/", "enabled": 1, "searching": 0, "topPick": false, "hint": "Glottolog: A catalog of the world's languages with detailed references for linguistics research.", "id": 282, "defaultUrl": "https://glottolog.org/"}, {"title": "Glossa", "url": "https://www.glossa-journal.org/", "enabled": 1, "searching": 0, "topPick": false, "hint": "Glossa: A journal dedicated to general linguistics.", "id": 283, "defaultUrl": "https://www.glossa-journal.org/"}, {"title": "Sacred Text Arc", "url": "https://sacred-texts.com/", "enabled": 1, "searching": 0, "topPick": false, "hint": "Internet Sacred Text Archive: Hosts a vast collection of religious, spiritual, and esoteric texts.", "id": 284, "defaultUrl": "https://sacred-texts.com/"}, {"title": "Bible Gateway", "url": "https://www.biblegateway.com/", "enabled": 1, "searching": 0, "topPick": false, "hint": "Bible Gateway: Offers access to numerous translations of the Bible.", "id": 285, "defaultUrl": "https://www.biblegateway.com/"}]}, {"groupId": 11, "title": "K-12 Students", "tags": ["education", "learning", "school", "teaching"], "hint": "Core websites for K-12 students and educators.", "items": [{"title": "*Google", "url": "https://www.google.com/search?q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Google: The number one search engine.", "id": 286, "defaultUrl": "https://www.google.com/search"}, {"title": "*Wikipedia", "url": "https://en.wikipedia.org/wiki/", "enabled": 1, "searching": 1, "topPick": true, "hint": "Wikipedia: World's biggest reference.", "id": 287, "defaultUrl": "https://en.wikipedia.org/wiki/"}, {"title": "*Google Scholar", "url": "https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Google Scholar: A great academic resource, designed more for university level research.", "id": 288, "defaultUrl": "https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5"}, {"title": "*Khan Acad", "url": "https://www.khanacademy.org/search?referer=%2F&page_search_query=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Khan Academy: Our mission is to provide a free, world-class education to anyone, anywhere.", "id": 289, "defaultUrl": "https://www.khanacademy.org/search?referer=%2F"}, {"title": "*Census QickFact", "url": "https://www.census.gov/quickfacts/fact/table/losangelescountycalifornia,US/PST045223", "enabled": 1, "searching": 0, "topPick": true, "hint": "US Census QuickFacts: Great breakdown of census data by area.", "id": 290, "defaultUrl": "https://www.census.gov/quickfacts/fact/table/losangelescountycalifornia,US/PST045223"}, {"title": "Britannica", "url": "https://www.britannica.com/search?query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Britannica: For more than 250 years, Britannica has kindled the spark of curiosity.", "id": 292, "defaultUrl": "https://www.britannica.com/search"}, {"title": "OER Commons", "url": "https://oercommons.org/search?f.search=", "enabled": 1, "searching": 1, "topPick": false, "hint": "OER Commons: Supports instructors and curriculum specialists to find, adapt, and evaluate high quality open materials.", "id": 293, "defaultUrl": "https://oercommons.org/search"}, {"title": "EDSITEment", "url": "https://edsitement.neh.gov/", "enabled": 1, "searching": 0, "topPick": false, "hint": "EDSITEment: A project of the National Endowment for the Humanities.", "id": 294, "defaultUrl": "https://edsitement.neh.gov/"}, {"title": "Code.org", "url": "https://www.edutopia.org/search?query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Code.org: A leading resource for computer science education.", "id": 295, "defaultUrl": "https://www.edutopia.org/search"}, {"title": "CK-12", "url": "https://www.ck12.org/student/", "enabled": 1, "searching": 0, "topPick": false, "hint": "CK-12: Free, customizable educational resources.", "id": 296, "defaultUrl": "https://www.ck12.org/student/"}, {"title": "Common Sense", "url": "https://www.commonsense.org/education", "enabled": 1, "searching": 0, "topPick": false, "hint": "Common Sense Media: Champions high-quality media and supports closing the digital divide.", "id": 297, "defaultUrl": "https://www.commonsense.org/education"}, {"title": "Nat Geo Kids", "url": "https://www.edutopia.org/search?query=", "enabled": 1, "searching": 1, "topPick": false, "hint": "National Geographic Kids: Many resources from a trusted source.", "id": 299, "defaultUrl": "https://www.edutopia.org/search"}, {"title": "NASA Learning", "url": "https://www.nasa.gov/learning-resources/", "enabled": 1, "searching": 0, "topPick": false, "hint": "NASA Learning: STEM resources that connect educators, students, parents and caregivers to the inspiring work at NASA.", "id": 300, "defaultUrl": "https://www.nasa.gov/learning-resources/"}]}, {"groupId": 12, "title": "AI Tools", "tags": ["artificial-intelligence", "AI", "technology", "machine-learning"], "hint": "Leading AI assistant platforms. These open their homepage — paste your query after opening.", "items": [{"title": "*ChatGPT OpenAI", "url": "https://chatgpt.com/", "enabled": 1, "searching": 0, "topPick": true, "hint": "ChatGPT: From OpenAI.", "id": 301, "defaultUrl": "https://chatgpt.com/"}, {"title": "*Claude", "url": "https://claude.ai/new", "enabled": 1, "searching": 0, "topPick": true, "hint": "Claude: From Anthropic.", "id": 302, "defaultUrl": "https://claude.ai/new"}, {"title": "*Gemini (Google)", "url": "https://gemini.google.com/app", "enabled": 1, "searching": 0, "topPick": true, "hint": "Gemini: From Google.", "id": 303, "defaultUrl": "https://gemini.google.com/app"}, {"title": "*Meta", "url": "https://www.meta.ai/", "enabled": 1, "searching": 0, "topPick": true, "hint": "Meta AI: From Meta (formerly Facebook).", "id": 304, "defaultUrl": "https://www.meta.ai/"}, {"title": "*Grok (x)", "url": "https://x.com/i/grok", "enabled": 1, "searching": 0, "topPick": true, "hint": "GROK: From X (formerly Twitter).", "id": 305, "defaultUrl": "https://x.com/i/grok"}, {"title": "*Perplexity AI", "url": "https://www.perplexity.ai/", "defaultUrl": "https://www.perplexity.ai/", "enabled": 1, "searching": 0, "topPick": true, "hint": "Perplexity AI: An AI-powered answer engine that searches the web and provides cited, conversational responses to research questions.", "id": 319}]}, {"groupId": 13, "title": "Theses & Dissertations", "tags": ["academic", "research", "thesis", "dissertation"], "hint": "Amazing resources for graduate theses and dissertations offering unique research perspectives.", "items": [{"title": "*OATD", "url": "https://oatd.org/oatd/search?q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "OATD.org: A comprehensive resource for finding open access graduate theses and dissertations.", "id": 306, "defaultUrl": "https://oatd.org/oatd/search"}, {"title": "*Global ETD", "url": "http://search.ndltd.org/search.php?q=", "enabled": 1, "searching": 1, "topPick": true, "hint": "Global ETD Search: A free service for researchers to find electronic theses and dissertations worldwide.", "id": 307, "defaultUrl": "http://search.ndltd.org/search.php"}, {"title": "EBSCO OpenDissert", "url": "https://research.ebsco.com/c/usiws6/search/results?limiters=&q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "EBSCO Open Dissertations: A resource for finding open access graduate theses and dissertations.", "id": 308, "defaultUrl": "https://research.ebsco.com/c/usiws6/search/results?limiters="}, {"title": "ProQuest DT", "url": "https://www.proquest.com/", "enabled": 1, "searching": 0, "topPick": false, "hint": "ProQuest Dissertations & Theses Global: The world's most comprehensive curated collection.", "id": 309, "defaultUrl": "https://www.proquest.com/"}, {"title": "EThOS.bl.uk", "url": "https://ethos.bl.uk/SearchResults.do", "enabled": 1, "searching": 1, "topPick": false, "hint": "EThOS: The UK national thesis service.", "id": 310, "defaultUrl": "https://ethos.bl.uk/SearchResults.do"}, {"title": "NDLTD", "url": "http://search.ndltd.org/search.php?q=", "enabled": 1, "searching": 1, "topPick": false, "hint": "NDLTD: Offers a search engine for ETDs from around the world.", "id": 311, "defaultUrl": "http://search.ndltd.org/search.php"}, {"title": "Theses Canada", "url": "https://library-archives.canada.ca/eng/services/services-libraries/theses/Pages/list.aspx?AW_S=", "enabled": 1, "searching": 1, "topPick": false, "hint": "Library and Archives Canada: Combines the holdings of the National Library and National Archives of Canada.", "id": 312, "defaultUrl": "https://library-archives.canada.ca/eng/services/services-libraries/theses/Pages/list.aspx"}, {"title": "DART-Europe", "url": "https://www.dart-europe.org/basic-search.php", "enabled": 1, "searching": 0, "topPick": false, "hint": "DART-Europe: Access to over 400,000 theses from more than 500 universities in 27 European countries.", "id": 313, "defaultUrl": "https://www.dart-europe.org/basic-search.php"}]}, {"groupId": 14, "title": "Open Access", "tags": ["open-access", "research", "academic", "free"], "hint": "Free, open access research platforms providing full-text articles and scholarly content without paywalls.", "items": [{"title": "*CORE", "url": "https://core.ac.uk/search/?q=", "defaultUrl": "https://core.ac.uk/", "enabled": 1, "searching": 1, "topPick": true, "hint": "CORE: The world's largest collection of open access research papers, aggregating millions of full-text articles from repositories worldwide.", "id": 326}, {"title": "*OpenAlex", "url": "https://openalex.org/works?search=", "defaultUrl": "https://openalex.org/", "enabled": 1, "searching": 1, "topPick": true, "hint": "OpenAlex: A fully open catalog of the global research system, indexing over 250 million scholarly works.", "id": 327}, {"title": "*BASE", "url": "https://www.base-search.net/Search/Results?lookfor=", "defaultUrl": "https://www.base-search.net/", "enabled": 1, "searching": 1, "topPick": true, "hint": "BASE (Bielefeld Academic Search Engine): One of the world's most voluminous search engines for academic web resources.", "id": 328}, {"title": "*PubMed Central", "url": "https://www.ncbi.nlm.nih.gov/pmc/search/?query=", "defaultUrl": "https://www.ncbi.nlm.nih.gov/pmc/", "enabled": 1, "searching": 1, "topPick": true, "hint": "PubMed Central (PMC): A free full-text archive of biomedical and life sciences journal literature at the NIH.", "id": 329}, {"title": "*arXiv", "url": "https://arxiv.org/search/?query=", "defaultUrl": "https://arxiv.org/", "enabled": 1, "searching": 1, "topPick": true, "hint": "arXiv: A free distribution service and open-access archive for nearly 2.4 million scholarly articles.", "id": 330}, {"title": "*DOAJ", "url": "https://doaj.org/", "defaultUrl": "https://doaj.org/", "enabled": 1, "searching": 0, "topPick": true, "hint": "DOAJ (Directory of Open Access Journals): A unique and extensive index of diverse open access journals from around the world.", "id": 331}, {"title": "*Europe PMC", "url": "https://europepmc.org/search?query=", "defaultUrl": "https://europepmc.org/", "enabled": 1, "searching": 1, "topPick": true, "hint": "Europe PMC: A free, open access platform providing access to millions of life science publications and preprints.", "id": 332}, {"title": "Semantic Scholar", "url": "https://www.semanticscholar.org/search?q=", "defaultUrl": "https://www.semanticscholar.org/", "enabled": 1, "searching": 1, "topPick": false, "hint": "Semantic Scholar: An AI-powered research tool with strong open access coverage across scientific disciplines.", "id": 333}, {"title": "PLOS One", "url": "https://journals.plos.org/plosone/search?filterJournals=PLoSONE&q=", "defaultUrl": "https://journals.plos.org/plosone/", "enabled": 1, "searching": 1, "topPick": false, "hint": "PLOS: A nonprofit, Open Access publisher empowering researchers to accelerate progress in science and medicine.", "id": 334}]}], "nextId": 340};
+
+// ── BUILD LOOKUP FROM PERMANENT IDs IN CONFIG ──
+// IDs are permanently stamped in RAW_CONFIG. nextId = 335
+// When adding new items, assign ids starting from nextId above.
+const ITEMS_BY_ID = {};
+const GROUPS = RAW_CONFIG.groups.map(g => ({
+  ...g,
+  items: g.items.map(item => {
+    ITEMS_BY_ID[item.id] = { ...item, groupTitle: g.title, groupId: g.groupId };
+    return item;
+  })
+}));
+
+// ── LOCALSTORAGE HELPERS ──
+const LS_CHECKS = 'rsh_checks_v1';
+const LS_CUSTOM = 'rsh_custom_v1';
+
+function loadChecks() {
+  try { return JSON.parse(localStorage.getItem(LS_CHECKS) || '{}'); } catch { return {}; }
+}
+function saveChecks(checks) {
+  localStorage.setItem(LS_CHECKS, JSON.stringify(checks));
+}
+function loadCustom() {
+  try {
+    return JSON.parse(localStorage.getItem(LS_CUSTOM) || 'null') || [
+      { label: 'My Favorites', ids: '', checkedIds: {} },
+      { label: 'Custom Set 2', ids: '', checkedIds: {} }
+    ];
+  } catch {
+    return [
+      { label: 'My Favorites', ids: '', checkedIds: {} },
+      { label: 'Custom Set 2', ids: '', checkedIds: {} }
+    ];
+  }
+}
+function saveCustom(customs) {
+  localStorage.setItem(LS_CUSTOM, JSON.stringify(customs));
+}
+
+let checksState = loadChecks();
+let customState = loadCustom();
+
+// Initialize defaults (first visit only)
+GROUPS.forEach(g => g.items.forEach(item => {
+  if (!(item.id in checksState)) {
+    checksState[item.id] = item.topPick ? true : false;
+  }
+}));
+saveChecks(checksState);
+
+// ── SEARCH LOGIC ──
+function getQuery() {
+  return document.getElementById('global-query').value.trim();
+}
+function clearQuery() {
+  document.getElementById('global-query').value = '';
+  document.getElementById('global-query').focus();
+}
+
+function buildUrl(item, q) {
+  if (item.searching && q) {
+    return item.url + encodeURIComponent(q);
+  }
+  // No query — use the explicit defaultUrl (a clean landing page, editable per item)
+  return item.defaultUrl || item.url;
+}
+
+
+
+function parseIds(str) {
+  return str.split(/[\s,]+/).map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
+}
+
+// ── TOAST ──
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ── RENDER GROUPS ──
+function renderChip(item, checkState, onChange) {
+  const div = document.createElement('div');
+  div.className = 'item-chip' +
+    (item.topPick ? ' top-pick' : '') +
+    (!item.searching ? ' no-param' : '') +
+    (checkState ? ' checked' : '');
+  div.title = (item.hint || '') + (!item.searching ? '\n⚠ Opens homepage (no search parameter)' : '');
+
+  div.innerHTML = `
+    <div class="chip-cb"></div>
+    <span class="item-name">${item.title.replace(/^\*/, '')}</span>
+    ${!item.searching ? '<span class="no-param-badge">homepage</span>' : ''}
+    <span style="font-size:0.65rem;color:var(--ink3);margin-left:2px">#${item.id}</span>
+  `;
+
+  div.addEventListener('click', () => {
+    const newState = !checkState;
+    checkState = newState;
+    onChange(item.id, newState);
+    div.classList.toggle('checked', newState);
+    refreshLivePanel();
+  });
+
+  return div;
+}
+
+function renderGroups() {
+  const container = document.getElementById('groups-container');
+  GROUPS.forEach(group => {
+    const card = document.createElement('div');
+    card.className = 'group-card';
+
+    const checkedCount = () => group.items.filter(i => checksState[i.id]).length;
+
+    card.innerHTML = `
+      <div class="group-header">
+        <div class="group-arrow">▶</div>
+        <div class="group-title">${group.title}</div>
+        <div class="group-meta" id="meta-${group.groupId}">${checkedCount()} / ${group.items.length} selected</div>
+      </div>
+      <div class="group-body">
+        ${group.hint ? `<div class="group-hint">${group.hint}</div>` : ''}
+        <div class="items-grid" id="grid-${group.groupId}"></div>
+        <div class="url-list-view" id="urlview-${group.groupId}" style="display:none;">
+          <div class="url-list-toolbar">
+            <span class="url-list-label">Checked items</span>
+            <button class="copy-names-btn" onclick="copyNames(${group.groupId})">Copy names</button>
+          </div>
+          <ul class="url-list-links" id="urllist-${group.groupId}"></ul>
+        </div>
+        <div class="group-footer">
+          <div class="group-select-actions">
+            <button onclick="selectAll(${group.groupId})">All</button>
+            <button onclick="selectNone(${group.groupId})">None</button>
+            <button onclick="selectTopPicks(${group.groupId})">Top Picks</button>
+            <button onclick="toggleUrlView(${group.groupId})" id="urlviewbtn-${group.groupId}">Show URLs</button>
+          </div>
+
+        </div>
+      </div>
+    `;
+
+    // Toggle
+    card.querySelector('.group-header').addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      const isOpen = card.classList.toggle('open');
+      activeGroupId = isOpen ? group.groupId : null;
+      refreshLivePanel();
+    });
+
+    // Render chips
+    const grid = card.querySelector(`#grid-${group.groupId}`);
+    group.items.forEach(item => {
+      const chip = renderChip(item, checksState[item.id], (id, val) => {
+        checksState[id] = val;
+        saveChecks(checksState);
+        updateMeta(group.groupId, group.items);
+      });
+      grid.appendChild(chip);
+    });
+
+    container.appendChild(card);
+  });
+}
+
+
+function updateMeta(groupId, items) {
+  const el = document.getElementById(`meta-${groupId}`);
+  if (el) el.textContent = `${items.filter(i => checksState[i.id]).length} / ${items.length} selected`;
+}
+
+function selectAll(groupId) {
+  const group = GROUPS.find(g => g.groupId === groupId);
+  if (!group) return;
+  group.items.forEach(i => { checksState[i.id] = true; });
+  saveChecks(checksState);
+  refreshGroupChips(groupId, group.items);
+  updateMeta(groupId, group.items);
+}
+function selectNone(groupId) {
+  const group = GROUPS.find(g => g.groupId === groupId);
+  if (!group) return;
+  group.items.forEach(i => { checksState[i.id] = false; });
+  saveChecks(checksState);
+  refreshGroupChips(groupId, group.items);
+  updateMeta(groupId, group.items);
+}
+function selectTopPicks(groupId) {
+  const group = GROUPS.find(g => g.groupId === groupId);
+  if (!group) return;
+  group.items.forEach(i => { checksState[i.id] = i.topPick; });
+  saveChecks(checksState);
+  refreshGroupChips(groupId, group.items);
+  updateMeta(groupId, group.items);
+}
+function refreshGroupChips(groupId, items) {
+  const grid = document.getElementById(`grid-${groupId}`);
+  if (!grid) return;
+  grid.innerHTML = '';
+  const group = GROUPS.find(g => g.groupId === groupId);
+  items.forEach(item => {
+    const chip = renderChip(item, checksState[item.id], (id, val) => {
+      checksState[id] = val;
+      saveChecks(checksState);
+      updateMeta(groupId, group.items);
+    });
+    grid.appendChild(chip);
+  });
+}
+
+// ── RENDER CUSTOM SECTIONS ──
+function renderCustomSections() {
+  const container = document.getElementById('custom-container');
+  customState.forEach((custom, ci) => {
+    const card = document.createElement('div');
+    card.className = 'custom-card';
+    card.id = `custom-card-${ci}`;
+
+    card.innerHTML = `
+      <div class="custom-header">
+        <div class="group-arrow" id="custom-arrow-${ci}">▶</div>
+        <div class="custom-label-wrap">
+          <input class="custom-label-edit" value="${custom.label}" placeholder="Section name…" id="custom-label-${ci}" />
+        </div>
+        <div class="group-meta" id="custom-meta-${ci}">0 items</div>
+      </div>
+      <div class="group-body" id="custom-body-${ci}">
+        <div class="custom-ids-row">
+          <input class="custom-ids-input" id="custom-ids-${ci}"
+            value="${custom.ids}"
+            placeholder="Enter item IDs: e.g.  1, 5, 23, 47, 102" />
+          <button class="apply-ids-btn" onclick="applyCustomIds(${ci})">Apply</button>
+        </div>
+        <div class="custom-items-area" id="custom-items-${ci}">
+          <span class="custom-items-empty">Enter IDs above and click Apply to populate this section.</span>
+        </div>
+        <div class="group-footer">
+          <div class="group-select-actions">
+            <button onclick="selectAllCustom(${ci})">All</button>
+            <button onclick="selectNoneCustom(${ci})">None</button>
+          </div>
+
+        </div>
+      </div>
+    `;
+
+    // Toggle
+    card.querySelector('.custom-header').addEventListener('click', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.closest('button')) return;
+      const body = document.getElementById(`custom-body-${ci}`);
+      const arrow = document.getElementById(`custom-arrow-${ci}`);
+      const isOpen = body.style.display === 'block';
+      body.style.display = isOpen ? 'none' : 'block';
+      arrow.style.transform = isOpen ? '' : 'rotate(90deg)';
+    });
+
+    // Save label
+    const labelInput = card.querySelector(`#custom-label-${ci}`);
+    labelInput.addEventListener('input', () => {
+      customState[ci].label = labelInput.value;
+      saveCustom(customState);
+    });
+    labelInput.addEventListener('click', e => e.stopPropagation());
+
+    container.appendChild(card);
+
+    // Pre-populate if ids exist
+    if (custom.ids) applyCustomIds(ci, true);
+  });
+}
+
+function applyCustomIds(ci, silent) {
+  const idsInput = document.getElementById(`custom-ids-${ci}`);
+  const str = idsInput ? idsInput.value : customState[ci].ids;
+  customState[ci].ids = str;
+  saveCustom(customState);
+
+  const ids = parseIds(str);
+  const area = document.getElementById(`custom-items-${ci}`);
+  const meta = document.getElementById(`custom-meta-${ci}`);
+  if (!area) return;
+  area.innerHTML = '';
+
+  const found = ids.map(id => ITEMS_BY_ID[id]).filter(Boolean);
+  if (!found.length) {
+    area.innerHTML = '<span class="custom-items-empty">No valid IDs found. Check the # numbers shown on each item chip.</span>';
+    if (meta) meta.textContent = '0 items';
+    return;
+  }
+
+  // Ensure checkedIds exist for new items
+  found.forEach(item => {
+    if (!(item.id in customState[ci].checkedIds)) {
+      customState[ci].checkedIds[item.id] = true;
+    }
+  });
+  saveCustom(customState);
+
+  found.forEach(item => {
+    const chip = document.createElement('div');
+    const isChecked = customState[ci].checkedIds[item.id] !== false;
+    chip.className = 'item-chip' +
+      (item.topPick ? ' top-pick' : '') +
+      (!item.searching ? ' no-param' : '') +
+      (isChecked ? ' checked' : '');
+    chip.title = (item.hint || '') +
+      `\nGroup: ${item.groupTitle}` +
+      (!item.searching ? '\n⚠ Opens homepage (no search parameter)' : '');
+
+    chip.innerHTML = `
+      <div class="chip-cb"></div>
+      <span class="item-name">${item.title.replace(/^\*/, '')}</span>
+      ${!item.searching ? '<span class="no-param-badge">homepage</span>' : ''}
+      <span style="font-size:0.65rem;color:var(--ink3)">#${item.id}</span>
+    `;
+
+    let checked = isChecked;
+    chip.addEventListener('click', () => {
+      checked = !checked;
+      customState[ci].checkedIds[item.id] = checked;
+      saveCustom(customState);
+      chip.classList.toggle('checked', checked);
+      updateCustomMeta(ci, found);
+    });
+
+    area.appendChild(chip);
+  });
+
+  updateCustomMeta(ci, found);
+  if (!silent) showToast(`Loaded ${found.length} item${found.length !== 1 ? 's' : ''}`);
+}
+
+function updateCustomMeta(ci, items) {
+  const meta = document.getElementById(`custom-meta-${ci}`);
+  if (!meta || !items) return;
+  const checkedCount = items.filter(i => customState[ci].checkedIds[i.id] !== false).length;
+  meta.textContent = `${checkedCount} / ${items.length} items`;
+}
+
+function selectAllCustom(ci) {
+  const ids = parseIds(customState[ci].ids);
+  ids.forEach(id => { customState[ci].checkedIds[id] = true; });
+  saveCustom(customState);
+  applyCustomIds(ci, true);
+}
+function selectNoneCustom(ci) {
+  const ids = parseIds(customState[ci].ids);
+  ids.forEach(id => { customState[ci].checkedIds[id] = false; });
+  saveCustom(customState);
+  applyCustomIds(ci, true);
+}
+
+
+// ── URL LIST VIEW ──
+function buildUrlList(groupId) {
+  const group = GROUPS.find(g => g.groupId === groupId);
+  if (!group) return;
+  const q = getQuery();
+  const ul = document.getElementById(`urllist-${groupId}`);
+  if (!ul) return;
+  ul.innerHTML = '';
+  const checked = group.items.filter(item => checksState[item.id]);
+  if (!checked.length) {
+    ul.innerHTML = '<li class="url-list-empty">No items checked in this group.</li>';
+    return;
+  }
+  checked.forEach(item => {
+    const url = buildUrl(item, q);
+    const name = item.title.replace(/^\*/, '');
+    const li = document.createElement('li');
+    li.innerHTML = `<a href="${url}" target="_blank" rel="noopener noreferrer">${name}</a>`;
+    ul.appendChild(li);
+  });
+}
+
+function toggleUrlView(groupId) {
+  const view = document.getElementById(`urlview-${groupId}`);
+  const grid = document.getElementById(`grid-${groupId}`);
+  const btn = document.getElementById(`urlviewbtn-${groupId}`);
+  if (!view || !grid || !btn) return;
+  const isActive = view.classList.contains('active');
+  if (isActive) {
+    // Switch back to chips
+    view.classList.remove('active');
+    view.style.display = 'none';
+    grid.style.display = 'flex';
+    btn.textContent = 'Show URLs';
+  } else {
+    // Switch to URL list
+    buildUrlList(groupId);
+    view.classList.add('active');
+    view.style.display = 'block';
+    grid.style.display = 'none';
+    btn.textContent = 'Show Items';
+  }
+}
+
+function copyNames(groupId) {
+  const group = GROUPS.find(g => g.groupId === groupId);
+  if (!group) return;
+  const checked = group.items.filter(item => checksState[item.id]);
+  const names = checked.map(item => item.title.replace(/^\*/, '')).join('\n');
+  navigator.clipboard.writeText(names).then(() => {
+    const btn = document.querySelector(`#urlview-${groupId} .copy-names-btn`);
+    if (btn) {
+      btn.textContent = '✓ Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy names';
+        btn.classList.remove('copied');
+      }, 2000);
+    }
+  });
+}
+
+
+// ── LIVE PANEL ──
+function refreshLivePanel() {
+  const listEl = document.getElementById('live-panel-list');
+  const emptyEl = document.getElementById('live-panel-empty');
+  const panel = document.getElementById('queue-panel');
+  if (!listEl) return;
+
+  const q = getQuery();
+
+  // Collect checked items from the active group only
+  const checkedItems = [];
+  if (activeGroupId !== null) {
+    const activeGroup = GROUPS.find(g => g.groupId === activeGroupId);
+    if (activeGroup) {
+      activeGroup.items.forEach(item => {
+        if (checksState[item.id]) {
+          checkedItems.push({ item, groupTitle: activeGroup.title });
+        }
+      });
+    }
+  }
+
+  listEl.innerHTML = '';
+
+  if (!checkedItems.length) {
+    emptyEl.style.display = 'block';
+    listEl.style.display = 'none';
+    panel.classList.remove('open');
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  listEl.style.display = 'block';
+
+  checkedItems.forEach(({ item, groupTitle }) => {
+    const row = document.createElement('div');
+    row.className = 'live-row';
+    const name = item.title.replace(/^\*/, '');
+    const url = buildUrl(item, q);
+    row.innerHTML = `
+      <span class="live-row-group" title="${groupTitle}">${groupTitle}</span>
+      <span class="live-row-name" title="${name}">${name}</span>
+      <button class="live-row-open" title="Open ${name}" onclick="openLiveItem(this, '${url.replace(/'/g, "\'")}')">→</button>
+      <button class="live-row-uncheck" title="Uncheck ${name}" onclick="uncheckItem(${item.id})">✕</button>
+    `;
+    listEl.appendChild(row);
+  });
+
+  // Update panel title to show active group
+  const titleEl = document.getElementById('queue-panel-title');
+  const subtitleEl = document.getElementById('queue-panel-subtitle');
+  if (activeGroupId !== null) {
+    const activeGroup = GROUPS.find(g => g.groupId === activeGroupId);
+    if (titleEl && activeGroup) titleEl.textContent = activeGroup.title;
+    if (subtitleEl) subtitleEl.textContent = checkedItems.length
+      ? `${checkedItems.length} item${checkedItems.length !== 1 ? 's' : ''} checked · Click → to open · ✕ to uncheck`
+      : 'No items checked in this group';
+    panel.classList.add('open');
+  } else {
+    if (titleEl) titleEl.textContent = 'Checked Items';
+    if (subtitleEl) subtitleEl.textContent = 'Open a group to begin';
+    panel.classList.remove('open');
+  }
+}
+
+function openLiveItem(btn, url) {
+  const newWin = window.open(url, '_blank');
+  if (newWin) newWin.blur();
+  window.focus();
+  // Mark row as opened
+  btn.textContent = '✓';
+  btn.style.color = 'var(--accent)';
+  btn.style.borderColor = 'var(--accent)';
+  btn.disabled = true;
+  btn.closest('.live-row').style.opacity = '0.5';
+  // Move focus to next undone open button
+  const allBtns = [...document.querySelectorAll('.live-row-open')].filter(b => !b.disabled);
+  if (allBtns.length) allBtns[0].focus();
+}
+
+function uncheckItem(id) {
+  checksState[id] = false;
+  saveChecks(checksState);
+  // Refresh the chip in whichever group it belongs to
+  const itemData = ITEMS_BY_ID[id];
+  if (itemData) {
+    const group = GROUPS.find(g => g.groupId === itemData.groupId);
+    if (group) {
+      refreshGroupChips(group.groupId, group.items);
+      updateMeta(group.groupId, group.items);
+    }
+  }
+  refreshLivePanel();
+}
+
+// ── ACTIVE GROUP TRACKING ──
+let activeGroupId = null;
+
+// ── INIT ──
+renderGroups();
+renderCustomSections();
+refreshLivePanel();
+
+// Enter key triggers... nothing globally (user picks which group to search)
+document.getElementById('global-query').addEventListener('keydown', e => {
+  if (e.key === 'Enter') showToast('Select a group\'s Search button to open tabs.');
+});
+</script>
+</body>
+</html>
