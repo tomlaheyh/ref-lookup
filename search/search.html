@@ -46,13 +46,6 @@
     box-shadow: 0 2px 20px rgba(0,0,0,0.25);
   }
 
-  header h1 {
-    font-family: 'DM Serif Display', serif;
-    font-size: 1.5rem;
-    letter-spacing: -0.01em;
-    margin-bottom: 14px;
-    color: #fff;
-  }
   header h1 span {
     color: var(--accent2);
   }
@@ -634,10 +627,6 @@
 <body>
 
 <header>
-  <h1 style="display:flex; align-items:baseline; justify-content:space-between;">
-    <span>Research <span>Search Hub</span></span>
-    <a href="./index.html" style="font-family:'DM Sans',sans-serif; font-size:0.78rem; font-weight:400; color:rgba(255,255,255,0.6); text-decoration:none; letter-spacing:0.01em; transition:color 0.15s;" onmouseover="this.style.color='rgba(255,255,255,0.95)'" onmouseout="this.style.color='rgba(255,255,255,0.6)'">DOI Lookup →</a>
-  </h1>
   <div class="search-bar">
     <input type="text" id="global-query" placeholder="Enter your search term…" autocomplete="off" />
     <button class="clear-btn" onclick="clearQuery()">✕ Clear</button>
@@ -1313,5 +1302,6 @@ document.getElementById('global-query').addEventListener('keydown', e => {
   if (e.key === 'Enter') showToast('Select a group\'s Search button to open tabs.');
 });
 </script>
+<script src="/siteNav.js"></script>
 </body>
 </html>

@@ -403,10 +403,8 @@
 <body>
 
 <header>
-  <h1>Clinical Practice Guidelines</h1>
   <p>Current major guidelines for cardiovascular &amp; metabolic medicine — US and EU sources shown together per condition for direct comparison. Each row links to the published guideline DOI and the issuing society's resource page.</p>
   <p style="margin-top:5px; font-size:13px;">MeSH terms support automated matching in the <a href="../" style="color:var(--accent);">DOI Ref-Lookup</a> extension. <strong>Full Guideline ⚠</strong> = paywalled; no ⚠ = free access.</p>
-  <div class="header-nav">← <a href="../">Back to DOI Ref-Lookup</a></div>
 </header>
 
 <div class="page-wrap">
@@ -425,6 +423,7 @@
       <option value="renal">Renal</option>
       <option value="structural">Structural</option>
       <option value="vascular">Vascular</option>
+      <option value="neuro">Neurology &amp; Mental Health</option>
     </select>
     <input class="search-box" type="text" id="searchBox" placeholder="Search condition or MeSH…">
   </div>
@@ -1641,11 +1640,77 @@
     </div>
   </div>
 
+
+  <!-- ══════════════════════════════════════
+       NEUROLOGY & MENTAL HEALTH
+  ══════════════════════════════════════ -->
+  <div class="section-heading">Neurology &amp; Mental Health</div>
+
+  <!-- ── BRAIN-HEART MULTIMORBIDITY ── -->
+  <div class="condition-card"
+       data-category="neuro"
+       data-topic="brain heart multimorbidity comorbidity stroke dementia depression anxiety cognitive impairment atrial fibrillation heart failure hypertension cardiovascular neurology mental health"
+       data-mesh="Multimorbidity; Brain Diseases; Heart Diseases; Stroke; Dementia; Depression; Anxiety Disorders; Cognitive Dysfunction; Cardiovascular Diseases; Comorbidity; Mental Disorders">
+
+    <div class="card-header">
+      <span class="card-condition-title">Brain–Heart Multimorbidity</span>
+      <span class="card-category-tag">Neurology &amp; Cardiology</span>
+      <div class="card-mesh">
+        <button class="mesh-toggle" onclick="toggleMesh(this)">▸ MeSH terms</button>
+        <div class="mesh-terms">Multimorbidity · Brain Diseases · Heart Diseases · Stroke · Dementia · Depression · Anxiety Disorders · Cognitive Dysfunction · Cardiovascular Diseases · Comorbidity · Mental Disorders · Atrial Fibrillation · Heart Failure · Hypertension · Neuropsychiatric Disorders</div>
+      </div>
+    </div>
+
+    <div class="guideline-row">
+      <div class="row-region glb"><span>GLB</span></div>
+      <div class="row-body">
+        <div class="row-title">Management of Brain–Heart Multimorbidity: A Clinical Practice Guideline (C-CHANGE)</div>
+        <div class="row-meta">
+          <span class="year-badge" style="background:var(--glb-col)">2026</span>
+          <span class="row-bodies">C-CHANGE — Canadian Cardiovascular Harmonized National Guideline Endeavour</span>
+          <span class="row-note">First guideline to bridge cardiac and neurologic/mental health silos · open access · Canadian-led but internationally applicable</span>
+        </div>
+        <div class="row-evidence">
+          <span class="ev-label">Data range: </span><span class="ev-researching">being researched</span><span class="ev-sep">·</span><span class="ev-label">Published: </span><span class="ev-dates">Mar 30, 2026</span>
+        </div>
+      </div>
+      <div class="row-links">
+        <a href="https://doi.org/10.1503/cmaj.251137" target="_blank" title="Free — CMAJ (Open Access)">Full Guideline</a>
+        <a href="https://www.cchangeguidelines.com" target="_blank" class="soc">C-CHANGE</a>
+        <div class="row-verified">Verified Apr 2026</div>
+        <div class="row-pdf-status not-reviewed">PDF not reviewed</div>
+      </div>
+    </div>
+
+    <div class="card-analysis-bar">
+      <button class="analysis-toggle" onclick="toggleAnalysis(this)"><span>▸</span>&nbsp; Analysis &amp; Context</button>
+      <div class="analysis-panel">
+        <div class="analysis-section">
+          <div class="analysis-heading">Key Recommendations</div>
+          <div class="analysis-body">
+            <strong>Novel cross-specialty approach:</strong> This guideline explicitly addresses the gap in current clinical practice where cardiac and neurologic guidelines are produced in specialty silos, leaving clinicians without guidance for managing patients with comorbid brain and heart conditions — one of the most common clinical presentations in primary care and cardiology.<br><br>
+            <strong>Scope of brain–heart conditions:</strong> Covers key brain–heart dyads including: stroke and AF, heart failure and depression, hypertension and dementia/cognitive impairment, cardiac conditions and anxiety, and broader neuropsychiatric comorbidities in cardiovascular patients.<br><br>
+            <strong>Evidence synthesis:</strong> Developed by 10 expert subgroups drawing from both cardiovascular and neurologic/mental health literature — an unusual methodological approach that strengthens the recommendations' applicability across specialties.<br><br>
+            <strong>Implementation focus:</strong> The guideline is supported by C-CHANGE's knowledge translation arm CHEP+, with accredited CPD programs for in-person and online learning, and integration into electronic medical records planned.
+          </div>
+        </div>
+        <div class="analysis-section">
+          <div class="analysis-heading">Considerations &amp; Emerging Evidence</div>
+          <div class="analysis-body">
+            <strong>First of its kind:</strong> No equivalent US (ACC/AHA) or EU (ESC) guideline currently addresses brain–heart multimorbidity as an integrated topic — making this Canadian guideline the primary reference for this clinical area globally.<br><br>
+            <strong>Open access:</strong> Freely available via CMAJ, which increases its reach and applicability for clinicians internationally.<br><br>
+            <strong>Cross-references on this page:</strong> Recommendations in this guideline intersect with the Hypertension, Atrial Fibrillation, Heart Failure, and Chronic Coronary Disease cards. The shared cardiovascular risk factors (hypertension, dyslipidemia, diabetes) make this guideline complementary to all Cardiovascular Prevention entries.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Footer ── -->
   <div class="page-footer">
     <strong>About this page:</strong> Guidelines verified manually approximately twice monthly. Each condition groups all relevant US and EU guidelines together for direct comparison. <strong>Full Guideline</strong> links go to the primary published DOI — free where available, paywalled where not (⚠). Society links (AHA, ACC, ESC, ADA…) go to that society's resource page for summaries, slide sets, and plain-language materials. MeSH terms support matching in the <a href="../">DOI Ref-Lookup</a> PubMed extension — feedback on missing terms welcome.<br><br>
     <strong>US vs EU:</strong> ACC/AHA and ESC guidelines are independent and can differ significantly on thresholds and targets. Neither supersedes the other. Differences are noted inline and detailed in each Analysis &amp; Context section.<br><br>
-    <strong>Scope:</strong> Currently covers cardiovascular prevention (dyslipidemia, hypertension), cardiac conditions (heart failure, atrial fibrillation, ACS, chronic coronary disease), metabolic (diabetes, obesity &amp; weight management, CKM syndrome), renal (CKD/KDIGO), structural (valvular heart disease), and vascular (peripheral artery disease). Neurology (AAN), pulmonology (GOLD/GINA), and other specialties to be added progressively.<br><br>
+    <strong>Scope:</strong> Currently covers cardiovascular prevention (dyslipidemia, hypertension), cardiac conditions (heart failure, atrial fibrillation, ACS, chronic coronary disease), metabolic (diabetes, obesity &amp; weight management, CKM syndrome), renal (CKD/KDIGO), structural (valvular heart disease), and vascular (peripheral artery disease). Neurology &amp; Mental Health section started (brain–heart multimorbidity, C-CHANGE 2026). AAN guidelines, pulmonology (GOLD/GINA), and other specialties to be added progressively.<br><br>
     Last update: <span style="font-family:var(--mono)">March 2026</span> &nbsp;·&nbsp; <a href="../">← DOI Ref-Lookup</a>
   </div>
 
@@ -1720,5 +1785,6 @@
   }
 </script>
 
+<script src="/siteNav.js"></script>
 </body>
 </html>

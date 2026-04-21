@@ -256,12 +256,12 @@
       .lookup-box button { width: 100%; }
       header h1 { font-size: 22px; }
     }
+
   </style>
 </head>
 <body>
 
   <header>
-    <h1>Awesome DOI-Ref-Lookup</h1>
     <p>Enter a DOI (up to 15, separated by commas), a single ISSN, ISBN, ORCID, or PMID to retrieve article metadata, metrics, <span style="color:var(--accent2);font-weight:500;">retraction status</span>, and more. Any other text searches CrossRef. Prefix with <span style="font-family:var(--mono);font-size:12px;">worldcat</span> or <span style="font-family:var(--mono);font-size:12px;">book</span> to search WorldCat instead.</p>
     <p style="margin-top:5px; font-size:11.5px;">2025: CrossRef registered 13.2M, where 8.75M are academic (articles, preprints, reports) &middot; DataCite 1M academic &middot; together ~95% of 2025 academic DOIs globally.</p>
   </header>
@@ -278,9 +278,7 @@
     <button id="exportBtn" onclick="exportCSV()">Export CSV</button>
     <button id="clearBtn" onclick="clearList()">Clear list</button>
     <button id="retractionSearchBtn" onclick="window.open('https://retractiondatabase.org/RetractionSearch.aspx?', '_blank')">Advanced Retraction Search</button>
-    <a href="./med/" style="font-family:var(--mono); font-size:13px; font-weight:600; color:var(--accent); text-decoration:none; padding:8px 0; white-space:nowrap;">Clinical Guidelines &rarr;</a>
-    <div id="status"></div>
-    <a href="./search.html" title="Multi-site topic search across academic, health, reference, and more" style="font-family:var(--mono); font-size:13px; font-weight:600; color:var(--accent); text-decoration:none; padding:8px 0; white-space:nowrap; margin-left:auto;">Topic Search &rarr;</a>
+    <div id="status" style="margin-left:auto;"></div>
     <a href="https://chromewebstore.google.com/detail/doi-ref-lookup/eeefkdjjcilinphodokjljocffkkgkfa?utm_source=ext_app_menu" target="_blank" title="Chrome extension — adds a &quot;Ref&quot; link to all DOIs that opens here, easy On/Off" style="font-family:var(--mono); font-size:13px; font-weight:600; color:var(--accent); text-decoration:none; padding:8px 0; white-space:nowrap;">&mdash; DOI-Ref-Lookup Extension &mdash;</a>
   </div>
   <div id="results"></div>
@@ -866,5 +864,6 @@
       };
     }
   </script>
+  <script src="siteNav.js"></script>
 </body>
 </html>
