@@ -22,6 +22,8 @@
     --tier1-bg: #f0f6f0;
     --tier2: #4a3a00;
     --tier2-bg: #fdf8ee;
+    --tier-warn: #8c2a2a;
+    --tier-warn-bg: #fdf0f0;
     --shadow: 0 2px 10px rgba(0,0,0,0.06);
     --shadow-hover: 0 4px 20px rgba(0,0,0,0.1);
   }
@@ -40,7 +42,7 @@
   header {
     max-width: 1000px;
     margin: 0 auto;
-    padding: 20px 0 14px;
+    padding: 8px 0 14px;
     border-bottom: 2px solid var(--ink);
     margin-bottom: 10px;
     display: flex;
@@ -217,6 +219,7 @@
   }
   .tier-label.tier-1 { color: var(--tier1); background: var(--tier1-bg); }
   .tier-label.tier-2 { color: var(--tier2); background: var(--tier2-bg); }
+  .tier-label.tier-warn { color: var(--tier-warn); background: var(--tier-warn-bg); }
 
   /* ─── ITEM ROW ─── */
   .item-row {
@@ -232,6 +235,7 @@
 
   .item-row.tier-1-item { border-left: 3px solid #a8c8a8; }
   .item-row.tier-2-item { border-left: 3px solid #d4b84a; }
+  .item-row.tier-warn-item { border-left: 3px solid #cc4444; }
   .item-row.no-tier { border-left: 3px solid transparent; }
 
   .item-name {
@@ -278,13 +282,18 @@
 </header>
 
 <p class="header-sub">
-  A logic-based reference of 192 unique biological inputs — focused on bioavailability, active vitamers, and physiological utility. Click any group to expand, then expand subgroups within.
+  A logic-based reference  — focused on bioavailability, active vitamers, and physiological utility. Click any group to expand, then expand subgroups within.
 </p>
 
 <main id="groups-container"></main>
 
+<div style="height: 20px;"></div>
+<h2 style="text-align:center; font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600; color:#005a8c; margin:0 0 20px;">Treatments</h2>
+
+<main id="treatments-container"></main>
+
 <div class="page-footer">
-  Source: Universal Human Input Map v1.0 · Compiled April 2026 · 192 unique inputs
+  Source: Universal Human Input Map v1.0 · Compiled April 2026
 </div>
 
 <script>
@@ -301,30 +310,30 @@ const DATA = [
             label: 'Tier I — The Essential 9 (Hard Requirements)',
             cls: 'tier-1',
             items: [
-              { name: 'Leucine', desc: 'The primary "anabolic trigger" for muscle protein synthesis.' },
-              { name: 'Isoleucine', desc: 'Essential for hemoglobin formation and muscle energy.' },
-              { name: 'Valine', desc: 'Supports muscle repair and tissue regeneration.' },
-              { name: 'Lysine', desc: 'Collagen cross-linking; forms the structural "staircase" of connective tissue.' },
-              { name: 'Threonine', desc: 'Supports gut lining integrity and tooth enamel.' },
-              { name: 'Phenylalanine', desc: 'Precursor for Dopamine and Norepinephrine (Focus/Drive).' },
-              { name: 'Tryptophan', desc: 'Precursor for Serotonin and Melatonin (Mood/Sleep).' },
-              { name: 'Methionine', desc: 'Supplies organic sulfur; the "start" signal for all protein building.' },
               { name: 'Histidine', desc: 'Essential for the myelin sheath (nerve protection).' },
+              { name: 'Isoleucine', desc: 'Essential for hemoglobin formation and muscle energy.' },
+              { name: 'Leucine', desc: 'The primary "anabolic trigger" for muscle protein synthesis.' },
+              { name: 'Lysine', desc: 'Collagen cross-linking; forms the structural "staircase" of connective tissue.' },
+              { name: 'Methionine', desc: 'Supplies organic sulfur; the "start" signal for all protein building.' },
+              { name: 'Phenylalanine', desc: 'Precursor for Dopamine and Norepinephrine (Focus/Drive).' },
+              { name: 'Threonine', desc: 'Supports gut lining integrity and tooth enamel.' },
+              { name: 'Tryptophan', desc: 'Precursor for Serotonin and Melatonin (Mood/Sleep).' },
+              { name: 'Valine', desc: 'Supports muscle repair and tissue regeneration.' },
             ]
           },
           {
             label: 'Tier II — Functional & Neuro Extensions',
             cls: 'tier-2',
             items: [
-              { name: 'Glycine', desc: '33% of the collagen matrix; acts as a calming neurotransmitter for deep sleep.' },
-              { name: 'L-Theanine', desc: 'Increases Alpha-wave activity; provides "relaxed focus" and smooths caffeine jitters.' },
-              { name: 'Creatine Monohydrate', desc: '~99% absorption; the most stable form for ATP recycling in brain and muscle.' },
-              { name: 'Taurine', desc: 'Essential for bile salt formation and stabilizing cardiac electrical rhythm.' },
-              { name: 'GABA', desc: 'The primary "brake pedal" of the nervous system to reduce excitability.' },
-              { name: 'L-Citrulline', desc: 'Superior to Arginine for long-term Nitric Oxide (blood flow) production.' },
-              { name: 'Beta-Alanine', desc: 'Buffers intramuscular acid during high-intensity output.' },
               { name: 'Anserine', desc: 'A stable dipeptide that protects brain and kidneys from glycation (sugar damage).' },
+              { name: 'Beta-Alanine', desc: 'Buffers intramuscular acid during high-intensity output.' },
+              { name: 'Creatine Monohydrate', desc: '~99% absorption; the most stable form for ATP recycling in brain and muscle.' },
+              { name: 'GABA', desc: 'The primary "brake pedal" of the nervous system to reduce excitability.' },
               { name: 'Glutamine', desc: 'The primary fuel for the cells lining the small intestine (enterocytes).' },
+              { name: 'Glycine', desc: '33% of the collagen matrix; acts as a calming neurotransmitter for deep sleep.' },
+              { name: 'L-Citrulline', desc: 'Superior to Arginine for long-term Nitric Oxide (blood flow) production.' },
+              { name: 'L-Theanine', desc: 'Increases Alpha-wave activity; provides "relaxed focus" and smooths caffeine jitters.' },
+              { name: 'Taurine', desc: 'Essential for bile salt formation and stabilizing cardiac electrical rhythm.' },
             ]
           }
         ]
@@ -336,12 +345,12 @@ const DATA = [
             label: null,
             cls: null,
             items: [
-              { name: 'Pentadecanoic Acid (C15:0)', desc: 'A stable saturated fat that strengthens aging cell membranes.' },
+              { name: 'ARA (Arachidonic Acid)', desc: 'Essential Omega-6 that triggers the muscle repair signal post-exercise.' },
               { name: 'DHA [Phospholipid Form]', desc: 'Superior brain-tissue integration; primary structural fat of the retina.' },
               { name: 'EPA [Triglyceride Form]', desc: '~70% better absorption than ethyl esters; primary anti-inflammatory lipid.' },
               { name: 'MCTs (C8/C10)', desc: 'Bypass standard digestion to provide immediate ketone energy to the brain.' },
+              { name: 'Pentadecanoic Acid (C15:0)', desc: 'A stable saturated fat that strengthens aging cell membranes.' },
               { name: 'Phosphatidylcholine', desc: 'The "building block" of the protective myelin sheath around nerves.' },
-              { name: 'ARA (Arachidonic Acid)', desc: 'Essential Omega-6 that triggers the muscle repair signal post-exercise.' },
               { name: 'Stearic Acid', desc: 'Saturated fat that signals mitochondria to become more energy-efficient.' },
             ]
           }
@@ -374,10 +383,10 @@ const DATA = [
             label: 'Tier I — Macro-Minerals',
             cls: 'tier-1',
             items: [
+              { name: 'Calcium Citrate', desc: 'Highly absorbable; lower risk of kidney stones than carbonate forms.' },
               { name: 'Magnesium Glycinate', desc: '~80% absorption; bound to glycine for calming and high bioavailability.' },
               { name: 'Magnesium L-Threonate', desc: 'The only form proven to significantly raise Magnesium levels in the brain.' },
               { name: 'Magnesium Malate', desc: 'High-utility form for ATP energy production and muscle recovery.' },
-              { name: 'Calcium Citrate', desc: 'Highly absorbable; lower risk of kidney stones than carbonate forms.' },
               { name: 'Potassium Citrate', desc: 'The "Alkalizing" form; prevents kidney stones and manages blood pressure.' },
               { name: 'Sodium Chloride (Sea Salt)', desc: 'Essential balanced salt for fluid volume and nerve firing.' },
             ]
@@ -387,13 +396,13 @@ const DATA = [
             cls: 'tier-2',
             items: [
               { name: 'Boron Glycinate', desc: 'Superior absorption for reducing SHBG and increasing "Free" Testosterone.' },
-              { name: 'Lithium Orotate', desc: 'Low-dose (5mg) form that crosses into brain cells for neuroprotection.' },
-              { name: 'Selenium (Selenomethionine)', desc: '~90% absorption; preferred form for building antioxidant enzymes.' },
-              { name: 'Zinc Picolinate', desc: 'The highest systemic absorption form for immune and hormonal support.' },
-              { name: 'Zinc Carnosine', desc: 'Targeted form that adheres to and heals the gastric and gut lining.' },
               { name: 'Heme Iron Polypeptide', desc: '~35% absorption; animal-sourced iron that ignores plant-based blockers.' },
               { name: 'Iron Bisglycinate', desc: 'A "gentle" chelate that avoids the constipation of standard iron salts.' },
+              { name: 'Lithium Orotate', desc: 'Low-dose (5mg) form that crosses into brain cells for neuroprotection.' },
+              { name: 'Selenium (Selenomethionine)', desc: '~90% absorption; preferred form for building antioxidant enzymes.' },
               { name: 'Silica (Orthosilicic Acid)', desc: 'The only bioavailable form of silica for hair and bone matrix.' },
+              { name: 'Zinc Carnosine', desc: 'Targeted form that adheres to and heals the gastric and gut lining.' },
+              { name: 'Zinc Picolinate', desc: 'The highest systemic absorption form for immune and hormonal support.' },
             ]
           }
         ]
@@ -407,10 +416,10 @@ const DATA = [
             items: [
               { name: 'Vitamin A (Retinyl Palmitate)', desc: 'Pre-formed Vitamin A; ready for immediate use by eyes and skin.' },
               { name: 'Vitamin B1 (Thiamine HCl)', desc: 'The standard spark plug for carbohydrate metabolism.' },
+              { name: 'Vitamin B12 (Methylcobalamin)', desc: 'Naturally active "methyl" form for the brain and nerves.' },
               { name: 'Vitamin B2 (Riboflavin-5-Phosphate)', desc: 'Active coenzyme (R5P); skips liver conversion for energy.' },
               { name: 'Vitamin B6 (P5P)', desc: 'Active form; required for Serotonin and Dopamine synthesis.' },
               { name: 'Vitamin B9 (L-5-MTHF)', desc: 'Active folate; ~70% better utilization; bypasses MTHFR mutations.' },
-              { name: 'Vitamin B12 (Methylcobalamin)', desc: 'Naturally active "methyl" form for the brain and nerves.' },
               { name: 'Vitamin C (L-Ascorbic Acid)', desc: 'Primary water-soluble antioxidant and collagen "on-switch."' },
               { name: 'Vitamin D3 (Cholecalciferol)', desc: '87% more potent than D2 in raising blood hormone levels.' },
               { name: 'Vitamin K1 (Phylloquinone)', desc: 'Primarily used by the liver for healthy blood clotting.' },
@@ -420,16 +429,16 @@ const DATA = [
             label: 'Tier II — Optimization Extensions',
             cls: 'tier-2',
             items: [
-              { name: 'Nicotinamide Riboside Chloride (NR)', desc: 'Superior NAD+ booster for DNA repair.' },
-              { name: 'Ubiquinol (Active CoQ10)', desc: 'Reduced form for immediate heart energy without a conversion step.' },
-              { name: 'Benfotiamine (Fat-Soluble B1)', desc: '5× higher tissue penetration for nerve and kidney protection.' },
               { name: 'Adenosylcobalamin (Mitochondrial B12)', desc: 'Used directly in mitochondria for physical stamina.' },
-              { name: 'Vitamin K2 (MK-7)', desc: '72-hour half-life; ensures calcium stays in bones, not arteries.' },
-              { name: 'Vitamin K2 (MK-4)', desc: 'Fast-acting animal form; targets brain and reproductive organs.' },
-              { name: 'Mixed Tocotrienols (High-Performance E)', desc: '50× more potent than standard E for neuroprotection.' },
-              { name: 'Liposomal Vitamin C', desc: 'Near-IV absorption; phospholipid-wrapped for massive immune support.' },
-              { name: 'PQQ', desc: 'Triggers "Mitochondrial Biogenesis" — the growth of new mitochondria.' },
               { name: 'Alpha-GPC (Active Choline)', desc: 'High-velocity form that crosses the blood-brain barrier for focus.' },
+              { name: 'Benfotiamine (Fat-Soluble B1)', desc: '5× higher tissue penetration for nerve and kidney protection.' },
+              { name: 'Liposomal Vitamin C', desc: 'Near-IV absorption; phospholipid-wrapped for massive immune support.' },
+              { name: 'Mixed Tocotrienols (High-Performance E)', desc: '50× more potent than standard E for neuroprotection.' },
+              { name: 'Nicotinamide Riboside Chloride (NR)', desc: 'Superior NAD+ booster for DNA repair.' },
+              { name: 'PQQ', desc: 'Triggers "Mitochondrial Biogenesis" — the growth of new mitochondria.' },
+              { name: 'Ubiquinol (Active CoQ10)', desc: 'Reduced form for immediate heart energy without a conversion step.' },
+              { name: 'Vitamin K2 (MK-4)', desc: 'Fast-acting animal form; targets brain and reproductive organs.' },
+              { name: 'Vitamin K2 (MK-7)', desc: '72-hour half-life; ensures calcium stays in bones, not arteries.' },
             ]
           }
         ]
@@ -449,11 +458,11 @@ const DATA = [
             cls: null,
             items: [
               { name: 'Akkermansia muciniphila', desc: 'Direct gut-barrier support; triggers fresh mucus lining growth.' },
+              { name: 'Bacillus coagulans', desc: 'Spore-based; 100% survival through stomach acid to the lower colon.' },
+              { name: 'FOS / Inulin', desc: 'Precision prebiotics that feed beneficial Bifidobacteria.' },
               { name: 'L. reuteri [ATCC PTA 6475]', desc: 'Triggers oxytocin release for skin quality, healing, and mood.' },
               { name: 'S. boulardii', desc: 'Beneficial yeast that survives antibiotics to prevent gut dysbiosis.' },
-              { name: 'Bacillus coagulans', desc: 'Spore-based; 100% survival through stomach acid to the lower colon.' },
               { name: 'Tributyrin [Liquid Butyrate]', desc: 'A postbiotic that provides direct fuel to colon cells (bypass).' },
-              { name: 'FOS / Inulin', desc: 'Precision prebiotics that feed beneficial Bifidobacteria.' },
             ]
           }
         ]
@@ -473,12 +482,12 @@ const DATA = [
             cls: null,
             items: [
               { name: 'Allulose', desc: 'Rare sugar that triggers GLP-1 (satiety) and improves insulin sensitivity.' },
-              { name: 'D-Ribose', desc: 'The backbone of ATP; used for rapid heart and muscle energy recovery.' },
-              { name: 'D-Mannose', desc: '"Sticky trap" sugar that clears bacteria from the urinary tract.' },
-              { name: 'Isomaltulose', desc: 'Slow-release glucose; provides steady fuel without an insulin spike.' },
               { name: 'Beta-Glucans [1,3/1,6 Linkage]', desc: 'Molecularly primes immune cells (Macrophages) for defense.' },
-              { name: 'Resistant Starch [Type 3]', desc: 'Retrograded starch that produces high levels of anti-inflammatory butyrate.' },
+              { name: 'D-Mannose', desc: '"Sticky trap" sugar that clears bacteria from the urinary tract.' },
+              { name: 'D-Ribose', desc: 'The backbone of ATP; used for rapid heart and muscle energy recovery.' },
+              { name: 'Isomaltulose', desc: 'Slow-release glucose; provides steady fuel without an insulin spike.' },
               { name: 'PHGG', desc: 'Enzymatically "cut" fiber that provides regularity with zero bloating.' },
+              { name: 'Resistant Starch [Type 3]', desc: 'Retrograded starch that produces high levels of anti-inflammatory butyrate.' },
             ]
           }
         ]
@@ -497,16 +506,480 @@ const DATA = [
             label: null,
             cls: null,
             items: [
+              { name: 'Apigenin', desc: 'CD38 inhibitor; prevents the age-related decline of NAD+ levels.' },
               { name: 'Ca-AKG (Calcium Alpha-Ketoglutarate)', desc: 'Epigenetic "cleaning" agent; supports DNA methylation.' },
+              { name: 'Curcumin [with Piperine]', desc: 'Modulates NF-kB to mute systemic inflammation.' },
+              { name: 'Fisetin', desc: 'A "Senolytic" that helps the body clear out aged "zombie cells."' },
+              { name: 'Quercetin', desc: 'An "ionophore" that helps move Zinc into the center of cells.' },
+              { name: 'Resveratrol', desc: 'Sirtuin activator that mimics the cellular repair signals of fasting.' },
               { name: 'Spermidine', desc: 'Primary trigger for Autophagy (cellular recycling/housekeeping).' },
               { name: 'Sulforaphane', desc: 'Triggers Nrf2 to increase the body\'s internal antioxidant production.' },
-              { name: 'Curcumin [with Piperine]', desc: 'Modulates NF-kB to mute systemic inflammation.' },
-              { name: 'Resveratrol', desc: 'Sirtuin activator that mimics the cellular repair signals of fasting.' },
-              { name: 'Quercetin', desc: 'An "ionophore" that helps move Zinc into the center of cells.' },
-              { name: 'Fisetin', desc: 'A "Senolytic" that helps the body clear out aged "zombie cells."' },
-              { name: 'Apigenin', desc: 'CD38 inhibitor; prevents the age-related decline of NAD+ levels.' },
             ]
           }
+        ]
+      }
+    ]
+  }
+];
+
+// ── TREATMENTS DATA (flat structure — tiers directly in each group, no subgroups) ──
+const TREATMENTS = [
+  {
+    number: 'Group 1',
+    title: 'Blood Pressure (BP)',
+    subtitle: 'Supplements and foods that may support healthy blood pressure levels',
+    tiers: [
+      {
+        label: 'Top Picks — Strongest Evidence for Lowering BP',
+        cls: 'tier-1',
+        items: [
+          { name: 'Berberine (500 mg 2×/day)', desc: 'Activates AMPK; shown to reduce systolic BP by ~5–7 mmHg in trials. Also benefits blood sugar.' },
+          { name: 'CoQ10 / Ubiquinol (200–300 mg/day)', desc: 'Improves endothelial function; meta-analyses show ~11 mmHg systolic reduction.' },
+          { name: 'EPA/DHA Omega-3 (2–4 g/day)', desc: 'Anti-inflammatory; reduces arterial stiffness. Higher doses needed for BP effect.' },
+          { name: 'Magnesium Glycinate (400–600 mg/day)', desc: 'Relaxes vascular smooth muscle; meta-analyses show ~5 mmHg systolic reduction.' },
+          { name: 'Potassium Citrate (2,000–3,000 mg/day)', desc: 'Counterbalances sodium; strong evidence for dose-dependent BP reduction.' },
+        ]
+      },
+      {
+        label: 'Strong Supporting Evidence',
+        cls: 'tier-2',
+        items: [
+          { name: 'Aged Garlic Extract (600–1,200 mg/day)', desc: 'S-allylcysteine relaxes blood vessels; ~8 mmHg systolic reduction in hypertensives.' },
+          { name: 'Beetroot / Nitrate Powder (6–13 mmol nitrate/day)', desc: 'Dietary nitrate converts to Nitric Oxide; acute BP drop within 3–6 hours.' },
+          { name: 'Hibiscus Tea (2–3 cups/day)', desc: 'ACE-inhibitor-like activity; trials show ~7 mmHg systolic reduction over 6 weeks.' },
+          { name: 'L-Citrulline (3–6 g/day)', desc: 'Sustained Nitric Oxide production; improves arterial compliance and lowers BP.' },
+          { name: 'Taurine (1–3 g/day)', desc: 'Reduces arterial stiffness and sympathetic nervous system overactivity.' },
+        ]
+      },
+      {
+        label: 'Moderate / Emerging Evidence',
+        cls: null,
+        items: [
+          { name: 'Celery Seed Extract (150 mg/day)', desc: '3-n-butylphthalide (3nB) relaxes arterial walls; traditional use backed by pilot studies.' },
+          { name: 'Grape Seed Extract (300–600 mg/day)', desc: 'Oligomeric proanthocyanidins (OPCs) support endothelial Nitric Oxide.' },
+          { name: 'Nattokinase (2,000 FU/day)', desc: 'Fibrinolytic enzyme that may reduce blood viscosity and modestly lower BP.' },
+          { name: 'Olive Leaf Extract (500–1,000 mg/day)', desc: 'Oleuropein acts as a natural calcium channel blocker; comparable to Captopril in one trial.' },
+          { name: 'Vitamin D3 (2,000–5,000 IU/day if deficient)', desc: 'Deficiency is linked to hypertension; correcting levels may reduce BP modestly.' },
+        ]
+      },
+      {
+        label: '⚠ May Raise BP — Use With Caution',
+        cls: 'tier-warn',
+        items: [
+          { name: 'Caffeine (acute doses >300 mg)', desc: 'Acute pressor effect of ~5–10 mmHg; tolerance develops with habitual use.' },
+          { name: 'Licorice Root (Glycyrrhizin)', desc: 'Inhibits cortisol breakdown → sodium retention → significant BP increase. Avoid if hypertensive.' },
+          { name: 'Sodium (excess >2,300 mg/day)', desc: 'Directly increases fluid volume and arterial pressure in salt-sensitive individuals.' },
+        ]
+      }
+    ]
+  },
+  {
+    number: 'Group 2',
+    title: 'Blood Sugar & Insulin',
+    subtitle: 'Supplements and foods that may support glucose regulation and insulin sensitivity',
+    tiers: [
+      {
+        label: 'Top Picks — Strongest Evidence for Glucose & Insulin Support',
+        cls: 'tier-1',
+        items: [
+          { name: 'Allulose (5–10 g with meals)', desc: 'Rare sugar that triggers GLP-1 release; blunts postprandial glucose spikes by ~20–30%.' },
+          { name: 'Alpha-Lipoic Acid (300–600 mg/day)', desc: 'Dual antioxidant (fat- and water-soluble); improves insulin-mediated glucose uptake.' },
+          { name: 'Berberine (500 mg 2×/day)', desc: 'Activates AMPK; comparable to Metformin in trials for lowering fasting glucose and HbA1c.' },
+          { name: 'Chromium Picolinate (200–1,000 mcg/day)', desc: 'Enhances insulin receptor sensitivity; most effective in those with deficiency or prediabetes.' },
+          { name: 'Magnesium Glycinate (400–600 mg/day)', desc: 'Low Magnesium is strongly linked to insulin resistance; correcting it improves HOMA-IR.' },
+        ]
+      },
+      {
+        label: 'Strong Supporting Evidence',
+        cls: 'tier-2',
+        items: [
+          { name: 'Apple Cider Vinegar (1–2 tbsp before meals)', desc: 'Acetic acid delays gastric emptying and improves post-meal insulin sensitivity.' },
+          { name: 'Bitter Melon Extract (500–1,000 mg/day)', desc: 'Contains charantin and polypeptide-p; acts on multiple glucose-lowering pathways.' },
+          { name: 'Ceylon Cinnamon (1–3 g/day)', desc: 'Contains cinnamaldehyde which mimics insulin signaling; use Ceylon to avoid coumarin toxicity.' },
+          { name: 'Fenugreek Seed Extract (500 mg 2×/day)', desc: 'Soluble fiber slows carbohydrate absorption; 4-hydroxyisoleucine stimulates insulin release.' },
+          { name: 'Resistant Starch [Type 3] (15–30 g/day)', desc: 'Ferments to butyrate in the colon; improves next-meal insulin sensitivity ("second meal effect").' },
+        ]
+      },
+      {
+        label: 'Moderate / Emerging Evidence',
+        cls: null,
+        items: [
+          { name: 'Banaba Leaf Extract (1–2 mg corosolic acid/day)', desc: 'Corosolic acid activates GLUT4 transporters to pull glucose into muscle cells.' },
+          { name: 'Gymnema Sylvestre (400–600 mg/day)', desc: 'Called "sugar destroyer" in Ayurveda; gymnemic acids block sugar taste receptors and slow absorption.' },
+          { name: 'Isomaltulose (as carb replacement)', desc: 'Slow-release glucose that produces ~50% lower insulin spike than sucrose.' },
+          { name: 'Psyllium Husk (5–10 g with meals)', desc: 'Viscous soluble fiber that slows glucose absorption and reduces post-meal spikes.' },
+          { name: 'Vitamin D3 (2,000–5,000 IU/day if deficient)', desc: 'Deficiency impairs beta-cell insulin secretion; correction improves glucose tolerance.' },
+        ]
+      },
+      {
+        label: '⚠ May Raise Blood Sugar — Use With Caution',
+        cls: 'tier-warn',
+        items: [
+          { name: 'Excess Cortisol (chronic stress / exogenous)', desc: 'Cortisol triggers gluconeogenesis and directly opposes insulin action.' },
+          { name: 'High-Dose Niacin (>1,500 mg/day)', desc: 'Therapeutic lipid doses can impair insulin sensitivity and raise fasting glucose.' },
+          { name: 'Refined Fructose (excess >25 g/day)', desc: 'Drives hepatic de novo lipogenesis, liver fat accumulation, and systemic insulin resistance.' },
+        ]
+      }
+    ]
+  },
+  {
+    number: 'Group 3',
+    title: 'Liver (Hepatic) Health',
+    subtitle: 'Supplements and foods that may support liver function and detoxification',
+    tiers: [
+      {
+        label: 'Top Picks — Strongest Evidence for Liver Support',
+        cls: 'tier-1',
+        items: [
+          { name: 'Alpha-Lipoic Acid (300–600 mg/day)', desc: 'Regenerates both Vitamin C and glutathione; reduces oxidative burden in fatty liver conditions.' },
+          { name: 'Milk Thistle / Silymarin (200–400 mg/day)', desc: 'Stabilizes hepatocyte membranes and upregulates glutathione synthesis; most-studied liver supplement globally.' },
+          { name: 'NAC (N-Acetyl Cysteine) (600–1,200 mg/day)', desc: 'Direct precursor to glutathione — the liver\'s primary detoxification antioxidant. Hospital-grade for acetaminophen overdose.' },
+          { name: 'Phosphatidylcholine (1,200–1,800 mg/day)', desc: 'Essential building block of hepatocyte membranes; supports bile flow and fat export from the liver.' },
+          { name: 'TUDCA (250–500 mg/day)', desc: 'Tauroursodeoxycholic acid; protects against bile acid toxicity and reduces ER stress in liver cells.' },
+        ]
+      },
+      {
+        label: 'Strong Supporting Evidence',
+        cls: 'tier-2',
+        items: [
+          { name: 'Artichoke Leaf Extract (600–1,200 mg/day)', desc: 'Cynarin stimulates bile production and flow; shown to lower ALT/AST in clinical trials.' },
+          { name: 'Berberine (500 mg 2×/day)', desc: 'Activates AMPK to reduce hepatic fat accumulation; effective in NAFLD trials.' },
+          { name: 'Choline (Bitartrate) (500–1,000 mg/day)', desc: 'Essential nutrient; inadequate choline directly causes fatty liver. ~90% of adults are deficient.' },
+          { name: 'Glutathione (Liposomal) (250–500 mg/day)', desc: 'Direct supplementation of the master antioxidant; liposomal form survives digestion intact.' },
+          { name: 'Omega-3 EPA/DHA (2–4 g/day)', desc: 'Reduces hepatic triglyceride content and inflammation; beneficial in NAFLD management.' },
+        ]
+      },
+      {
+        label: 'Moderate / Emerging Evidence',
+        cls: null,
+        items: [
+          { name: 'Dandelion Root Extract (500–1,000 mg/day)', desc: 'Traditional choleretic (bile stimulant); animal studies show hepatoprotective effects, human data limited.' },
+          { name: 'Schisandra Berry Extract (500–1,000 mg/day)', desc: 'Adaptogen with lignan compounds that upregulate Phase I and Phase II liver detox enzymes.' },
+          { name: 'Sulforaphane (from broccoli sprouts, 30–60 mg/day)', desc: 'Activates Nrf2 pathway to boost the liver\'s own antioxidant and detox enzyme production.' },
+          { name: 'Taurine (1–3 g/day)', desc: 'Conjugates bile acids for proper fat digestion; protects hepatocytes from oxidative damage.' },
+          { name: 'Vitamin E (Mixed Tocopherols, 400–800 IU/day)', desc: 'PIVENS trial showed improvement in NASH histology; use mixed forms, not synthetic alpha alone.' },
+        ]
+      },
+      {
+        label: '⚠ May Harm the Liver — Use With Caution',
+        cls: 'tier-warn',
+        items: [
+          { name: 'Acetaminophen / Paracetamol (excess >3 g/day)', desc: 'Depletes glutathione rapidly; the #1 cause of acute liver failure in the Western world.' },
+          { name: 'Alcohol (chronic or binge use)', desc: 'Directly toxic to hepatocytes; drives fatty liver → hepatitis → cirrhosis progression.' },
+          { name: 'Excess Vitamin A (Retinol >10,000 IU/day chronic)', desc: 'Fat-soluble accumulation causes hepatic stellate cell activation and fibrosis over time.' },
+          { name: 'Green Tea Extract (high-dose EGCG >800 mg/day)', desc: 'Concentrated catechins in fasted state linked to rare but serious hepatotoxicity cases.' },
+          { name: 'Kava (Piper methysticum)', desc: 'Linked to severe hepatotoxicity in some individuals; banned in several countries for liver risk.' },
+        ]
+      }
+    ]
+  },
+  {
+    number: 'Group 4',
+    title: 'Kidney (Renal) Health',
+    subtitle: 'Supplements and foods that may support kidney function and urinary health',
+    tiers: [
+      {
+        label: 'Top Picks — Strongest Evidence for Kidney Support',
+        cls: 'tier-1',
+        items: [
+          { name: 'NAC (N-Acetyl Cysteine) (600–1,200 mg/day)', desc: 'Boosts renal glutathione; protects against contrast dye-induced nephropathy and oxidative kidney damage.' },
+          { name: 'Omega-3 EPA/DHA (2–4 g/day)', desc: 'Reduces renal inflammation and proteinuria; slows progression of IgA nephropathy in trials.' },
+          { name: 'Potassium Citrate (2,000–3,000 mg/day)', desc: 'Alkalinizes urine to prevent calcium oxalate and uric acid stones; standard nephrology recommendation.' },
+          { name: 'Sodium Bicarbonate (500–1,000 mg/day if indicated)', desc: 'Corrects metabolic acidosis in CKD stages 3–4; shown to slow GFR decline in controlled trials.' },
+          { name: 'Vitamin D3 (2,000–5,000 IU/day)', desc: 'Deficiency is near-universal in CKD; correction reduces proteinuria and supports calcium-phosphorus balance.' },
+        ]
+      },
+      {
+        label: 'Strong Supporting Evidence',
+        cls: 'tier-2',
+        items: [
+          { name: 'Astragalus Root Extract (500–1,000 mg/day)', desc: 'Used in Chinese nephrology for centuries; trials show reduced proteinuria and improved serum albumin in CKD.' },
+          { name: 'CoQ10 / Ubiquinol (200–300 mg/day)', desc: 'Reduces oxidative stress in renal tissue; improves creatinine clearance in some CKD studies.' },
+          { name: 'Curcumin [with Piperine] (500–1,000 mg/day)', desc: 'Modulates NF-kB and TGF-β to reduce renal fibrosis and inflammation in CKD and diabetic nephropathy.' },
+          { name: 'D-Mannose (2 g/day)', desc: 'Prevents E. coli adhesion to urinary tract walls; comparable to antibiotics for recurrent UTI prevention.' },
+          { name: 'Magnesium Citrate (200–400 mg/day)', desc: 'Inhibits calcium oxalate crystal formation; low magnesium is an independent risk factor for kidney stones.' },
+        ]
+      },
+      {
+        label: 'Moderate / Emerging Evidence',
+        cls: null,
+        items: [
+          { name: 'Alpha-Lipoic Acid (300–600 mg/day)', desc: 'Reduces oxidative stress markers in diabetic nephropathy; protects renal tubular cells.' },
+          { name: 'Cordyceps Sinensis Extract (1–3 g/day)', desc: 'Traditional use for kidney tonification; trials show modest improvement in creatinine clearance in CKD.' },
+          { name: 'Cranberry Extract (500 mg/day, 36 mg PACs)', desc: 'Proanthocyanidins prevent bacterial adhesion to bladder wall; supports urinary tract defense.' },
+          { name: 'Nettle Leaf Extract (300–600 mg/day)', desc: 'Mild diuretic that increases urine output without potassium loss; traditional kidney and UTI support.' },
+          { name: 'Resveratrol (250–500 mg/day)', desc: 'Activates SIRT1 in renal cells; animal models show reduced fibrosis and improved renal blood flow.' },
+        ]
+      },
+      {
+        label: '⚠ May Harm the Kidneys — Use With Caution',
+        cls: 'tier-warn',
+        items: [
+          { name: 'Creatine (excess >10 g/day in impaired kidneys)', desc: 'Safe in healthy kidneys, but high doses may elevate creatinine and stress compromised renal function.' },
+          { name: 'Excess Protein (>2.5 g/kg/day chronic)', desc: 'Increases glomerular hyperfiltration pressure; a concern primarily in pre-existing kidney disease.' },
+          { name: 'Excess Vitamin C (>2,000 mg/day chronic)', desc: 'Metabolizes to oxalate; chronic high doses increase calcium oxalate kidney stone risk.' },
+          { name: 'High-Dose Calcium Supplements (>1,200 mg/day)', desc: 'Supplemental calcium (not dietary) increases kidney stone risk, especially without adequate magnesium.' },
+          { name: 'NSAIDs (chronic use)', desc: 'Ibuprofen, naproxen — reduce renal blood flow via prostaglandin inhibition; a leading cause of drug-induced kidney injury.' },
+        ]
+      }
+    ]
+  },
+  {
+    number: 'Group 5',
+    title: 'Cholesterol & Lipids',
+    subtitle: 'Supplements and foods that may support healthy cholesterol and triglyceride levels',
+    tiers: [
+      {
+        label: 'Top Picks — Strongest Evidence for Lipid Management',
+        cls: 'tier-1',
+        items: [
+          { name: 'Bergamot Polyphenols (500–1,000 mg/day)', desc: 'Inhibits HMG-CoA reductase similarly to statins; trials show ~20–30% LDL reduction with improved HDL.' },
+          { name: 'Niacin (Vitamin B3) (1,000–2,000 mg/day, extended-release)', desc: 'The most effective supplement for raising HDL (~20–35%); also lowers triglycerides. Requires liver monitoring.' },
+          { name: 'Omega-3 EPA/DHA (2–4 g/day)', desc: 'FDA-approved doses lower triglycerides by ~30%; EPA-only (icosapent ethyl) reduces cardiovascular events.' },
+          { name: 'Plant Sterols / Stanols (2–3 g/day)', desc: 'Block intestinal cholesterol absorption; proven to lower LDL by ~10% — endorsed by all major cardiology guidelines.' },
+          { name: 'Psyllium Husk (10–15 g/day)', desc: 'Viscous soluble fiber that binds bile acids; forces the liver to pull LDL from blood to make more. ~5–10% LDL reduction.' },
+        ]
+      },
+      {
+        label: 'Strong Supporting Evidence',
+        cls: 'tier-2',
+        items: [
+          { name: 'Berberine (500 mg 2×/day)', desc: 'Upregulates LDL receptor expression; meta-analyses show ~20 mg/dL LDL reduction.' },
+          { name: 'Citrus Polymethoxyflavones (PMFs) (270–300 mg/day)', desc: 'Found in orange and tangerine peel; reduce hepatic lipogenesis and improve ApoB particle clearance.' },
+          { name: 'Garlic (Aged Extract) (600–1,200 mg/day)', desc: 'Modest but consistent LDL and total cholesterol reduction (~10–15 mg/dL) across meta-analyses.' },
+          { name: 'Red Yeast Rice (1,200–2,400 mg/day)', desc: 'Contains natural monacolin K (lovastatin); effective but variable potency — requires quality-tested brands.' },
+          { name: 'Soluble Fiber (Oat Beta-Glucan) (3–5 g/day)', desc: 'FDA health claim approved; binds bile acids to lower LDL by ~5–8%. Found in oats and barley.' },
+        ]
+      },
+      {
+        label: 'Moderate / Emerging Evidence',
+        cls: null,
+        items: [
+          { name: 'Artichoke Leaf Extract (600–1,200 mg/day)', desc: 'Inhibits HMG-CoA reductase and increases bile flow; trials show modest LDL reduction (~5–10%).' },
+          { name: 'Curcumin [with Piperine] (500–1,000 mg/day)', desc: 'Reduces oxidized LDL and improves HDL function; anti-inflammatory effects on arterial walls.' },
+          { name: 'Flaxseed (Ground) (30 g/day)', desc: 'ALA omega-3 and lignans; meta-analyses show ~10 mg/dL total cholesterol reduction.' },
+          { name: 'Green Tea Extract (EGCG) (250–500 mg/day)', desc: 'Catechins inhibit intestinal cholesterol absorption and increase LDL receptor activity.' },
+          { name: 'Pantethine (Active B5) (600–900 mg/day)', desc: 'A CoA precursor that modulates hepatic lipid synthesis; trials show ~10% LDL and triglyceride reduction.' },
+        ]
+      },
+      {
+        label: '⚠ May Worsen Lipid Profile — Use With Caution',
+        cls: 'tier-warn',
+        items: [
+          { name: 'Anabolic Steroids / High-Dose DHEA', desc: 'Dramatically lower HDL and raise LDL; accelerate atherosclerosis even in young users.' },
+          { name: 'Excess Alcohol (>2 drinks/day)', desc: 'While moderate intake may raise HDL, excess drives triglyceride synthesis and liver damage.' },
+          { name: 'Excess Saturated Fat (>10% of daily calories)', desc: 'Downregulates hepatic LDL receptors in most individuals; raises LDL-C dose-dependently.' },
+          { name: 'Refined Sugar & Fructose (excess)', desc: 'Drives hepatic de novo lipogenesis; raises triglycerides and small dense LDL particles.' },
+          { name: 'Trans Fats (any amount)', desc: 'Simultaneously raise LDL and lower HDL; the most atherogenic dietary fat. Avoid entirely.' },
+        ]
+      }
+    ]
+  },
+  {
+    number: 'Group 6',
+    title: 'Inflammation',
+    subtitle: 'Supplements and foods that may help manage chronic and acute inflammatory pathways',
+    tiers: [
+      {
+        label: 'Top Picks — Strongest Evidence for Reducing Inflammation',
+        cls: 'tier-1',
+        items: [
+          { name: 'Curcumin [with Piperine] (500–1,000 mg/day)', desc: 'Inhibits NF-kB, COX-2, and TNF-α; comparable to ibuprofen for joint pain in head-to-head trials.' },
+          { name: 'EPA/DHA Omega-3 (2–4 g/day)', desc: 'Produces Resolvins and Protectins that actively resolve inflammation rather than just blocking it.' },
+          { name: 'NAC (N-Acetyl Cysteine) (600–1,200 mg/day)', desc: 'Replenishes glutathione to neutralize reactive oxygen species; reduces CRP and IL-6 in clinical trials.' },
+          { name: 'Sulforaphane (from broccoli sprouts, 30–60 mg/day)', desc: 'Activates Nrf2 — the master switch for the body\'s own antioxidant and anti-inflammatory enzyme production.' },
+          { name: 'Vitamin D3 (2,000–5,000 IU/day)', desc: 'Modulates T-cell and macrophage activity; deficiency is directly linked to elevated CRP and IL-6.' },
+        ]
+      },
+      {
+        label: 'Strong Supporting Evidence',
+        cls: 'tier-2',
+        items: [
+          { name: 'Boswellia Serrata (300–500 mg 3×/day)', desc: 'Boswellic acids inhibit 5-LOX enzyme; effective for joint and gut inflammation without GI side effects.' },
+          { name: 'Ginger Extract (250–500 mg 2×/day)', desc: 'Gingerols and shogaols inhibit COX-2 and prostaglandin synthesis; reduces muscle soreness and OA pain.' },
+          { name: 'Quercetin (500–1,000 mg/day)', desc: 'Stabilizes mast cells and inhibits NF-kB; reduces histamine release and allergic inflammatory response.' },
+          { name: 'Resveratrol (250–500 mg/day)', desc: 'Activates SIRT1 to suppress NF-kB signaling; reduces vascular inflammation and endothelial dysfunction.' },
+          { name: 'SPMs (Specialized Pro-Resolving Mediators)', desc: 'Omega-3 metabolites that actively switch off inflammation — the "resolution" phase most supplements miss.' },
+        ]
+      },
+      {
+        label: 'Moderate / Emerging Evidence',
+        cls: null,
+        items: [
+          { name: 'Alpha-Lipoic Acid (300–600 mg/day)', desc: 'Dual-compartment antioxidant; reduces NF-kB activation and inflammatory markers in metabolic syndrome.' },
+          { name: 'Astaxanthin (8–12 mg/day)', desc: 'Carotenoid 6,000× more potent than Vitamin C as an antioxidant; crosses the blood-brain and blood-retina barriers.' },
+          { name: 'Black Seed Oil (Nigella sativa) (1–3 g/day)', desc: 'Thymoquinone modulates multiple inflammatory pathways; emerging evidence for autoimmune and allergic conditions.' },
+          { name: 'Cat\'s Claw (Uncaria tomentosa) (250–350 mg/day)', desc: 'Pentacyclic oxindole alkaloids inhibit TNF-α; traditional anti-inflammatory with growing clinical support.' },
+          { name: 'Palmitoylethanolamide (PEA) (600–1,200 mg/day)', desc: 'Endogenous lipid that activates PPAR-α to dampen neuroinflammation and chronic pain signaling.' },
+          { name: 'Tart Cherry Extract (480 mg/day or 8 oz juice)', desc: 'Anthocyanins inhibit COX-1 and COX-2; reduces post-exercise inflammation and uric acid levels.' },
+        ]
+      },
+      {
+        label: '⚠ May Promote Inflammation — Use With Caution',
+        cls: 'tier-warn',
+        items: [
+          { name: 'Chronic Alcohol Use', desc: 'Increases gut permeability ("leaky gut"), allowing endotoxin (LPS) into the bloodstream — a potent inflammatory trigger.' },
+          { name: 'Chronic Sleep Deprivation (<6 hours)', desc: 'Elevates CRP by ~25% and IL-6 by ~40%; a major and underappreciated driver of systemic inflammation.' },
+          { name: 'Excess Omega-6 (seed oils without Omega-3 balance)', desc: 'Arachidonic acid cascade produces pro-inflammatory prostaglandins and leukotrienes when Omega-3 ratio is poor.' },
+          { name: 'Excess Sugar & Refined Carbohydrates', desc: 'Drives AGE formation, insulin spikes, and NF-kB activation — a primary driver of chronic low-grade inflammation.' },
+          { name: 'Trans Fats & Ultra-Processed Foods', desc: 'Activate TLR4 inflammatory receptors; directly raise CRP, IL-6, and TNF-α in dose-dependent fashion.' },
+        ]
+      }
+    ]
+  },
+  {
+    number: 'Group 7',
+    title: 'Cognitive & Brain Health',
+    subtitle: 'Supplements and foods that may support memory, focus, neuroprotection, and long-term brain function',
+    tiers: [
+      {
+        label: 'Top Picks — Strongest Evidence for Brain Health',
+        cls: 'tier-1',
+        items: [
+          { name: 'Alpha-GPC (300–600 mg/day)', desc: 'Crosses the blood-brain barrier to raise acetylcholine — the primary neurotransmitter for memory and learning.' },
+          { name: 'Creatine Monohydrate (3–5 g/day)', desc: 'Brain ATP buffer; improves working memory and cognitive performance under stress and sleep deprivation.' },
+          { name: 'DHA [Phospholipid Form] (1–2 g/day)', desc: 'Makes up ~40% of brain polyunsaturated fats; essential for synaptic plasticity and signal transmission.' },
+          { name: 'Lion\'s Mane (Hericium erinaceus) (500–1,000 mg 2×/day)', desc: 'Stimulates Nerve Growth Factor (NGF) synthesis; the only supplement proven to promote neuronal regrowth.' },
+          { name: 'Magnesium L-Threonate (1,000–2,000 mg/day)', desc: 'The only form proven to significantly raise brain magnesium levels; enhances synaptic density and plasticity.' },
+        ]
+      },
+      {
+        label: 'Strong Supporting Evidence',
+        cls: 'tier-2',
+        items: [
+          { name: 'Bacopa Monnieri (300–600 mg/day, bacosides)', desc: 'Enhances dendritic branching and serotonin signaling; improves memory consolidation over 8–12 weeks of use.' },
+          { name: 'Citicoline (CDP-Choline) (250–500 mg/day)', desc: 'Provides both choline and cytidine for phosphatidylcholine and nucleotide synthesis in brain cell membranes.' },
+          { name: 'Curcumin [with Piperine] (500–1,000 mg/day)', desc: 'Crosses the blood-brain barrier to reduce neuroinflammation; UCLA trial showed improved memory and mood.' },
+          { name: 'Phosphatidylserine (100–300 mg/day)', desc: 'Key phospholipid in neuronal membranes; supports cortisol regulation and cognitive function in aging.' },
+          { name: 'PQQ (10–20 mg/day)', desc: 'Promotes mitochondrial biogenesis in neurons; improves cerebral blood flow and short-term memory in trials.' },
+        ]
+      },
+      {
+        label: 'Moderate / Emerging Evidence',
+        cls: null,
+        items: [
+          { name: 'Ashwagandha (KSM-66) (300–600 mg/day)', desc: 'Reduces cortisol-driven neurodegeneration; improves reaction time and executive function in stressed adults.' },
+          { name: 'Blueberry Extract / Anthocyanins (500 mg/day)', desc: 'Crosses the blood-brain barrier; improves hippocampal signaling and delays cognitive aging by 2–3 years in studies.' },
+          { name: 'Ginkgo Biloba (120–240 mg/day)', desc: 'Increases cerebral microcirculation and supports working memory; most effective in early cognitive decline.' },
+          { name: 'L-Theanine (100–200 mg/day)', desc: 'Boosts alpha-wave activity for "relaxed focus"; synergizes with caffeine to improve attention without jitters.' },
+          { name: 'Nicotinamide Riboside (NR) (300–600 mg/day)', desc: 'Raises neuronal NAD+ for DNA repair and mitochondrial function; may slow age-related cognitive decline.' },
+          { name: 'Rhodiola Rosea (200–400 mg/day)', desc: 'Adaptogen that modulates cortisol and enhances mental stamina; reduces cognitive fatigue under pressure.' },
+        ]
+      },
+      {
+        label: '⚠ May Harm Brain Health — Use With Caution',
+        cls: 'tier-warn',
+        items: [
+          { name: 'Alcohol (chronic or heavy use)', desc: 'Directly neurotoxic; shrinks hippocampal volume and accelerates brain aging by ~3.5 years per daily drink.' },
+          { name: 'Anticholinergic Medications (chronic use)', desc: 'Diphenhydramine, certain antidepressants — block acetylcholine and increase dementia risk with long-term use.' },
+          { name: 'Chronic Sleep Deprivation (<6 hours)', desc: 'Impairs glymphatic clearance of amyloid-beta; a major modifiable risk factor for Alzheimer\'s disease.' },
+          { name: 'Excess Sugar & Refined Carbohydrates', desc: 'Insulin resistance in the brain ("Type 3 Diabetes"); drives hippocampal atrophy and memory decline.' },
+          { name: 'Heavy Metals (lead, mercury, aluminum)', desc: 'Accumulate in neural tissue; disrupt mitochondrial function and promote oxidative neuronal damage.' },
+        ]
+      }
+    ]
+  },
+  {
+    number: 'Group 8',
+    title: 'Thyroid Health',
+    subtitle: 'Supplements and foods that may support thyroid hormone production, conversion, and regulation',
+    tiers: [
+      {
+        label: 'Top Picks — Strongest Evidence for Thyroid Support',
+        cls: 'tier-1',
+        items: [
+          { name: 'Iodine (150–300 mcg/day)', desc: 'The essential building block of T3 and T4; deficiency is the #1 cause of preventable thyroid dysfunction worldwide.' },
+          { name: 'Selenium (Selenomethionine) (200 mcg/day)', desc: 'Required for deiodinase enzymes that convert T4 → T3; also protects thyroid cells from peroxide damage.' },
+          { name: 'Zinc Picolinate (15–30 mg/day)', desc: 'Required for thyroid hormone synthesis and T3 receptor binding; deficiency directly lowers T3 and T4.' },
+          { name: 'Vitamin D3 (2,000–5,000 IU/day)', desc: 'Deficiency is strongly associated with Hashimoto\'s and thyroid autoimmunity; supports immune tolerance.' },
+          { name: 'Iron Bisglycinate (18–36 mg/day if deficient)', desc: 'Thyroid peroxidase (TPO) is iron-dependent; iron deficiency impairs thyroid hormone synthesis directly.' },
+        ]
+      },
+      {
+        label: 'Strong Supporting Evidence',
+        cls: 'tier-2',
+        items: [
+          { name: 'Ashwagandha (KSM-66) (300–600 mg/day)', desc: 'Stimulates thyroid hormone production; an 8-week trial showed significant increases in T3 and T4 in subclinical hypothyroidism.' },
+          { name: 'L-Tyrosine (500–1,000 mg/day)', desc: 'Amino acid precursor to thyroid hormones; the "tyrosine" in thyroxine (T4). Supports production under stress.' },
+          { name: 'Magnesium Glycinate (400 mg/day)', desc: 'Cofactor for hundreds of enzymatic processes including T4→T3 conversion; deficiency impairs thyroid output.' },
+          { name: 'Myo-Inositol (2–4 g/day)', desc: 'Acts as a TSH second messenger; combined with selenium, reduces thyroid antibodies in Hashimoto\'s trials.' },
+          { name: 'Vitamin B12 (Methylcobalamin) (1,000 mcg/day)', desc: 'Up to 40% of hypothyroid patients are B12 deficient; correction improves energy and neurological symptoms.' },
+        ]
+      },
+      {
+        label: 'Moderate / Emerging Evidence',
+        cls: null,
+        items: [
+          { name: 'Black Cumin Seed (Nigella sativa) (2 g/day)', desc: 'Pilot trials in Hashimoto\'s show reduced TPO antibodies, improved T3, and decreased TSH over 8 weeks.' },
+          { name: 'Coleus Forskohlii (Forskolin) (250 mg 2×/day)', desc: 'Activates cAMP which stimulates thyroid hormone release; limited but promising human data.' },
+          { name: 'Guggul Extract (Commiphora mukul) (75 mg guggulsterones/day)', desc: 'May enhance T4→T3 conversion and increase thyroid uptake of iodine; traditional Ayurvedic thyroid support.' },
+          { name: 'NAC (N-Acetyl Cysteine) (600–1,200 mg/day)', desc: 'Reduces oxidative stress in thyroid tissue; may lower thyroid antibodies in autoimmune thyroiditis.' },
+          { name: 'Omega-3 EPA/DHA (2–4 g/day)', desc: 'Anti-inflammatory support for autoimmune thyroid conditions; reduces TPO antibody-driven tissue damage.' },
+          { name: 'Vitamin A (Retinyl Palmitate) (5,000 IU/day)', desc: 'Required for TSH receptor activation and thyroid hormone metabolism; deficiency impairs thyroid response to TSH.' },
+        ]
+      },
+      {
+        label: '⚠ May Harm Thyroid Function — Use With Caution',
+        cls: 'tier-warn',
+        items: [
+          { name: 'Excess Iodine (>1,100 mcg/day chronic)', desc: 'Paradoxically suppresses thyroid function (Wolff-Chaikoff effect); can trigger or worsen Hashimoto\'s.' },
+          { name: 'Excess Raw Cruciferous Vegetables (very high intake)', desc: 'Goitrin and thiocyanates block iodine uptake; cooking largely deactivates these compounds.' },
+          { name: 'High-Dose Biotin (>5,000 mcg/day)', desc: 'Does not harm the thyroid itself but interferes with lab assays — causes falsely abnormal TSH and T4 readings.' },
+          { name: 'Lithium (therapeutic doses)', desc: 'Inhibits thyroid hormone release; up to 50% of lithium patients develop hypothyroidism.' },
+          { name: 'Soy Isoflavones (excess, especially with iodine deficiency)', desc: 'Genistein inhibits thyroid peroxidase; primarily a concern in iodine-deficient individuals or infants on soy formula.' },
+          { name: 'Unfermented Soy Products (high daily intake)', desc: 'May impair thyroid hormone absorption if taken with thyroid medication; separate by 4+ hours.' },
+        ]
+      }
+    ]
+  },
+  {
+    number: 'Group 9',
+    title: 'Sleep',
+    subtitle: 'Supplements and foods that may support sleep onset, sleep quality, and circadian regulation',
+    tiers: [
+      {
+        label: 'Top Picks — Strongest Evidence for Sleep Support',
+        cls: 'tier-1',
+        items: [
+          { name: 'Magnesium Glycinate (400–600 mg before bed)', desc: 'Activates GABA receptors and reduces cortisol; the glycine bond itself is a calming neurotransmitter that promotes deep sleep.' },
+          { name: 'Melatonin (0.3–1 mg, 30 min before bed)', desc: 'The endogenous sleep-timing hormone; low doses are more physiological and effective than high doses for circadian entrainment.' },
+          { name: 'Glycine (3 g before bed)', desc: 'Lowers core body temperature and increases serotonin in the prefrontal cortex; improves subjective sleep quality and next-day alertness.' },
+          { name: 'L-Theanine (200–400 mg before bed)', desc: 'Increases alpha-wave activity and GABA without sedation; reduces sleep-onset anxiety and improves sleep efficiency.' },
+          { name: 'Tart Cherry Extract (480 mg or 8 oz juice, evening)', desc: 'Natural source of melatonin and procyanidins that inhibit tryptophan degradation; extends sleep time by ~84 min in trials.' },
+        ]
+      },
+      {
+        label: 'Strong Supporting Evidence',
+        cls: 'tier-2',
+        items: [
+          { name: 'Apigenin (50 mg before bed)', desc: 'Binds benzodiazepine receptors mildly; promotes relaxation without dependence. Found naturally in chamomile.' },
+          { name: 'GABA (100–300 mg before bed)', desc: 'The primary inhibitory neurotransmitter; oral supplementation reduces sleep latency in those with elevated stress.' },
+          { name: 'Magnesium L-Threonate (1,000–2,000 mg evening)', desc: 'Raises brain magnesium specifically; enhances slow-wave sleep quality and reduces nighttime cortisol.' },
+          { name: 'Phosphatidylserine (100–200 mg evening)', desc: 'Blunts cortisol response from HPA axis overactivity; particularly effective for stress-related insomnia.' },
+          { name: 'Tryptophan (500–1,000 mg before bed)', desc: 'Direct serotonin and melatonin precursor; more effective than 5-HTP for sustained overnight serotonin supply.' },
+        ]
+      },
+      {
+        label: 'Moderate / Emerging Evidence',
+        cls: null,
+        items: [
+          { name: 'Ashwagandha (KSM-66) (300–600 mg evening)', desc: 'Reduces cortisol by ~30%; improves sleep onset and quality in stressed adults. Triethylene glycol may be the active sleep compound.' },
+          { name: 'CBD (Cannabidiol) (25–50 mg before bed)', desc: 'Modulates endocannabinoid tone and reduces anxiety-driven wakefulness; variable individual response.' },
+          { name: 'Honokiol (Magnolia Bark) (200–400 mg before bed)', desc: 'GABA-A receptor modulator; promotes relaxation and reduces time to fall asleep without morning grogginess.' },
+          { name: 'Lemon Balm Extract (300–600 mg before bed)', desc: 'Inhibits GABA-transaminase to raise GABA levels naturally; mild anxiolytic that improves sleep onset.' },
+          { name: 'Reishi Mushroom (1–2 g before bed)', desc: 'Triterpenes modulate GABAergic activity; traditional use for calming the mind. May improve deep sleep duration.' },
+          { name: 'Valerian Root (300–600 mg before bed)', desc: 'Increases GABA availability; meta-analyses show modest improvement in subjective sleep quality over 2–4 weeks.' },
+        ]
+      },
+      {
+        label: '⚠ May Disrupt Sleep — Use With Caution',
+        cls: 'tier-warn',
+        items: [
+          { name: 'Caffeine (after 12–2 PM)', desc: '6-hour half-life means afternoon coffee is still 25% active at midnight; reduces deep sleep even without perceived difficulty falling asleep.' },
+          { name: 'High-Dose Melatonin (>3 mg)', desc: 'Supraphysiological doses can cause next-day grogginess, disrupt natural production, and paradoxically worsen sleep architecture.' },
+          { name: 'Alcohol (within 3 hours of bed)', desc: 'Sedates initially but fragments sleep in the second half of the night; suppresses REM by 20–40%.' },
+          { name: 'Blue Light Exposure (screens after sunset)', desc: 'Suppresses melatonin onset by up to 90 minutes; use blue-light blocking glasses or night mode after 8 PM.' },
+          { name: 'Late-Night Heavy Meals', desc: 'Elevates core temperature and activates digestion; both directly oppose the body\'s sleep-onset cooling process.' },
         ]
       }
     ]
@@ -576,7 +1049,8 @@ function render() {
         tier.items.forEach(item => {
           const row = document.createElement('div');
           const tierCls = tier.cls === 'tier-1' ? 'tier-1-item'
-                        : tier.cls === 'tier-2' ? 'tier-2-item' : 'no-tier';
+                        : tier.cls === 'tier-2' ? 'tier-2-item'
+                        : tier.cls === 'tier-warn' ? 'tier-warn-item' : 'no-tier';
           row.className = 'item-row ' + tierCls;
           row.innerHTML = `
             <div class="item-name">${item.name}</div>
@@ -596,6 +1070,61 @@ function render() {
 }
 
 render();
+
+// ── Render Treatments (flat: no subgroup layer) ──
+function renderTreatments() {
+  const container = document.getElementById('treatments-container');
+
+  TREATMENTS.forEach(group => {
+    const total = group.tiers.reduce((a, t) => a + t.items.length, 0);
+    const card = document.createElement('div');
+    card.className = 'group-card';
+
+    // Group header
+    const header = document.createElement('div');
+    header.className = 'group-header';
+    header.innerHTML = `
+      <div class="group-arrow">▶</div>
+      <div class="group-number">${group.number}</div>
+      <div class="group-title">${group.title}</div>
+      <div class="group-subtitle">${group.subtitle}</div>
+      <div class="group-count">${total} items</div>
+    `;
+    header.addEventListener('click', () => card.classList.toggle('open'));
+    card.appendChild(header);
+
+    // Group body — tiers directly, no subgroup wrapper
+    const body = document.createElement('div');
+    body.className = 'group-body';
+
+    group.tiers.forEach(tier => {
+      if (tier.label) {
+        const tl = document.createElement('div');
+        tl.className = 'tier-label ' + (tier.cls || '');
+        tl.textContent = tier.label;
+        body.appendChild(tl);
+      }
+
+      tier.items.forEach(item => {
+        const row = document.createElement('div');
+        const tierCls = tier.cls === 'tier-1' ? 'tier-1-item'
+                      : tier.cls === 'tier-2' ? 'tier-2-item'
+                      : tier.cls === 'tier-warn' ? 'tier-warn-item' : 'no-tier';
+        row.className = 'item-row ' + tierCls;
+        row.innerHTML = `
+          <div class="item-name">${item.name}</div>
+          <div class="item-desc">${item.desc}</div>
+        `;
+        body.appendChild(row);
+      });
+    });
+
+    card.appendChild(body);
+    container.appendChild(card);
+  });
+}
+
+renderTreatments();
 </script>
 <script src="/siteNav.js"></script>
 </body>
