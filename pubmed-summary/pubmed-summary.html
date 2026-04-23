@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PubMed Summary Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #f8f9fb;
+    --surface: #ffffff;
+    --border: #d0d5dd;
+    --text: #1a1a2e;
+    --text-muted: #64748b;
+    --accent: #1e40af;
+    --accent-light: #dbeafe;
+    --section-bg: #f1f5f9;
+    --green: #16a34a;
+    --red: #dc2626;
+    --medline: #4472C4;
+    --inprocess: #ED7D31;
+    --publisher: #A5A5A5;
+    --pubmednotmedline: #FFC000;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Source Sans 3', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  .container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px 20px;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 2px solid var(--accent);
+    padding: 20px 0;
+    margin-bottom: 24px;
+  }
+
+  header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .subtitle {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    display: inline-block;
+  }
+
+  .status-dot.updating { background: var(--accent); animation: pulse 1.2s infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .btn {
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn:hover { background: var(--accent-light); border-color: var(--accent); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .note-bar {
+    background: var(--accent-light);
+    border-left: 3px solid var(--accent);
+    padding: 10px 16px;
+    font-size: 0.82rem;
+    color: var(--accent);
+    margin-bottom: 20px;
+    border-radius: 0 6px 6px 0;
+  }
+
+  .progress-bar-container {
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-bottom: 20px;
+    overflow: hidden;
+    display: none;
+  }
+
+  .progress-bar-container.active { display: block; }
+
+  .progress-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.3s;
+    width: 0%;
+  }
+
+  /* Table */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow-x: auto;
+    margin-bottom: 24px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    min-width: 700px;
+  }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    padding: 10px 12px;
+    text-align: right;
+    white-space: nowrap;
+    z-index: 2;
+  }
+
+  thead th:first-child {
+    text-align: left;
+    min-width: 260px;
+  }
+
+  thead th:last-child {
+    background: #163380;
+  }
+
+  tbody td {
+    padding: 7px 12px;
+    text-align: right;
+    border-bottom: 1px solid #eef0f4;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+  }
+
+  tbody td:first-child {
+    text-align: left;
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 400;
+    color: var(--text);
+  }
+
+  tbody tr:hover { background: #f7f9fc; }
+
+  tr.section-header td {
+    background: var(--section-bg);
+    font-weight: 700;
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 0.82rem;
+    color: var(--accent);
+    border-bottom: 2px solid var(--border);
+    padding: 10px 12px;
+  }
+
+  tr.pct-row td {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  tr.total-row td {
+    font-weight: 700;
+    background: #fafbfd;
+    border-bottom: 2px solid var(--border);
+  }
+
+  td.loading-cell {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  /* Chart */
+  .chart-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .chart-title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+
+  .chart-area {
+    position: relative;
+    width: 100%;
+    height: 340px;
+  }
+
+  .chart-area canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .chart-legend {
+    display: flex;
+    gap: 20px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+  }
+
+  .legend-swatch {
+    width: 14px; height: 14px;
+    border-radius: 3px;
+  }
+
+  .footnote {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    padding: 12px 0;
+    border-top: 1px solid var(--border);
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <div>
+      <h1>PubMed Summary Report</h1>
+      <div class="subtitle" id="reportPeriod"></div>
+    </div>
+    <div class="status-bar">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText">Loading...</span>
+      <button class="btn" id="refreshBtn" onclick="forceRefresh()" disabled>Force Refresh</button>
+      <button class="btn" id="exportBtn" onclick="exportCSV()" disabled>Export CSV</button>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+  <div class="note-bar" id="noteBar"></div>
+  <div class="progress-bar-container" id="progressContainer">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr id="tableHead"></tr></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="chart-container">
+    <div class="chart-title" id="chartTitle">PubMed Summary</div>
+    <div class="chart-area"><canvas id="chartCanvas"></canvas></div>
+    <div class="chart-legend" id="chartLegend"></div>
+  </div>
+
+  <div class="footnote" id="footnote"></div>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────
+let CONFIG = null;
+const CACHE_KEY = 'pubmed_report_cache';
+const EUTILS_BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi';
+
+// ─── YEAR HELPERS ─────────────────────────────────────────────────
+function getYears() {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const years = [];
+  for (let y = currentYear - 6; y <= currentYear; y++) years.push(y);
+  return years;
+}
+
+function buildTerm(template, year) {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  if (year === currentYear) {
+    // YTD: use date range from Jan 1 to end of last complete month
+    let lastMonth = now.getMonth(); // 0-indexed, so this is "last month" number in 1-indexed
+    if (lastMonth === 0) {
+      // January — no complete month yet, use up to today
+      lastMonth = 1;
+    }
+    const lastDay = new Date(year, lastMonth, 0).getDate();
+    const mm = String(lastMonth).padStart(2, '0');
+    const dd = String(lastDay).padStart(2, '0');
+    const dateRange = `${year}/01/01:${year}/${mm}/${dd}`;
+    return template.replace('{year}', dateRange);
+  }
+  return template.replace('{year}', String(year));
+}
+
+function getYTDLabel() {
+  const now = new Date();
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let lastMonth = now.getMonth(); // current month 0-indexed
+  if (lastMonth === 0) lastMonth = 1;
+  return `${months[lastMonth - 1]} YTD`;
+}
+
+// ─── CACHE ────────────────────────────────────────────────────────
+function getCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function setCache(data) {
+  data.timestamp = new Date().toISOString();
+  localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+}
+
+function shouldRefresh(cache) {
+  if (!cache || !cache.timestamp) return true;
+  const now = new Date();
+  const cached = new Date(cache.timestamp);
+  const refreshDay = CONFIG ? CONFIG.refreshDayOfMonth : 10;
+
+  // Different month than cache
+  if (now.getMonth() !== cached.getMonth() || now.getFullYear() !== cached.getFullYear()) {
+    // Past the refresh day of the new month
+    if (now.getDate() >= refreshDay) return true;
+  }
+
+  // Cache is from a different year range
+  const currentYears = getYears();
+  if (cache.years && cache.years[0] !== currentYears[0]) return true;
+
+  return false;
+}
+
+// ─── NCBI FETCH ───────────────────────────────────────────────────
+async function fetchCount(db, term) {
+  const url = `${EUTILS_BASE}?db=${db}&rettype=count&term=${encodeURIComponent(term)}`;
+
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      const resp = await fetch(url);
+      const text = await resp.text();
+      const match = text.match(/<Count>(\d+)<\/Count>/);
+      if (match) return parseInt(match[1]);
+    } catch (e) { /* retry */ }
+    await sleep(3000 * attempt);
+  }
+  return null; // failed after 5 retries
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function fetchAllData(counts, onProgress) {
+  const years = getYears();
+  const rows = CONFIG.rows.filter(r => r.type === 'count');
+  const totalQueries = rows.length * years.length;
+  let completed = 0;
+
+  for (const row of rows) {
+    counts[row.id] = counts[row.id] || {};
+    for (const year of years) {
+      const term = buildTerm(row.term, year);
+      const count = await fetchCount(row.db, term);
+      counts[row.id][year] = count;
+      completed++;
+      if (onProgress) onProgress(completed, totalQueries);
+      await sleep(800);
+    }
+  }
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────
+function formatNumber(n) {
+  if (n === null || n === undefined) return '—';
+  return n.toLocaleString('en-US');
+}
+
+function formatPercent(n) {
+  if (n === null || n === undefined) return '—';
+  return n.toFixed(1) + '%';
+}
+
+function getComputedValue(row, year, counts) {
+  if (row.type === 'count') return counts[row.id] ? counts[row.id][year] : null;
+  if (row.type === 'percent') {
+    const num = counts[row.numerator] ? counts[row.numerator][year] : null;
+    const den = counts[row.denominator] ? counts[row.denominator][year] : null;
+    if (num === null || den === null || den === 0) return null;
+    return (num / den) * 100;
+  }
+  return null;
+}
+
+function renderTable(years, counts) {
+  const head = document.getElementById('tableHead');
+  const body = document.getElementById('tableBody');
+  const ytdLabel = getYTDLabel();
+
+  // Header
+  head.innerHTML = '<th></th>';
+  years.forEach((y, i) => {
+    const label = i === years.length - 1 ? ytdLabel : y;
+    const th = document.createElement('th');
+    th.textContent = label;
+    head.appendChild(th);
+  });
+
+  body.innerHTML = '';
+
+  const sectionLabels = {
+    core: '',
+    pmc: 'PubMed Central',
+    topics: 'Topics & Subjects',
+    filters: 'Clinical Filters',
+    topic_pcts: 'Topic Percentages (of total)',
+    filter_pcts: 'Filter Percentages (of total)'
+  };
+
+  let lastSection = '';
+
+  for (const row of CONFIG.rows) {
+    // Section header
+    if (row.section !== lastSection && sectionLabels[row.section]) {
+      const sectionTr = document.createElement('tr');
+      sectionTr.className = 'section-header';
+      sectionTr.innerHTML = `<td colspan="${years.length + 1}">${sectionLabels[row.section]}</td>`;
+      body.appendChild(sectionTr);
+      lastSection = row.section;
+    }
+    if (row.section !== lastSection) lastSection = row.section;
+
+    const tr = document.createElement('tr');
+    if (row.type === 'percent') tr.className = 'pct-row';
+    if (row.id === 'total') tr.className = 'total-row';
+
+    const labelTd = document.createElement('td');
+    labelTd.textContent = row.label;
+    tr.appendChild(labelTd);
+
+    years.forEach(y => {
+      const td = document.createElement('td');
+      const val = getComputedValue(row, y, counts);
+      td.textContent = row.type === 'percent' ? formatPercent(val) : formatNumber(val);
+      if (val === null) td.className = 'loading-cell';
+      tr.appendChild(td);
+    });
+
+    body.appendChild(tr);
+  }
+}
+
+function renderChart(years, counts) {
+  const canvas = document.getElementById('chartCanvas');
+  const ctx = canvas.getContext('2d');
+  const legend = document.getElementById('chartLegend');
+  const series = CONFIG.chart.series;
+  const ytdLabel = getYTDLabel();
+
+  // Dimensions
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const W = rect.width;
+  const H = rect.height;
+
+  const pad = { top: 20, right: 20, bottom: 40, left: 80 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  // Compute stacked totals for scale
+  let maxStack = 0;
+  years.forEach(y => {
+    let stack = 0;
+    series.forEach(s => { stack += (counts[s.id] && counts[s.id][y]) || 0; });
+    if (stack > maxStack) maxStack = stack;
+  });
+
+  maxStack = Math.ceil(maxStack / 200000) * 200000;
+  if (maxStack === 0) maxStack = 1000000;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid lines
+  const gridLines = 5;
+  ctx.strokeStyle = '#e5e7eb';
+  ctx.lineWidth = 1;
+  ctx.font = '11px Source Sans 3, sans-serif';
+  ctx.fillStyle = '#64748b';
+  ctx.textAlign = 'right';
+
+  for (let i = 0; i <= gridLines; i++) {
+    const val = (maxStack / gridLines) * i;
+    const y = pad.top + plotH - (plotH * (val / maxStack));
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(W - pad.right, y);
+    ctx.stroke();
+    ctx.fillText(formatNumber(Math.round(val)), pad.left - 8, y + 4);
+  }
+
+  // Bars
+  const barGroupW = plotW / years.length;
+  const barW = barGroupW * 0.6;
+  const barGap = (barGroupW - barW) / 2;
+
+  years.forEach((yr, yi) => {
+    let stackY = 0;
+    series.forEach(s => {
+      const val = (counts[s.id] && counts[s.id][yr]) || 0;
+      const barH = (val / maxStack) * plotH;
+      const x = pad.left + yi * barGroupW + barGap;
+      const y = pad.top + plotH - stackY - barH;
+
+      ctx.fillStyle = s.color;
+      ctx.fillRect(x, y, barW, barH);
+      stackY += barH;
+    });
+
+    // X label
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'center';
+    ctx.font = '12px Source Sans 3, sans-serif';
+    const label = yi === years.length - 1 ? ytdLabel : yr;
+    ctx.fillText(label, pad.left + yi * barGroupW + barGroupW / 2, H - pad.bottom + 20);
+  });
+
+  // Legend
+  legend.innerHTML = '';
+  series.forEach(s => {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `<span class="legend-swatch" style="background:${s.color}"></span>${s.label}`;
+    legend.appendChild(item);
+  });
+}
+
+// ─── STATUS ───────────────────────────────────────────────────────
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  dot.className = 'status-dot' + (state === 'updating' ? ' updating' : '');
+  txt.textContent = text;
+}
+
+function showProgress(pct) {
+  const container = document.getElementById('progressContainer');
+  const bar = document.getElementById('progressBar');
+  container.className = 'progress-bar-container active';
+  bar.style.width = pct + '%';
+}
+
+function hideProgress() {
+  document.getElementById('progressContainer').className = 'progress-bar-container';
+}
+
+// ─── MAIN ─────────────────────────────────────────────────────────
+async function loadConfig() {
+  try {
+    const resp = await fetch('config.json');
+    CONFIG = await resp.json();
+  } catch (e) {
+    // Fallback: embed config inline if fetch fails
+    console.error('Failed to load config.json', e);
+    return false;
+  }
+  return true;
+}
+
+async function init() {
+  const ok = await loadConfig();
+  if (!ok) {
+    setStatus('error', 'Failed to load config');
+    return;
+  }
+
+  document.getElementById('noteBar').textContent = CONFIG.note;
+  document.getElementById('footnote').textContent = CONFIG.footnote;
+  document.getElementById('chartTitle').textContent = CONFIG.chart.title;
+
+  const years = getYears();
+  const currentYear = years[years.length - 1];
+  document.getElementById('reportPeriod').textContent =
+    `${years[0]}–${currentYear} (through ${getYTDLabel().replace(' YTD', '')} ${currentYear})`;
+
+  // 1. Try server-side data file first
+  const serverData = await loadServerData();
+  if (serverData && serverData.counts && Object.keys(serverData.counts).length > 0) {
+    // Cache it locally too
+    setCache({ years, counts: serverData.counts });
+    renderTable(years, serverData.counts);
+    renderChart(years, serverData.counts);
+    const d = new Date(serverData.timestamp);
+    setStatus('cached', `Server data from ${d.toLocaleDateString()}`);
+    document.getElementById('refreshBtn').disabled = false;
+    document.getElementById('exportBtn').disabled = false;
+
+    // If server data is stale, auto-refresh in background
+    if (shouldRefresh({ timestamp: serverData.timestamp })) {
+      await runFetch(years);
+    }
+    return;
+  }
+
+  // 2. Try localStorage cache
+  const cache = getCache();
+  if (cache && cache.counts && !shouldRefresh(cache)) {
+    renderTable(years, cache.counts);
+    renderChart(years, cache.counts);
+    const d = new Date(cache.timestamp);
+    setStatus('cached', `Cached ${d.toLocaleDateString()}`);
+    document.getElementById('refreshBtn').disabled = false;
+    document.getElementById('exportBtn').disabled = false;
+    return;
+  }
+
+  // 3. Show stale cache while fetching live
+  if (cache && cache.counts) {
+    renderTable(years, cache.counts);
+    renderChart(years, cache.counts);
+  } else {
+    renderTable(years, {});
+    renderChart(years, {});
+  }
+
+  await runFetch(years);
+}
+
+async function runFetch(years) {
+  setStatus('updating', 'Fetching data from NCBI...');
+  document.getElementById('refreshBtn').disabled = true;
+  showProgress(0);
+
+  const counts = {};
+
+  await fetchAllData(counts, (done, total) => {
+    const pct = Math.round((done / total) * 100);
+    showProgress(pct);
+    setStatus('updating', `Fetching... ${done}/${total}`);
+
+    // Live-update table every 7 rows
+    if (done % 7 === 0 || done === total) {
+      renderTable(years, counts);
+    }
+  });
+
+  // Final render
+  renderTable(years, counts);
+  renderChart(years, counts);
+  setCache({ years, counts });
+  hideProgress();
+  setStatus('done', `Updated ${new Date().toLocaleDateString()}`);
+  document.getElementById('refreshBtn').disabled = false;
+  document.getElementById('exportBtn').disabled = false;
+}
+
+async function forceRefresh() {
+  localStorage.removeItem(CACHE_KEY);
+  const years = getYears();
+  await runFetch(years);
+}
+
+function exportCSV() {
+  const cache = getCache();
+  if (!cache || !cache.counts) return;
+
+  const years = getYears();
+  const ytdLabel = getYTDLabel();
+  const lines = [];
+
+  // Header with date range info
+  const currentYear = years[years.length - 1];
+  lines.push(`"PubMed Summary Report","${years[0]}-${currentYear}","Generated ${new Date().toISOString().slice(0,10)}"`);
+  lines.push('');
+
+  // Column headers
+  const colHeaders = [''].concat(years.map((y, i) => i === years.length - 1 ? ytdLabel : String(y)));
+  lines.push(colHeaders.map(c => `"${c}"`).join(','));
+
+  // Data rows
+  for (const row of CONFIG.rows) {
+    const cells = [`"${row.label}"`];
+    years.forEach(y => {
+      const val = getComputedValue(row, y, cache.counts);
+      if (val === null) {
+        cells.push('');
+      } else if (row.type === 'percent') {
+        cells.push((val / 100).toFixed(4));
+      } else {
+        cells.push(String(val));
+      }
+    });
+    lines.push(cells.join(','));
+  }
+
+  const csv = lines.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'pubmed-data.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── LOAD SERVER DATA ─────────────────────────────────────────────
+async function loadServerData() {
+  try {
+    const resp = await fetch('pubmed-data.csv?_=' + Date.now());
+    if (!resp.ok) return null;
+    const text = await resp.text();
+    return parseCSVData(text);
+  } catch { return null; }
+}
+
+function parseCSVData(csv) {
+  const lines = csv.split('\n').filter(l => l.trim());
+  if (lines.length < 3) return null;
+
+  // Line 0: header with date info
+  // Line 1: empty (skip)  
+  // Line 2: column headers (year labels)
+  // Line 3+: data rows
+
+  // Find the column header line (starts with empty first column)
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(5, lines.length); i++) {
+    const parsed = parseCSVLine(lines[i]);
+    if (parsed[0] === '' && parsed.length > 1) { headerIdx = i; break; }
+  }
+  if (headerIdx === -1) return null;
+
+  const headers = parseCSVLine(lines[headerIdx]);
+  const years = headers.slice(1).map(h => {
+    const y = parseInt(h);
+    return isNaN(y) ? h : y;
+  });
+
+  // Map numeric years; YTD column maps to current year
+  const currentYear = new Date().getFullYear();
+  const yearKeys = years.map(y => typeof y === 'number' ? y : currentYear);
+
+  const counts = {};
+  const countRows = CONFIG.rows.filter(r => r.type === 'count');
+
+  let dataIdx = headerIdx + 1;
+  let configIdx = 0;
+
+  for (let i = dataIdx; i < lines.length && configIdx < CONFIG.rows.length; i++) {
+    const row = CONFIG.rows[configIdx];
+    const cells = parseCSVLine(lines[i]);
+    if (!cells[0]) { configIdx++; continue; }
+
+    if (row.type === 'count') {
+      counts[row.id] = {};
+      for (let c = 1; c < cells.length && c - 1 < yearKeys.length; c++) {
+        const val = parseInt(cells[c]);
+        counts[row.id][yearKeys[c - 1]] = isNaN(val) ? null : val;
+      }
+    }
+    configIdx++;
+  }
+
+  // Extract timestamp from first line
+  const firstLine = parseCSVLine(lines[0]);
+  const generated = firstLine.length >= 3 ? firstLine[2].replace('Generated ', '') : '';
+
+  return { counts, timestamp: generated || new Date().toISOString() };
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQuotes = !inQuotes; }
+    else if (ch === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+    else { current += ch; }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', init);
+window.addEventListener('resize', () => {
+  const cache = getCache();
+  if (cache && cache.counts) renderChart(getYears(), cache.counts);
+});
+</script>
+
+</body>
+</html>

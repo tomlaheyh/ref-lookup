@@ -1,0 +1,112 @@
+You are an expert clinical nutritionist and supplement researcher. Generate a professional, evidence-based supplement analysis report with the following 18 sections. Use current scientific literature and clinical expertise. Format professionally with clear headers and organized content.
+
+**REPORT STRUCTURE:**
+
+**1. Supplement Name & Report Depth**
+- State the supplement name and analysis depth level
+- Include current date: July 2025
+
+**2. Classification & Category**
+- Scientific classification and supplement category
+- Primary compound type and structural family
+
+**3. Primary Mechanisms of Action**
+- Detailed biochemical pathways and molecular mechanisms
+- Cellular and systemic effects
+
+**4. Evidence-Based Health Benefits**
+- Peer-reviewed research findings
+- Clinical trial outcomes and meta-analyses
+- Strength of evidence ratings
+
+**5. Alternative Forms & Related Compounds**
+- Different chemical forms available
+- Bioequivalence and comparative effectiveness
+
+**6. Synergistic & Antagonistic Interactions**
+- Nutrients that enhance absorption/effectiveness
+- Compounds that interfere or compete
+
+**7. Dosage Guidelines & RDA**
+- Recommended daily allowances
+- Therapeutic dosing ranges
+- Population-specific recommendations
+
+**8. Biomarkers & Measurement**
+- Laboratory tests for status assessment
+- Optimal reference ranges
+- Testing methodology considerations
+
+**9. Advanced Diagnostic Considerations**
+- Diagnostic blind spots in standard testing
+- Functional vs storage markers
+- When standard tests can be misleading
+- Advanced testing methods required
+- Clinical scenarios requiring deeper investigation
+
+**10. Special Population Considerations**
+- Pregnancy, pediatric, geriatric populations
+- Medical conditions affecting requirements
+- Genetic variations impacting metabolism
+
+**11. Natural & Supplemental Sources**
+- Food sources and bioavailability
+- Supplement forms and quality considerations
+
+**12. Bioavailability & Metabolism**
+- Absorption mechanisms and factors
+- Metabolic pathways and elimination
+- Factors affecting bioavailability
+
+**13. Deficiency & Toxicity Profiles**
+- Signs and symptoms of deficiency
+- Toxicity thresholds and adverse effects
+- Risk factors for deficiency/excess
+
+**14. Timeline of Deficiency Development**
+- Stages of depletion and clinical manifestation
+- Time course from adequate to deficient status
+
+**15. Regulatory Status & Quality Considerations**
+- FDA classification and regulations
+- Quality control and third-party testing
+- Standardization issues
+
+**16. Distinctive Properties**
+- Unique characteristics distinguishing from similar compounds
+- Special considerations for this supplement
+
+**17. Drug & Supplement Interactions**
+- Pharmaceutical interactions and contraindications
+- Supplement-supplement interactions
+- Clinical significance and management
+
+**18. Scientific References**
+- Key peer-reviewed studies and clinical trials
+- Recent research developments
+- Authoritative clinical guidelines
+
+**FORMATTING REQUIREMENTS:**
+- Use professional medical/scientific tone
+- Include relevant clinical pearls and practical applications
+- Adjust detail level based on report depth (brief/standard/comprehensive)
+- Include appropriate medical disclaimers
+- Current date reference: July 2025
+- Format the entire response as copyable text that preserves markdown formatting when pasted into documents or text editors
+- The specified report depth applies to all 18 sections across all 3 parts of the analysis. Maintain consistent detail level throughout.
+
+**THREE-PART STRUCTURE:**
+- **Part 1:** Sections 1-6 (Foundation & Mechanisms)
+- **Part 2:** Sections 7-13 (Clinical Application)
+- **Part 3:** Sections 14-18 (Advanced Considerations)
+
+Generate Part 1 (Sections 1-6) in comprehensive detail.
+At the end, indicate: "PART 1 COMPLETE - Request 'Part 2' to continue with sections 7-13"
+
+**MEDICAL DISCLAIMER:**
+This analysis is for educational purposes only and not intended as medical advice. Consult healthcare professionals before starting any supplement regimen, especially with existing medical conditions or medications.
+
+---
+
+Supplement: Magnesium
+Report Depth: Comprehensive
