@@ -281,6 +281,17 @@
     border-top: 1px solid var(--border);
     line-height: 1.6;
   }
+
+  .venn-area {
+    position: relative;
+    width: 100%;
+    height: 480px;
+  }
+
+  .venn-area canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
 </style>
 </head>
 <body>
@@ -317,6 +328,13 @@
     <div class="chart-title" id="chartTitle">PubMed Summary</div>
     <div class="chart-area"><canvas id="chartCanvas"></canvas></div>
     <div class="chart-legend" id="chartLegend"></div>
+  </div>
+
+  <div class="chart-container">
+    <div class="chart-title" id="vennTitle">PubMed / PMC / Medline Overlap</div>
+    <div class="venn-area" id="vennArea">
+      <canvas id="vennCanvas"></canvas>
+    </div>
   </div>
 
   <div class="footnote" id="footnote"></div>
@@ -612,6 +630,139 @@ function renderChart(years, counts) {
   });
 }
 
+// ─── VENN DIAGRAM ─────────────────────────────────────────────────
+function renderVenn(years, counts) {
+  const canvas = document.getElementById('vennCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  // Use last full year (second to last in array)
+  const lastFullYear = years[years.length - 2];
+  const currentYear = years[years.length - 1];
+
+  // Get values — try last full year first, fall back to current
+  const year = (counts.total && counts.total[lastFullYear]) ? lastFullYear : currentYear;
+
+  const pubmedTotal = (counts.total && counts.total[year]) || 0;
+  const pmcTotal = (counts.pmc_total && counts.pmc_total[year]) || 0;
+  const medlineTotal = (counts.medline && counts.medline[year]) || 0;
+  const pmcInPubmed = (counts.pmc_in_pubmed && counts.pmc_in_pubmed[year]) || 0;
+  const pmcMedline = (counts.pmc_medline && counts.pmc_medline[year]) || 0;
+
+  if (pubmedTotal === 0 && pmcTotal === 0) return;
+
+  // Update title
+  document.getElementById('vennTitle').textContent =
+    `PubMed / PMC / Medline Overlap (${year})`;
+
+  // Segment values
+  const medlineOnly = medlineTotal - pmcMedline;
+  const pmcPubmedNotMedline = pmcInPubmed - pmcMedline;
+  const allThree = pmcMedline;
+  const pmcOnly = pmcTotal - pmcInPubmed;
+  const pubmedOther = pubmedTotal - medlineTotal - pmcInPubmed + pmcMedline;
+
+  // Canvas setup
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const W = rect.width;
+  const H = rect.height;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Scale circles proportionally by area
+  // PubMed is the largest, scale relative to it
+  const maxRadius = Math.min(W, H) * 0.32;
+  const pubmedArea = pubmedTotal;
+  const pmcArea = pmcTotal;
+  const medlineArea = medlineTotal;
+
+  const pubmedR = maxRadius;
+  const pmcR = maxRadius * Math.sqrt(pmcArea / pubmedArea);
+  const medlineR = maxRadius * Math.sqrt(medlineArea / pubmedArea);
+
+  // Position circles
+  // PubMed large circle on the left, PMC on the right, Medline inside PubMed
+  const centerY = H * 0.45;
+
+  // Calculate overlap distance for PubMed-PMC based on pmcInPubmed
+  // Use a simplified approach: overlap fraction determines circle separation
+  const overlapFraction = pmcInPubmed / Math.min(pubmedTotal, pmcTotal);
+  // Distance between centers: when overlap is 0, circles don't touch
+  // when overlap is 1, one is inside the other
+  const pubmedPmcDist = pubmedR + pmcR - (overlapFraction * 2 * Math.min(pubmedR, pmcR));
+
+  const pubmedCx = W * 0.42;
+  const pmcCx = pubmedCx + pubmedPmcDist;
+
+  // Medline sits inside PubMed, shifted left of PubMed center
+  const medlineFraction = medlineTotal / pubmedTotal;
+  const medlineCx = pubmedCx - (pubmedR - medlineR) * 0.3;
+  const medlineCy = centerY;
+
+  // Draw PubMed circle
+  ctx.globalAlpha = 0.2;
+  ctx.fillStyle = '#4472C4';
+  ctx.beginPath();
+  ctx.arc(pubmedCx, centerY, pubmedR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#4472C4';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // Draw PMC circle
+  ctx.globalAlpha = 0.25;
+  ctx.fillStyle = '#5C3A1E';
+  ctx.beginPath();
+  ctx.arc(pmcCx, centerY, pmcR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#5C3A1E';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // Draw Medline circle
+  ctx.globalAlpha = 0.15;
+  ctx.fillStyle = '#16a34a';
+  ctx.beginPath();
+  ctx.arc(medlineCx, medlineCy, medlineR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#16a34a';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // ─── LABELS ───────────────────────────────────────────────────
+  ctx.textAlign = 'center';
+
+  // Circle titles (outside)
+  ctx.font = 'bold 14px Source Sans 3, sans-serif';
+  ctx.fillStyle = '#4472C4';
+  ctx.fillText('PubMed', pubmedCx, centerY - pubmedR - 14);
+
+  ctx.font = 'bold 14px Source Sans 3, sans-serif';
+  ctx.fillStyle = '#5C3A1E';
+  ctx.fillText('PMC', pmcCx + pmcR * 0.4, centerY + pmcR * 0.3);
+
+  ctx.font = 'bold 13px Source Sans 3, sans-serif';
+  ctx.fillStyle = '#16a34a';
+  ctx.fillText('Medline', medlineCx - medlineR * 0.35, medlineCy + 5);
+
+  // Summary line at bottom
+  ctx.font = '12px Source Sans 3, sans-serif';
+  ctx.fillStyle = '#64748b';
+  ctx.textAlign = 'center';
+  ctx.fillText(
+    `${formatNumber(pmcInPubmed)} PMC articles in PubMed (${((pmcInPubmed/pmcTotal)*100).toFixed(1)}% of PMC)  •  ` +
+    `${formatNumber(medlineTotal)} Medline (${((medlineTotal/pubmedTotal)*100).toFixed(1)}% of PubMed)`,
+    W / 2, H - 16
+  );
+}
+
 // ─── STATUS ───────────────────────────────────────────────────────
 function setStatus(state, text) {
   const dot = document.getElementById('statusDot');
@@ -667,6 +818,7 @@ async function init() {
     setCache({ years, counts: serverData.counts });
     renderTable(years, serverData.counts);
     renderChart(years, serverData.counts);
+    renderVenn(years, serverData.counts);
     const d = new Date(serverData.timestamp);
     setStatus('cached', `Server data from ${d.toLocaleDateString()}`);
     document.getElementById('refreshBtn').disabled = false;
@@ -684,6 +836,7 @@ async function init() {
   if (cache && cache.counts && !shouldRefresh(cache)) {
     renderTable(years, cache.counts);
     renderChart(years, cache.counts);
+    renderVenn(years, cache.counts);
     const d = new Date(cache.timestamp);
     setStatus('cached', `Cached ${d.toLocaleDateString()}`);
     document.getElementById('refreshBtn').disabled = false;
@@ -695,9 +848,11 @@ async function init() {
   if (cache && cache.counts) {
     renderTable(years, cache.counts);
     renderChart(years, cache.counts);
+    renderVenn(years, cache.counts);
   } else {
     renderTable(years, {});
     renderChart(years, {});
+    renderVenn(years, {});
   }
 
   await runFetch(years);
@@ -724,6 +879,7 @@ async function runFetch(years) {
   // Final render
   renderTable(years, counts);
   renderChart(years, counts);
+  renderVenn(years, counts);
   setCache({ years, counts });
   hideProgress();
   setStatus('done', `Updated ${new Date().toLocaleDateString()}`);
@@ -863,7 +1019,10 @@ function parseCSVLine(line) {
 window.addEventListener('DOMContentLoaded', init);
 window.addEventListener('resize', () => {
   const cache = getCache();
-  if (cache && cache.counts) renderChart(getYears(), cache.counts);
+  if (cache && cache.counts) {
+    renderChart(getYears(), cache.counts);
+    renderVenn(getYears(), cache.counts);
+  }
 });
 </script>
 
