@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PubMed Filters Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #f8f9fb;
+    --surface: #ffffff;
+    --border: #d0d5dd;
+    --text: #1a1a2e;
+    --text-muted: #64748b;
+    --accent: #1e40af;
+    --accent-light: #dbeafe;
+    --section-bg: #e8f0fe;
+    --green: #16a34a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Source Sans 3', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  .container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px 20px;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 2px solid var(--accent);
+    padding: 20px 0;
+    margin-bottom: 24px;
+  }
+
+  header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  h1 { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+  .subtitle { font-size: 0.85rem; color: var(--text-muted); }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    display: inline-block;
+  }
+  .status-dot.updating { background: var(--accent); animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .btn {
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:hover { background: var(--accent-light); border-color: var(--accent); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .note-bar {
+    background: var(--accent-light);
+    border-left: 3px solid var(--accent);
+    padding: 10px 16px;
+    font-size: 0.82rem;
+    color: var(--accent);
+    margin-bottom: 20px;
+    border-radius: 0 6px 6px 0;
+  }
+
+  .progress-bar-container {
+    width: 100%; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-bottom: 20px;
+    overflow: hidden;
+    display: none;
+  }
+  .progress-bar-container.active { display: block; }
+  .progress-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.3s;
+    width: 0%;
+  }
+
+  /* Three-column layout */
+  .columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  @media (max-width: 900px) {
+    .columns { grid-template-columns: 1fr; }
+  }
+
+  .column {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .col-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+
+  .col-table td {
+    padding: 5px 10px;
+    border-bottom: 1px solid #eef0f4;
+  }
+
+  .col-table td:first-child {
+    color: var(--text);
+  }
+
+  .col-table td:last-child {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+
+  .col-table tr:hover { background: #f7f9fc; }
+
+  .col-table tr.section-header td {
+    background: var(--section-bg);
+    font-weight: 700;
+    color: var(--accent);
+    border-bottom: 2px solid var(--border);
+    padding: 8px 10px;
+  }
+
+  .col-table tr.total-row td {
+    font-weight: 700;
+    background: #fafbfd;
+    border-bottom: 2px solid var(--border);
+  }
+
+  .col-table tr.total-row td:last-child {
+    font-size: 0.85rem;
+  }
+
+  .col-table td:first-child a {
+    color: var(--text);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--text-muted);
+  }
+  .col-table td:first-child a:hover {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    border-bottom-style: solid;
+  }
+
+  td.loading-cell {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  /* References section */
+  .ref-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .ref-section h3 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  .ref-section a {
+    color: var(--accent);
+    font-size: 0.82rem;
+    word-break: break-all;
+  }
+
+  .ref-section p {
+    margin-bottom: 6px;
+    font-size: 0.82rem;
+  }
+
+  .favorites-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px 24px;
+    margin-top: 10px;
+    font-size: 0.82rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+  }
+
+  @media (max-width: 700px) {
+    .favorites-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<script src="/siteNav.js"></script>
+
+<div class="container" style="padding-top:12px">
+  <div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+    <span class="status-dot" id="statusDot"></span>
+    <span style="font-size:0.82rem;color:var(--text-muted)" id="statusText">Loading...</span>
+    <span style="font-size:0.82rem;color:var(--text-muted)" id="reportPeriod"></span>
+    <button class="btn" id="refreshBtn" onclick="forceRefresh()" disabled>Force Refresh</button>
+    <button class="btn" id="exportBtn" onclick="exportCSV()" disabled>Export CSV</button>
+  </div>
+  <div class="note-bar" id="noteBar" style="margin-bottom:12px"></div>
+  <div class="progress-bar-container" id="progressContainer">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <div class="columns" id="columnsArea"></div>
+
+  <div class="ref-section" id="refSection"></div>
+</div>
+
+<script>
+let CONFIG = null;
+const CACHE_KEY = 'pubmed_filters_cache';
+const EUTILS_BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi';
+
+// ─── DATE HELPERS ─────────────────────────────────────────────────
+function getDateRange() {
+  const now = new Date();
+  const year = now.getFullYear();
+  let lastMonth = now.getMonth();
+  if (lastMonth === 0) lastMonth = 1;
+  const lastDay = new Date(year, lastMonth, 0).getDate();
+  const mm = String(lastMonth).padStart(2, '0');
+  const dd = String(lastDay).padStart(2, '0');
+  return `${year}/01/01:${year}/${mm}/${dd}`;
+}
+
+function getMonthLabel() {
+  const now = new Date();
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let lastMonth = now.getMonth();
+  if (lastMonth === 0) lastMonth = 1;
+  return `Jan-${months[lastMonth - 1]}`;
+}
+
+function buildTerm(template) {
+  return template.replace('{daterange}', getDateRange());
+}
+
+function buildPubmedUrl(template) {
+  const term = buildTerm(template);
+  return 'https://pubmed.ncbi.nlm.nih.gov/?term=' + encodeURIComponent(term);
+}
+
+// ─── CACHE ────────────────────────────────────────────────────────
+function getCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function setCache(data) {
+  data.timestamp = new Date().toISOString();
+  localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+}
+
+function shouldRefresh(cache) {
+  if (!cache || !cache.timestamp) return true;
+  const now = new Date();
+  const cached = new Date(cache.timestamp);
+  const refreshDay = CONFIG ? CONFIG.refreshDayOfMonth : 10;
+  if (now.getMonth() !== cached.getMonth() || now.getFullYear() !== cached.getFullYear()) {
+    if (now.getDate() >= refreshDay) return true;
+  }
+  return false;
+}
+
+// ─── NCBI FETCH ───────────────────────────────────────────────────
+async function fetchCount(term) {
+  const url = `${EUTILS_BASE}?db=pubmed&rettype=count&term=${encodeURIComponent(term)}`;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      const resp = await fetch(url);
+      const text = await resp.text();
+      const match = text.match(/<Count>(\d+)<\/Count>/);
+      if (match) return parseInt(match[1]);
+    } catch (e) { /* retry */ }
+    await sleep(3000 * attempt);
+  }
+  return null;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function fetchAllData(counts, onProgress) {
+  const allRows = [];
+  CONFIG.sections.forEach(s => {
+    s.rows.forEach(r => {
+      if (r.type === 'count') allRows.push(r);
+    });
+  });
+
+  const total = allRows.length;
+  let completed = 0;
+
+  for (const row of allRows) {
+    const term = buildTerm(row.term);
+    const count = await fetchCount(term);
+    counts[row.id] = count;
+    completed++;
+    if (onProgress) onProgress(completed, total);
+    await sleep(800);
+  }
+}
+
+// ─── COMPUTED VALUES ──────────────────────────────────────────────
+function getRowValue(row, counts) {
+  if (row.type === 'count') return counts[row.id] !== undefined ? counts[row.id] : null;
+  if (row.type === 'calculated') {
+    const parts = row.formula.split(' - ');
+    const a = counts[parts[0]];
+    const b = counts[parts[1]];
+    if (a === null || a === undefined || b === null || b === undefined) return null;
+    return a - b;
+  }
+  if (row.type === 'sum_all_at') {
+    // Sum all article type count rows (ids starting with "at_")
+    let sum = 0;
+    let hasAny = false;
+    for (const key in counts) {
+      if (key.startsWith('at_') && counts[key] !== null && counts[key] !== undefined) {
+        sum += counts[key];
+        hasAny = true;
+      }
+    }
+    return hasAny ? sum : null;
+  }
+  return null;
+}
+
+function formatNumber(n) {
+  if (n === null || n === undefined) return '—';
+  return n.toLocaleString('en-US');
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────
+function render(counts) {
+  const area = document.getElementById('columnsArea');
+  area.innerHTML = '';
+
+  // Column 1: fixed sections
+  const col1 = document.createElement('div');
+  col1.className = 'column';
+  const t1 = document.createElement('table');
+  t1.className = 'col-table';
+
+  const fixedSections = CONFIG.sections.filter(s => !s.sorted);
+  for (const section of fixedSections) {
+    // Section header
+    const htr = document.createElement('tr');
+    htr.className = 'section-header';
+    htr.innerHTML = `<td colspan="2">${section.header}</td>`;
+    t1.appendChild(htr);
+
+    for (const row of section.rows) {
+      const tr = document.createElement('tr');
+      if (row.bold) tr.className = 'total-row';
+
+      const labelTd = document.createElement('td');
+      if (row.term) {
+        const link = document.createElement('a');
+        link.href = buildPubmedUrl(row.term);
+        link.target = '_blank';
+        link.title = 'Open in PubMed';
+        link.textContent = row.label;
+        labelTd.appendChild(link);
+      } else {
+        labelTd.textContent = row.label;
+      }
+      tr.appendChild(labelTd);
+
+      const valTd = document.createElement('td');
+      const val = getRowValue(row, counts);
+      valTd.textContent = formatNumber(val);
+      if (val === null) valTd.className = 'loading-cell';
+      tr.appendChild(valTd);
+
+      t1.appendChild(tr);
+    }
+  }
+  col1.appendChild(t1);
+  area.appendChild(col1);
+
+  // Article type sorted section — split across columns 2 and 3
+  const articleSection = CONFIG.sections.find(s => s.sorted);
+  if (articleSection) {
+    // Separate total row from sortable rows
+    const totalRow = articleSection.rows.find(r => r.type === 'sum_all_at');
+    const countRows = articleSection.rows.filter(r => r.type === 'count');
+
+    // Sort count rows by value descending
+    const sortedRows = countRows.slice().sort((a, b) => {
+      const va = getRowValue(a, counts);
+      const vb = getRowValue(b, counts);
+      if (va === null && vb === null) return 0;
+      if (va === null) return 1;
+      if (vb === null) return -1;
+      return vb - va;
+    });
+
+    const mid = Math.ceil(sortedRows.length / 2);
+    const col2Rows = sortedRows.slice(0, mid);
+    const col3Rows = sortedRows.slice(mid);
+
+    [col2Rows, col3Rows].forEach((rows, ci) => {
+      const col = document.createElement('div');
+      col.className = 'column';
+      const tbl = document.createElement('table');
+      tbl.className = 'col-table';
+
+      const htr = document.createElement('tr');
+      htr.className = 'section-header';
+      htr.innerHTML = `<td colspan="2">${ci === 0 ? articleSection.header : 'Article Type - continued'}</td>`;
+      tbl.appendChild(htr);
+
+      // Add total row at top of column 2 only
+      if (ci === 0 && totalRow) {
+        const ttr = document.createElement('tr');
+        ttr.className = 'total-row';
+        const ltd = document.createElement('td');
+        ltd.textContent = totalRow.label;
+        ttr.appendChild(ltd);
+        const vtd = document.createElement('td');
+        const val = getRowValue(totalRow, counts);
+        vtd.textContent = formatNumber(val);
+        if (val === null) vtd.className = 'loading-cell';
+        ttr.appendChild(vtd);
+        tbl.appendChild(ttr);
+      }
+
+      for (const row of rows) {
+        const tr = document.createElement('tr');
+        const labelTd = document.createElement('td');
+        if (row.term) {
+          const link = document.createElement('a');
+          link.href = buildPubmedUrl(row.term);
+          link.target = '_blank';
+          link.title = 'Open in PubMed';
+          link.textContent = row.label;
+          labelTd.appendChild(link);
+        } else {
+          labelTd.textContent = row.label;
+        }
+        tr.appendChild(labelTd);
+
+        const valTd = document.createElement('td');
+        const val = getRowValue(row, counts);
+        valTd.textContent = formatNumber(val);
+        if (val === null) valTd.className = 'loading-cell';
+        tr.appendChild(valTd);
+
+        tbl.appendChild(tr);
+      }
+
+      col.appendChild(tbl);
+      area.appendChild(col);
+    });
+  }
+
+  // References
+  renderReferences();
+}
+
+function renderReferences() {
+  const ref = document.getElementById('refSection');
+  ref.innerHTML = '';
+
+  // Links
+  const h3a = document.createElement('h3');
+  h3a.textContent = 'Additional Resources';
+  ref.appendChild(h3a);
+
+  if (CONFIG.references) {
+    const p1 = document.createElement('p');
+    p1.innerHTML = `Additional Search Tags list: <a href="${CONFIG.references.search_tags}" target="_blank">${CONFIG.references.search_tags}</a>`;
+    ref.appendChild(p1);
+
+    const p2 = document.createElement('p');
+    p2.innerHTML = `Official Training: <a href="${CONFIG.references.training}" target="_blank">${CONFIG.references.training}</a>`;
+    ref.appendChild(p2);
+  }
+
+  // Favorites
+  if (CONFIG.favorites && CONFIG.favorites.length > 0) {
+    const h3b = document.createElement('h3');
+    h3b.textContent = 'My Favorites';
+    h3b.style.marginTop = '16px';
+    ref.appendChild(h3b);
+
+    const grid = document.createElement('div');
+    grid.className = 'favorites-grid';
+    CONFIG.favorites.forEach(f => {
+      const span = document.createElement('span');
+      span.textContent = f;
+      grid.appendChild(span);
+    });
+    ref.appendChild(grid);
+  }
+}
+
+// ─── STATUS ───────────────────────────────────────────────────────
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  dot.className = 'status-dot' + (state === 'updating' ? ' updating' : '');
+  txt.textContent = text;
+}
+
+function showProgress(pct) {
+  const c = document.getElementById('progressContainer');
+  const b = document.getElementById('progressBar');
+  c.className = 'progress-bar-container active';
+  b.style.width = pct + '%';
+}
+
+function hideProgress() {
+  document.getElementById('progressContainer').className = 'progress-bar-container';
+}
+
+// ─── CSV EXPORT ───────────────────────────────────────────────────
+function exportCSV() {
+  const cache = getCache();
+  if (!cache || !cache.counts) return;
+  const counts = cache.counts;
+
+  const lines = [];
+  const now = new Date();
+  lines.push(`"PubMed Filters Report","${getMonthLabel()} ${now.getFullYear()}","Generated ${now.toISOString().slice(0,10)}"`);
+  lines.push('');
+
+  // Fixed sections
+  const fixedSections = CONFIG.sections.filter(s => !s.sorted);
+  for (const section of fixedSections) {
+    lines.push(`"${section.header}",""`);
+    for (const row of section.rows) {
+      const val = getRowValue(row, counts);
+      lines.push(`"${row.label}",${val !== null ? val : 'NaN'}`);
+    }
+    lines.push('');
+  }
+
+  // Article type sorted
+  const articleSection = CONFIG.sections.find(s => s.sorted);
+  if (articleSection) {
+    const sorted = articleSection.rows.slice().sort((a, b) => {
+      const va = getRowValue(a, counts);
+      const vb = getRowValue(b, counts);
+      if (va === null) return 1;
+      if (vb === null) return -1;
+      return vb - va;
+    });
+    lines.push(`"${articleSection.header}",""`);
+    for (const row of sorted) {
+      const val = getRowValue(row, counts);
+      lines.push(`"${row.label}",${val !== null ? val : 'NaN'}`);
+    }
+  }
+
+  const csv = lines.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'pubmed-filters-data.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── LOAD SERVER DATA ─────────────────────────────────────────────
+async function loadServerData() {
+  try {
+    const resp = await fetch('pubmed-filters-data.csv?_=' + Date.now());
+    if (!resp.ok) return null;
+    const text = await resp.text();
+    return parseCSVData(text);
+  } catch { return null; }
+}
+
+function parseCSVData(csv) {
+  const lines = csv.split('\n').filter(l => l.trim());
+  if (lines.length < 3) return null;
+
+  const counts = {};
+  const allRows = [];
+  CONFIG.sections.forEach(s => s.rows.forEach(r => allRows.push(r)));
+
+  let rowIdx = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const cells = parseCSVLine(lines[i]);
+    if (!cells[0] || cells[1] === '') continue; // skip headers/blanks
+
+    // Find matching config row by label
+    const label = cells[0];
+    const matchRow = allRows.find(r => r.label === label);
+    if (matchRow && matchRow.type === 'count') {
+      const val = parseInt(cells[1]);
+      counts[matchRow.id] = isNaN(val) ? null : val;
+    }
+  }
+
+  const firstLine = parseCSVLine(lines[0]);
+  const generated = firstLine.length >= 3 ? firstLine[2].replace('Generated ', '') : '';
+  return { counts, timestamp: generated || new Date().toISOString() };
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQuotes = !inQuotes; }
+    else if (ch === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+    else { current += ch; }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+// ─── MAIN ─────────────────────────────────────────────────────────
+async function loadConfig() {
+  try {
+    const resp = await fetch('filters-config.json');
+    CONFIG = await resp.json();
+    return true;
+  } catch (e) {
+    console.error('Failed to load filters-config.json', e);
+    return false;
+  }
+}
+
+async function init() {
+  const ok = await loadConfig();
+  if (!ok) { setStatus('error', 'Failed to load config'); return; }
+
+  const now = new Date();
+  document.getElementById('noteBar').textContent = CONFIG.note;
+  document.getElementById('reportPeriod').textContent =
+    `Standard Side Filters with ${now.getFullYear()} data  •  ${getMonthLabel()} Run ${now.toLocaleDateString()}`;
+
+  // 1. Try server data
+  const serverData = await loadServerData();
+  if (serverData && serverData.counts && Object.keys(serverData.counts).length > 0) {
+    setCache({ counts: serverData.counts });
+    render(serverData.counts);
+    setStatus('cached', `Server data from ${new Date(serverData.timestamp).toLocaleDateString()}`);
+    document.getElementById('refreshBtn').disabled = false;
+    document.getElementById('exportBtn').disabled = false;
+    if (shouldRefresh({ timestamp: serverData.timestamp })) await runFetch();
+    return;
+  }
+
+  // 2. Try localStorage
+  const cache = getCache();
+  if (cache && cache.counts && !shouldRefresh(cache)) {
+    render(cache.counts);
+    setStatus('cached', `Cached ${new Date(cache.timestamp).toLocaleDateString()}`);
+    document.getElementById('refreshBtn').disabled = false;
+    document.getElementById('exportBtn').disabled = false;
+    return;
+  }
+
+  // 3. Fetch live
+  if (cache && cache.counts) {
+    render(cache.counts);
+  } else {
+    render({});
+  }
+  await runFetch();
+}
+
+async function runFetch() {
+  setStatus('updating', 'Fetching data from NCBI...');
+  document.getElementById('refreshBtn').disabled = true;
+  document.getElementById('exportBtn').disabled = true;
+  showProgress(0);
+
+  const counts = {};
+
+  await fetchAllData(counts, (done, total) => {
+    const pct = Math.round((done / total) * 100);
+    showProgress(pct);
+    setStatus('updating', `Fetching... ${done}/${total}`);
+    if (done % 5 === 0 || done === total) render(counts);
+  });
+
+  render(counts);
+  setCache({ counts });
+  hideProgress();
+  setStatus('done', `Updated ${new Date().toLocaleDateString()}`);
+  document.getElementById('refreshBtn').disabled = false;
+  document.getElementById('exportBtn').disabled = false;
+}
+
+async function forceRefresh() {
+  localStorage.removeItem(CACHE_KEY);
+  await runFetch();
+}
+
+window.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>

@@ -4,7 +4,11 @@
     { title: 'Awesome DOI-Ref-Lookup', href: '/' },
     { title: 'Clinical Guidelines',    href: '/med/guidelines.html' },
     { title: 'Topic Search',           href: '/search/search.html' },
-    { title: 'Nutrition Reference', href: '/nutrition/nutrition.html' }
+    { title: 'Nutrition Reference', href: '/nutrition/nutrition.html' },
+    { title: 'PubMed Summary Report', href: '/pubmed-summary/pubmed-summary.html' },
+    { title: 'PubMed Filters Report', href: '/filters/filters.html' },
+    { title: 'PubMed MeSH Counts',  href: '/mesh/mesh.html' },
+    { title: 'PubMed Journal Ranking 2026', href: '/journal-ranking/journal-ranking.html' }
   ];
 
   // ── Inject CSS (only once) ──

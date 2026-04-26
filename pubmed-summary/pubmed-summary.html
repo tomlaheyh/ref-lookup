@@ -295,24 +295,17 @@
 </style>
 </head>
 <body>
+<script src="/siteNav.js"></script>
 
-<header>
-  <div class="container">
-    <div>
-      <h1>PubMed Summary Report</h1>
-      <div class="subtitle" id="reportPeriod"></div>
-    </div>
-    <div class="status-bar">
-      <span class="status-dot" id="statusDot"></span>
-      <span id="statusText">Loading...</span>
-      <button class="btn" id="refreshBtn" onclick="forceRefresh()" disabled>Force Refresh</button>
-      <button class="btn" id="exportBtn" onclick="exportCSV()" disabled>Export CSV</button>
-    </div>
+<div class="container" style="padding-top:12px">
+  <div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+    <span class="status-dot" id="statusDot"></span>
+    <span style="font-size:0.82rem;color:var(--text-muted)" id="statusText">Loading...</span>
+    <span style="font-size:0.82rem;color:var(--text-muted)" id="reportPeriod"></span>
+    <button class="btn" id="refreshBtn" onclick="forceRefresh()" disabled>Force Refresh</button>
+    <button class="btn" id="exportBtn" onclick="exportCSV()" disabled>Export CSV</button>
   </div>
-</header>
-
-<div class="container">
-  <div class="note-bar" id="noteBar"></div>
+  <div class="note-bar" id="noteBar" style="margin-bottom:12px"></div>
   <div class="progress-bar-container" id="progressContainer">
     <div class="progress-bar" id="progressBar"></div>
   </div>
@@ -705,23 +698,23 @@ function renderVenn(years, counts) {
 
   // Draw PubMed circle
   ctx.globalAlpha = 0.2;
-  ctx.fillStyle = '#4472C4';
+  ctx.fillStyle = '#5C3A1E';
   ctx.beginPath();
   ctx.arc(pubmedCx, centerY, pubmedR, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
-  ctx.strokeStyle = '#4472C4';
+  ctx.strokeStyle = '#5C3A1E';
   ctx.lineWidth = 2.5;
   ctx.stroke();
 
   // Draw PMC circle
   ctx.globalAlpha = 0.25;
-  ctx.fillStyle = '#5C3A1E';
+  ctx.fillStyle = '#4472C4';
   ctx.beginPath();
   ctx.arc(pmcCx, centerY, pmcR, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
-  ctx.strokeStyle = '#5C3A1E';
+  ctx.strokeStyle = '#4472C4';
   ctx.lineWidth = 2.5;
   ctx.stroke();
 
@@ -741,11 +734,11 @@ function renderVenn(years, counts) {
 
   // Circle titles (outside)
   ctx.font = 'bold 14px Source Sans 3, sans-serif';
-  ctx.fillStyle = '#4472C4';
+  ctx.fillStyle = '#5C3A1E';
   ctx.fillText('PubMed', pubmedCx, centerY - pubmedR - 14);
 
   ctx.font = 'bold 14px Source Sans 3, sans-serif';
-  ctx.fillStyle = '#5C3A1E';
+  ctx.fillStyle = '#4472C4';
   ctx.fillText('PMC', pmcCx + pmcR * 0.4, centerY + pmcR * 0.3);
 
   ctx.font = 'bold 13px Source Sans 3, sans-serif';

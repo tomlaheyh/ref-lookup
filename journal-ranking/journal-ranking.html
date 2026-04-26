@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PubMed Journal Ranking 2026</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #f8f9fb;
+    --surface: #ffffff;
+    --border: #d0d5dd;
+    --text: #1a1a2e;
+    --text-muted: #64748b;
+    --accent: #1e40af;
+    --accent-light: #dbeafe;
+    --section-bg: #e8f0fe;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Source Sans 3', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px 20px;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 2px solid var(--accent);
+    padding: 20px 0;
+    margin-bottom: 24px;
+  }
+
+  header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  h1 { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+  .subtitle { font-size: 0.85rem; color: var(--text-muted); }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+  }
+
+  .note-bar {
+    background: var(--accent-light);
+    border-left: 3px solid var(--accent);
+    padding: 10px 16px;
+    font-size: 0.82rem;
+    color: var(--accent);
+    margin-bottom: 20px;
+    border-radius: 0 6px 6px 0;
+  }
+
+  /* Search */
+  .search-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .search-bar input {
+    font-family: inherit;
+    font-size: 0.85rem;
+    padding: 7px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: 300px;
+    outline: none;
+  }
+
+  .search-bar input:focus { border-color: var(--accent); }
+
+  .search-bar .count {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  /* Table */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: auto;
+    max-height: 80vh;
+    margin-bottom: 24px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    padding: 9px 10px;
+    text-align: right;
+    white-space: nowrap;
+    z-index: 2;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  thead th:hover { background: #163380; }
+
+  thead th.sort-asc::after { content: ' ▲'; font-size: 0.65rem; }
+  thead th.sort-desc::after { content: ' ▼'; font-size: 0.65rem; }
+
+  thead th:nth-child(1) { text-align: center; width: 50px; }
+  thead th:nth-child(2) { text-align: left; width: 90px; }
+  thead th:nth-child(3) { text-align: left; min-width: 180px; }
+
+  tbody td {
+    padding: 5px 10px;
+    text-align: right;
+    border-bottom: 1px solid #eef0f4;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+  }
+
+  tbody td:nth-child(1) {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+  }
+
+  tbody td:nth-child(2) {
+    text-align: left;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+  }
+
+  tbody td:nth-child(3) {
+    text-align: left;
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 0.82rem;
+    color: var(--text);
+    font-weight: 400;
+  }
+
+  tbody td.pct-cell {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+  }
+
+  tbody td:nth-child(3) a {
+    color: var(--text);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--text-muted);
+  }
+  tbody td:nth-child(3) a:hover {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    border-bottom-style: solid;
+  }
+
+  tbody tr:hover { background: #f7f9fc; }
+  tbody tr:nth-child(even) { background: #fafbfd; }
+  tbody tr:nth-child(even):hover { background: #f7f9fc; }
+
+  /* Top 10 highlight */
+  tbody tr.top10 td:nth-child(1) { font-weight: 700; color: var(--accent); }
+  tbody tr.top10 td:nth-child(3) { font-weight: 600; }
+
+  .status-bar .btn, .search-bar .btn {
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 7px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .status-bar .btn:hover, .search-bar .btn:hover { background: var(--accent-light); border-color: var(--accent); }
+  .status-bar .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Total column bracket styling */
+  thead th.total-col {
+    border-left: 2px solid rgba(255,255,255,0.4);
+    border-right: 2px solid rgba(255,255,255,0.4);
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  tbody td.total-cell {
+    border-left: 2px solid var(--border);
+    border-right: 2px solid var(--border);
+    padding-left: 14px;
+    padding-right: 14px;
+    font-weight: 600;
+  }
+
+  /* Gap before months */
+  thead th.month-first {
+    padding-left: 16px;
+  }
+  tbody td.month-first {
+    padding-left: 16px;
+  }
+
+  .footnote {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    padding: 12px 0;
+    border-top: 1px solid var(--border);
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+<script src="/siteNav.js"></script>
+
+<div class="container" style="padding-top:12px">
+  <div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-bottom:10px">
+    <span style="font-size:0.82rem;color:var(--text-muted)" id="statusText">Loading...</span>
+    <span style="font-size:0.82rem;color:var(--text-muted)" id="reportPeriod"></span>
+    <button class="btn" id="exportBtn" onclick="exportCSV()" disabled>Export CSV</button>
+  </div>
+  <div class="note-bar" style="margin-bottom:12px">Journals ranked by total articles YTD. Medline %, Free Full Text %, and ORCID % are ratios for articles in that journal. Monthly columns show article counts by create date.</div>
+
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="Search by journal title or ISSN..." onkeydown="if(event.key==='Enter')filterTable()">
+    <button class="btn" onclick="filterTable()">Search</button>
+    <button class="btn" onclick="document.getElementById('searchInput').value='';filterTable()">Clear</button>
+    <span class="count" id="rowCount"></span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr id="tableHead"></tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="footnote" id="footnote">
+    Rankings based on PubMed create date [crdt]. Journals with no articles in the period are excluded.
+  </div>
+</div>
+
+<script>
+const DATA_FILE = 'Journal_Ranking_YTD_2026.csv';
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+let allRows = [];
+let sortCol = 0;
+let sortDir = 'asc'; // rank is ascending by default
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cells = [];
+    let current = '';
+    let inQuotes = false;
+    const line = lines[i];
+    for (let c = 0; c < line.length; c++) {
+      const ch = line[c];
+      if (ch === '"') { inQuotes = !inQuotes; }
+      else if (ch === ',' && !inQuotes) { cells.push(current.trim()); current = ''; }
+      else { current += ch; }
+    }
+    cells.push(current.trim());
+
+    if (cells.length < 7) continue;
+
+    const row = {
+      rank: parseInt(cells[0]) || 0,
+      issn: cells[1] || '',
+      title: cells[2] || '',
+      medlinePct: parseFloat(cells[3]) || 0,
+      freeFullPct: parseFloat(cells[4]) || 0,
+      orcidPct: parseFloat(cells[5]) || 0,
+      total: parseInt(cells[6]) || 0,
+      months: []
+    };
+
+    // Months are columns 7-18
+    for (let m = 7; m <= 18; m++) {
+      row.months.push(parseInt(cells[m]) || 0);
+    }
+
+    if (row.total > 0) rows.push(row);
+  }
+
+  return rows;
+}
+
+function getActiveMonths() {
+  return [0,1,2,3,4,5,6,7,8,9,10,11];
+}
+
+function buildHeader() {
+  const head = document.getElementById('tableHead');
+  head.innerHTML = '';
+
+  const cols = [
+    { label: 'Rank', key: 'rank' },
+    { label: 'ISSN', key: 'issn' },
+    { label: 'Journal Title', key: 'title' },
+    { label: 'Medline %', key: 'medlinePct' },
+    { label: 'FreeFull %', key: 'freeFullPct' },
+    { label: 'ORCID %', key: 'orcidPct' },
+    { label: 'Total', key: 'total' }
+  ];
+
+  MONTHS.forEach((m, i) => {
+    cols.push({ label: m, key: 'month_' + i });
+  });
+
+  cols.forEach((col, idx) => {
+    const th = document.createElement('th');
+    th.textContent = col.label;
+    th.dataset.colIdx = idx;
+    th.dataset.key = col.key;
+
+    let cls = '';
+    if (idx === sortCol) cls = sortDir === 'asc' ? 'sort-asc' : 'sort-desc';
+    if (col.key === 'total') cls += ' total-col';
+    if (col.key === 'month_0') cls += ' month-first';
+    th.className = cls.trim();
+
+    th.addEventListener('click', () => {
+      if (sortCol === idx) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortCol = idx;
+        sortDir = col.key === 'title' || col.key === 'issn' ? 'asc' : 'desc';
+      }
+      renderRows();
+      buildHeader();
+    });
+
+    head.appendChild(th);
+  });
+}
+
+function getCellValue(row, colIdx) {
+  const fixedCols = ['rank', 'issn', 'title', 'medlinePct', 'freeFullPct', 'orcidPct', 'total'];
+  if (colIdx < fixedCols.length) {
+    return row[fixedCols[colIdx]];
+  }
+  const monthIdx = colIdx - fixedCols.length;
+  return row.months[monthIdx] || 0;
+}
+
+function renderRows() {
+  const body = document.getElementById('tableBody');
+  const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+  let filtered = allRows;
+  if (searchTerm) {
+    filtered = allRows.filter(r =>
+      r.title.toLowerCase().includes(searchTerm) ||
+      r.issn.toLowerCase().includes(searchTerm)
+    );
+  }
+
+  // Sort
+  const sorted = filtered.slice().sort((a, b) => {
+    const va = getCellValue(a, sortCol);
+    const vb = getCellValue(b, sortCol);
+    let cmp;
+    if (typeof va === 'string') {
+      cmp = va.localeCompare(vb);
+    } else {
+      cmp = va - vb;
+    }
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  // Build all HTML as one string
+  const htmlParts = [];
+  // Build date range for PubMed links
+  const now = new Date();
+  const yr = now.getFullYear();
+  let lm = now.getMonth();
+  if (lm === 0) lm = 1;
+  const ld = new Date(yr, lm, 0).getDate();
+  const mm = String(lm).padStart(2, '0');
+  const dd = String(ld).padStart(2, '0');
+  const dateRange = `${yr}/01/01:${yr}/${mm}/${dd}`;
+
+  for (let i = 0; i < sorted.length; i++) {
+    const r = sorted[i];
+    const rowCls = r.rank <= 10 ? ' class="top10"' : '';
+    const isValidISSN = /^\d{4}-\d{3}[\dXx]$/.test(r.issn);
+    let titleCell;
+    if (isValidISSN) {
+      const term = `${dateRange} [crdt] ${r.issn} [ta]`;
+      const pubmedUrl = 'https://pubmed.ncbi.nlm.nih.gov/?term=' + encodeURIComponent(term);
+      titleCell = `<a href="${pubmedUrl}" target="_blank" title="Open in PubMed">${r.title}</a>`;
+    } else {
+      titleCell = r.title;
+    }
+    let row = `<tr${rowCls}>`;
+    row += `<td>${r.rank}</td>`;
+    row += `<td>${r.issn}</td>`;
+    row += `<td>${titleCell}</td>`;
+    row += `<td class="pct-cell">${(r.medlinePct * 100).toFixed(0)}%</td>`;
+    row += `<td class="pct-cell">${(r.freeFullPct * 100).toFixed(0)}%</td>`;
+    row += `<td class="pct-cell">${(r.orcidPct * 100).toFixed(0)}%</td>`;
+    row += `<td class="total-cell">${r.total.toLocaleString()}</td>`;
+    for (let m = 0; m < 12; m++) {
+      const val = r.months[m];
+      const cls = m === 0 ? ' class="month-first"' : '';
+      row += `<td${cls}>${val > 0 ? val.toLocaleString() : ''}</td>`;
+    }
+    row += '</tr>';
+    htmlParts.push(row);
+  }
+
+  body.innerHTML = htmlParts.join('');
+
+  document.getElementById('rowCount').textContent =
+    searchTerm ? `${sorted.length} of ${allRows.length} journals` : `${allRows.length} journals`;
+}
+
+function filterTable() {
+  renderRows();
+}
+
+function exportCSV() {
+  const lines = [];
+  const headers = ['Rank','ISSN','Journal Title','Medline %','FreeFull %','ORCID %','Total'];
+  MONTHS.forEach(m => headers.push(m));
+  lines.push(headers.map(h => `"${h}"`).join(','));
+
+  allRows.forEach(r => {
+    const cells = [
+      r.rank,
+      `"${r.issn}"`,
+      `"${r.title.replace(/"/g, '""')}"`,
+      r.medlinePct,
+      r.freeFullPct,
+      r.orcidPct,
+      r.total
+    ];
+    for (let m = 0; m < 12; m++) {
+      cells.push(r.months[m] || '');
+    }
+    lines.push(cells.join(','));
+  });
+
+  const csv = lines.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'journal-ranking-2026.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function init() {
+  try {
+    const resp = await fetch(DATA_FILE + '?_=' + Date.now());
+    if (!resp.ok) throw new Error('File not found');
+    const text = await resp.text();
+    allRows = parseCSV(text);
+
+    // Find which months have data for the subtitle
+    const monthsWithData = [];
+    for (let m = 0; m < 12; m++) {
+      if (allRows.some(r => r.months[m] > 0)) monthsWithData.push(m);
+    }
+    const firstMonth = monthsWithData.length > 0 ? MONTHS[monthsWithData[0]] : 'Jan';
+    const lastMonth = monthsWithData.length > 0 ? MONTHS[monthsWithData[monthsWithData.length - 1]] : 'Dec';
+
+    document.getElementById('reportPeriod').textContent =
+      `${allRows.length} journals ranked by total articles — ${firstMonth}–${lastMonth} 2026 YTD`;
+    document.getElementById('statusText').textContent = `${allRows.length} journals loaded`;
+
+    buildHeader();
+    renderRows();
+    document.getElementById('exportBtn').disabled = false;
+
+  } catch (e) {
+    document.getElementById('statusText').textContent = 'Error loading data: ' + e.message;
+  }
+}
+
+window.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>
