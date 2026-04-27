@@ -1,25 +1,27 @@
 {
   "title": "PubMed Filters (the standard web filters on the left)",
-  "note": "Articles can have multiple assignments for most filters (more than 1 age group or article type)",
+  "note": "Articles can have multiple assignments (such as more than 1 age group). * For all records \u2014 other filters may have limited data.",
   "refreshDayOfMonth": 10,
   "sections": [
     {
       "id": "medline_preprints",
       "header": "Medline and PrePrints",
+      "core": true,
       "rows": [
         { "id": "total", "label": "Total", "term": "{daterange} [crdt]", "type": "count", "bold": true },
-        { "id": "medline_filt", "label": "MEDLINE", "term": "{daterange} [crdt] AND (medline[Filter])", "type": "count" },
-        { "id": "exclude_preprints", "label": "Exclude Preprints", "type": "calculated", "formula": "total - preprint_filt" },
-        { "id": "preprint_filt", "label": "Preprint", "term": "{daterange} [crdt] AND (preprint[Filter])", "type": "count" }
+        { "id": "medline_filt", "label": "* MEDLINE", "term": "{daterange} [crdt] AND (medline[Filter])", "type": "count" },
+        { "id": "exclude_preprints", "label": "* Exclude Preprints", "type": "calculated", "formula": "total - preprint_filt" },
+        { "id": "preprint_filt", "label": "* Preprint", "term": "{daterange} [crdt] AND (preprint[Filter])", "type": "count" }
       ]
     },
     {
       "id": "text_availability",
       "header": "Text Availability",
+      "core": true,
       "rows": [
-        { "id": "abstract_filt", "label": "Abstract", "term": "{daterange} [crdt] AND (fha[Filter])", "type": "count" },
-        { "id": "free_full_text_filt", "label": "Free Full Text", "term": "{daterange} [crdt] AND (ffrft[Filter])", "type": "count" },
-        { "id": "full_text_filt", "label": "Full Text", "term": "{daterange} [crdt] AND (fft[Filter])", "type": "count" }
+        { "id": "abstract_filt", "label": "* Abstract", "term": "{daterange} [crdt] AND (fha[Filter])", "type": "count" },
+        { "id": "free_full_text_filt", "label": "* Free Full Text", "term": "{daterange} [crdt] AND (ffrft[Filter])", "type": "count" },
+        { "id": "full_text_filt", "label": "* Full Text", "term": "{daterange} [crdt] AND (fft[Filter])", "type": "count" }
       ]
     },
     {

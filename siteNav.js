@@ -107,10 +107,42 @@
     }
   }
 
+  // ── Detect base path (handles GitHub Pages subdirectory) ──
+  // On custom domain (doilookup.com): base = ''
+  // On GitHub Pages (username.github.io/repo-name): base = '/repo-name'
+  var basePath = '';
+  (function detectBase() {
+    var path = window.location.pathname;
+    // Check each page href to find a matching suffix in the current path
+    for (var i = 0; i < pages.length; i++) {
+      var href = pages[i].href;
+      if (href === '/') continue;
+      var idx = path.indexOf(href);
+      if (idx > 0) {
+        basePath = path.substring(0, idx);
+        return;
+      }
+    }
+    // If on index/root, detect from known patterns
+    if (path !== '/' && path !== '/index.html') {
+      // Strip trailing /index.html or trailing slash
+      var cleaned = path.replace(/\/index\.html$/, '').replace(/\/+$/, '');
+      // If what remains doesn't match any page href, it's likely the base
+      var isPage = false;
+      for (var j = 0; j < pages.length; j++) {
+        var ph = pages[j].href.replace(/\/+$/, '') || '/';
+        if (cleaned === ph) { isPage = true; break; }
+      }
+      if (!isPage && cleaned) basePath = cleaned;
+    }
+  })();
+
   // ── Detect current page ──
   var path = window.location.pathname;
-  if (path === '/index.html') path = '/';
-  var pathClean = path.replace(/\/+$/, '') || '/';
+  // Remove base path for comparison
+  var relativePath = basePath ? path.replace(basePath, '') : path;
+  if (relativePath === '/index.html') relativePath = '/';
+  var pathClean = relativePath.replace(/\/+$/, '') || '/';
 
   function isCurrent(href) {
     var h = href.replace(/\/+$/, '') || '/';
@@ -145,7 +177,7 @@
 
   for (var i = 0; i < pages.length; i++) {
     var a = document.createElement('a');
-    a.href = pages[i].href;
+    a.href = basePath + pages[i].href;
     a.textContent = pages[i].title;
     if (isCurrent(pages[i].href)) a.className = 'current';
     menu.appendChild(a);

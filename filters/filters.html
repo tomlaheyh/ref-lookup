@@ -380,6 +380,34 @@ function formatNumber(n) {
 }
 
 // ─── RENDER ───────────────────────────────────────────────────────
+function appendSectionRows(table, section, counts) {
+  for (const row of section.rows) {
+    const tr = document.createElement('tr');
+    if (row.bold) tr.className = 'total-row';
+
+    const labelTd = document.createElement('td');
+    if (row.term) {
+      const link = document.createElement('a');
+      link.href = buildPubmedUrl(row.term);
+      link.target = '_blank';
+      link.title = 'Open in PubMed';
+      link.textContent = row.label;
+      labelTd.appendChild(link);
+    } else {
+      labelTd.textContent = row.label;
+    }
+    tr.appendChild(labelTd);
+
+    const valTd = document.createElement('td');
+    const val = getRowValue(row, counts);
+    valTd.textContent = formatNumber(val);
+    if (val === null) valTd.className = 'loading-cell';
+    tr.appendChild(valTd);
+
+    table.appendChild(tr);
+  }
+}
+
 function render(counts) {
   const area = document.getElementById('columnsArea');
   area.innerHTML = '';
@@ -391,39 +419,38 @@ function render(counts) {
   t1.className = 'col-table';
 
   const fixedSections = CONFIG.sections.filter(s => !s.sorted);
-  for (const section of fixedSections) {
-    // Section header
+  
+  // Separate core and non-core sections
+  const coreSections = fixedSections.filter(s => s.core);
+  const otherSections = fixedSections.filter(s => !s.core);
+
+  // Core sections in a bordered wrapper
+  if (coreSections.length > 0) {
+    const coreDiv = document.createElement('div');
+    coreDiv.style.cssText = 'border:2px solid #93b3df;border-radius:6px;overflow:hidden;margin-bottom:6px';
+    const coreTable = document.createElement('table');
+    coreTable.className = 'col-table';
+    
+    for (const section of coreSections) {
+      const htr = document.createElement('tr');
+      htr.className = 'section-header';
+      htr.innerHTML = `<td colspan="2">${section.header}</td>`;
+      coreTable.appendChild(htr);
+      appendSectionRows(coreTable, section, counts);
+    }
+    coreDiv.appendChild(coreTable);
+    col1.appendChild(coreDiv);
+  }
+
+  // Other sections in normal table
+  for (const section of otherSections) {
     const htr = document.createElement('tr');
     htr.className = 'section-header';
     htr.innerHTML = `<td colspan="2">${section.header}</td>`;
     t1.appendChild(htr);
-
-    for (const row of section.rows) {
-      const tr = document.createElement('tr');
-      if (row.bold) tr.className = 'total-row';
-
-      const labelTd = document.createElement('td');
-      if (row.term) {
-        const link = document.createElement('a');
-        link.href = buildPubmedUrl(row.term);
-        link.target = '_blank';
-        link.title = 'Open in PubMed';
-        link.textContent = row.label;
-        labelTd.appendChild(link);
-      } else {
-        labelTd.textContent = row.label;
-      }
-      tr.appendChild(labelTd);
-
-      const valTd = document.createElement('td');
-      const val = getRowValue(row, counts);
-      valTd.textContent = formatNumber(val);
-      if (val === null) valTd.className = 'loading-cell';
-      tr.appendChild(valTd);
-
-      t1.appendChild(tr);
-    }
+    appendSectionRows(t1, section, counts);
   }
+
   col1.appendChild(t1);
   area.appendChild(col1);
 

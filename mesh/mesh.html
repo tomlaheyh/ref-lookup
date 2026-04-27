@@ -213,6 +213,21 @@
   }
 
   .footnote a { color: var(--accent); }
+
+  .btn {
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:hover { background: var(--accent-light); border-color: var(--accent); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -222,6 +237,7 @@
   <div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
     <span style="font-size:0.82rem;color:var(--text-muted)" id="statusText">Loading...</span>
     <span style="font-size:0.82rem;color:var(--text-muted)" id="reportPeriod"></span>
+    <button class="btn" id="exportBtn" onclick="exportCSV()" disabled>Export CSV</button>
   </div>
   <div class="note-bar" style="margin-bottom:12px">MeSH terms can appear in several areas — counts reflect all tree positions. Level 2 categories shown, sorted by count within each major group. ▲▼ vs prior year.</div>
 
@@ -240,6 +256,7 @@
 
 <script>
 const DATA_FILE = 'MeSH_2026_Level2_Summary.csv';
+let allRows = null;
 
 const GROUP_NAMES = {
   'A': 'Anatomy', 'B': 'Organisms', 'C': 'Diseases',
@@ -383,15 +400,52 @@ async function init() {
     if (!resp.ok) throw new Error('File not found');
     const text = await resp.text();
     const rows = parseCSV(text);
+    allRows = rows;
 
     document.getElementById('reportPeriod').textContent =
       'PubMed MeSH Counts, all levels — 2025 full year (terms can be in several areas)';
     document.getElementById('statusText').textContent = `${rows.length} Level 2 categories loaded`;
 
     render(rows);
+    document.getElementById('exportBtn').disabled = false;
   } catch (e) {
     document.getElementById('statusText').textContent = 'Error loading data: ' + e.message;
   }
+}
+
+function exportCSV() {
+  const resp = document.getElementById('groupsArea');
+  if (!resp || !allRows) return;
+
+  const lines = [];
+  lines.push('"Category Code","Category Name","Total Count","Prior Year Count"');
+
+  // Group and sort same as render
+  const groups = {};
+  allRows.forEach(r => {
+    if (!groups[r.group]) groups[r.group] = [];
+    groups[r.group].push(r);
+  });
+
+  const sortedGroups = Object.keys(groups).sort();
+  sortedGroups.forEach(g => {
+    groups[g].sort((a, b) => b.count - a.count);
+    const groupName = GROUP_NAMES[g] || g;
+    lines.push('');
+    lines.push(`"${groupName} [${g}]","","",""`);
+    groups[g].forEach(r => {
+      lines.push(`"${r.code}","${r.name.replace(/"/g, '""')}",${r.count},${r.priorYear}`);
+    });
+  });
+
+  const csv = lines.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'mesh-counts-2025.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 window.addEventListener('DOMContentLoaded', init);
