@@ -527,7 +527,7 @@ function showDOIModal(result, linksHtml) {
   const usedPubMedAff = !parseAffiliation(topFirstAffRaw) || !parseAffiliation(topLastAffRaw);
   const displaySource = (usedPubMedAff && (resolvedFirstAff || resolvedLastAff)) ? `${authorSourceTop}/PubMed` : authorSourceTop;
 
-    html += '<div style="margin-bottom: 24px; padding: 20px; background: #f8f7f3; border-left: 4px solid #005a8c;">';
+    html += '<div class="dl-summary-box" style="margin-bottom: 24px; padding: 20px; background: #f8f7f3; border-left: 4px solid #005a8c;">';
   html += '<div style="font-weight: bold; color: #005a8c; font-size: 17px; margin-bottom: 14px; letter-spacing: 0.5px;">Summary</div>';
 
   // DOI
@@ -1518,13 +1518,15 @@ async function checkAllDOILinks(doi, result) {
       result._iciteUrl = webUrl;
       return { web: webUrl, data: dataUrl };
     }),
-    // OpenAlex country lookup
+    // OpenAlex country lookup — singleton by ISSN (free tier) rather than the
+    // metered list+filter endpoint. /sources/issn:{issn} returns the source
+    // object directly (not a results[] list), so country_code is read off the top.
     safeCheck(async () => {
       if (!firstIssnPre) return null;
-      const resp = await fetch(`https://api.openalex.org/sources?filter=issn:${firstIssnPre}`);
-      if (!resp.ok) return null;
+      const resp = await fetch(`https://api.openalex.org/sources/issn:${firstIssnPre}`);
+      if (!resp.ok) { return null; }
       const json = await resp.json();
-      return json.results?.[0]?.country_code || null;
+      return json.country_code || null;
     }),
     // SJR CSV lookup
     safeCheck(() => lookupSJR(allIssnsPre)),
@@ -1650,7 +1652,7 @@ async function checkAllDOILinks(doi, result) {
     if (!orcidId || orcidId === 'N/A') return null;
     try {
       const response = await fetch(`https://api.openalex.org/authors/orcid:${orcidId}`);
-      if (!response.ok) return null;
+      if (!response.ok) { return null; }
       const data = await response.json();
       return {
         hIndex:     data.summary_stats?.h_index     ?? null,
@@ -1942,7 +1944,7 @@ async function checkOpenAlex(doi, result) {
   const webUrl = `https://openalex.org/works?filter=doi:https://doi.org/${encodeURIComponent(doi)}`;
   try {
     const response = await fetch(apiUrl);
-    if (!response.ok) return { web: null, data: null };
+    if (!response.ok) { return { web: null, data: null }; }
     const data = await response.json();
     if (result) {
       result._openAlexCitations = data.cited_by_count ?? null;

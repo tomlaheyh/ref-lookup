@@ -19,6 +19,26 @@
 (function () {
   'use strict';
 
+  // ── Config flags ───────────────────────────────────────────────────────────
+  // When a user clicks "Make this the new center" on another bubble, show a
+  // confirmation warning that current favorites / view state will be lost.
+  // Tester feedback (Jun 2026): the warning felt like an unnecessary extra click.
+  // Set to false to skip the warning and switch centers immediately.
+  // Flip back to true if later feedback wants the safety prompt restored.
+  var SHOW_MAKE_CENTER_WARNING = false;
+
+  // ── Expansion (multi-level) config ─────────────────────────────────────────
+  // Budget = max UNIQUE papers in the whole tree (the real blow-up guard).
+  // Depth = hard ceiling: center is level 0, so 3 = three rounds of picks below
+  //         it; level-3 papers are selected but never expanded further.
+  // Concurrency = how many buildData calls run at once (polite-pool friendly).
+  var EXPAND_BUDGET = 50;
+  var EXPAND_MAX_DEPTH = 3;
+  var EXPAND_CONCURRENCY = 3;
+  var FOUNDATIONAL_TOP = 200;        // final list size: shown + exported
+  var FOUNDATIONAL_CANDIDATES = 300; // co-citation candidate pool resolved before
+                                     // ranking by citations and cutting to TOP
+
   // Captured ONCE at load (page-parse time), before any lookup runs and before
   // index.html rewrites the URL with replaceState (which drops connections=1).
   // attachButton checks this instead of the live URL so the rewrite can't
@@ -27,11 +47,34 @@
   try {
     var _initParams = new URLSearchParams(window.location.search);
     if (_initParams.get('connections') === '1') {
-      _autoOpenDoi = (_initParams.get('doi') || '').toLowerCase();
+      // The lookup supports up to 15 comma-separated DOIs. The normal connections
+      // link is always single-DOI, but a hand-built / shared URL can carry the
+      // full list alongside connections=1 — in which case the raw value can never
+      // equal any one card's DOI and auto-open would silently never fire. Take the
+      // first listed DOI so connections=1 deterministically opens that paper.
+      _autoOpenDoi = (_initParams.get('doi') || '').split(',')[0].trim().toLowerCase();
     }
   } catch (e) { /* ignore */ }
 
+  // Back-button support. When a card's "View connections" button opens the panel
+  // in place, we pushState a shareable URL and remember the panel's close fn.
+  // Browser Back then just closes the panel (revealing the full card list intact,
+  // no reload); closing via X/Esc calls history.back() to keep the URL in sync.
+  var _connPushed = false;
+  var _activeClose = null;
+  window.addEventListener('popstate', function () {
+    // Only intercept Back for panels we opened in place (pushState). Auto-opened
+    // panels from a fresh shared-link load let Back navigate normally.
+    if (_connPushed && _activeClose) _activeClose(true);
+  });
+
   var OPENALEX = 'https://api.openalex.org/works';
+  // OpenAlex "polite pool": identified traffic gets a separate, more generous
+  // rate limit. Not faster per request, but far less likely to be throttled
+  // during burst expansion (level 2/3). Appended to every OpenAlex URL below.
+  // Swap for a dedicated tool address later — one line.
+  var OPENALEX_MAILTO = 'tomlaheyh@gmail.com';
+  var MAILTO_Q = '&mailto=' + encodeURIComponent(OPENALEX_MAILTO);
   var N_SINGLE = 25, N_MIX_EACH = 12;
 
   var esc = (typeof escapeHtml === 'function') ? escapeHtml : function (s) {
@@ -60,6 +103,17 @@
     return { label: 'Low', fill: '#D3D1C7', stroke: '#5F5E5A', text: '#2C2C2A' };
   }
 
+  // Open-access badge. Deliberately binary: one green "FREE" chip when the work
+  // is free to read anywhere (per OpenAlex's is_oa), nothing otherwise. The
+  // gold/green/bronze/hybrid distinctions are still captured on the node
+  // (oaStatus) but intentionally not shown — this audience just wants "is it
+  // free?", and the levels add confusion without payoff. Returns '' for non-OA
+  // nodes so callers can concatenate unconditionally.
+  function oaBadge(node) {
+    if (!node || !node.isOa) return '';
+    return '<span title="Free (per OpenAlex)" style="display:inline-block; background:#e3f1d4; color:#3b6d11; font-size:9px; font-weight:700; letter-spacing:0.5px; padding:2px 7px; border-radius:3px; margin-right:8px; vertical-align:2px; white-space:nowrap;">FREE</span>';
+  }
+
   function sjrForIssns(issns) {
     if (!issns || !issns.length || typeof window.__getSjrByIssn !== 'function') return null;
     for (var i = 0; i < issns.length; i++) {
@@ -85,35 +139,575 @@
     var authors = (w.authorships || []).map(function (a) {
       return a && a.author && a.author.display_name ? a.author.display_name : null;
     }).filter(Boolean);
+    // Open-access status (per OpenAlex). oaUrl prefers the explicit oa_url, then
+    // the best_oa_location's PDF, then its landing page. Used for the OA badge
+    // and the "Free full text" link, and for the "free only" filter.
+    var oa = w.open_access || {};
+    var bestLoc = w.best_oa_location || null;
+    var oaUrl = oa.oa_url || (bestLoc && (bestLoc.pdf_url || bestLoc.landing_page_url)) || null;
+    _rememberWork(w.id, w.display_name, doi, w.cited_by_count);
     return {
       oaId: w.id ? String(w.id).replace('https://openalex.org/', '') : null,
       doi: doi, title: w.display_name || '(untitled)', year: w.publication_year || null,
       cites: w.cited_by_count || 0, journal: (src && src.display_name) || '',
       tier: qualityTier(sjrForIssns(issns)), direction: direction,
+      isOa: !!oa.is_oa, oaStatus: oa.oa_status || null, oaUrl: oaUrl,
       abstract: rebuildAbstract(w.abstract_inverted_index),
       refs: refs, authors: authors
     };
   }
 
-  var SELECT = 'id,doi,display_name,publication_year,cited_by_count,primary_location,abstract_inverted_index,referenced_works,authorships';
+  // ── Top-pick selection brain (for the upcoming "levels" expansion) ─────────
+  // A non-retracted node qualifies if it satisfies ANY of:
+  //   1. Citation spine  : cites > 0 AND cites >= median-cutoff of the cited
+  //                        subset (even-sized subset uses the LOWER of the two
+  //                        middles, so the bar leans inclusive).
+  //   2. Coupling rescue : shared >= 3   (shared > 2)
+  //   3. Quality rescue  : tier.label === 'High'
+  // Union -> dedupe -> cap at 10, filled in pass order (spine -> coupling ->
+  // quality) so the set stays citation-led. Scale-free; returns 0..10 nodes.
+  function selectTopNodes(nodes, opts) {
+    opts = opts || {};
+    var MAX = opts.max != null ? opts.max : 10;
+    var COUPLING_MIN = opts.couplingMin != null ? opts.couplingMin : 3;
+    var HIGH_LABEL = opts.highLabel || 'High';
+    var pool = (nodes || []).filter(function (n) { return n && !n.retracted; });
+    function keyOf(n) { return String(n.oaId || n.doi || n.title || '').toLowerCase(); }
+    function cit(n) { return n && n.cites ? n.cites : 0; }
+    function shr(n) { return n && n.shared ? n.shared : 0; }
+    var cited = pool.filter(function (n) { return cit(n) > 0; }).slice()
+      .sort(function (a, b) { return cit(a) - cit(b); });
+    var cutoff = null;
+    if (cited.length) {
+      var m = cited.length;
+      cutoff = (m % 2 === 1) ? cit(cited[(m - 1) / 2]) : cit(cited[m / 2 - 1]);
+    }
+    var spine = cutoff == null ? [] : cited.filter(function (n) { return cit(n) >= cutoff; });
+    var coupling = pool.filter(function (n) { return shr(n) >= COUPLING_MIN; });
+    var quality = pool.filter(function (n) { return n.tier && n.tier.label === HIGH_LABEL; });
+    var reasons = {};
+    function note(list, label) { list.forEach(function (n) { var k = keyOf(n); (reasons[k] = reasons[k] || []).push(label); }); }
+    note(spine, 'cites'); note(coupling, 'shared'); note(quality, 'quality');
+    spine.sort(function (a, b) { return cit(b) - cit(a) || shr(b) - shr(a); });
+    coupling.sort(function (a, b) { return shr(b) - shr(a) || cit(b) - cit(a); });
+    quality.sort(function (a, b) { return cit(b) - cit(a) || shr(b) - shr(a); });
+    var picked = [], seen = {};
+    function take(list) { for (var i = 0; i < list.length && picked.length < MAX; i++) { var k = keyOf(list[i]); if (seen[k]) continue; seen[k] = 1; picked.push(list[i]); } }
+    take(spine); take(coupling); take(quality);
+    picked.forEach(function (n) { n._pickReasons = reasons[keyOf(n)] || []; n._spineCutoff = cutoff; });
+    return picked;
+  }
 
-  function fetchCiters(workId, n) {
+  // Shared concurrency-limited promise pool. Hoisted function declaration so
+  // callers defined earlier in the file (e.g. fetchWorksBatch) can reach it.
+  function _mapPool(items, limit, fn) {
+    return new Promise(function (resolve) {
+      var i = 0, active = 0, done = 0, results = new Array(items.length);
+      function next() {
+        if (done === items.length) { resolve(results); return; }
+        while (active < limit && i < items.length) {
+          (function (idx) {
+            active++;
+            Promise.resolve(fn(items[idx], idx))
+              .then(function (r) { results[idx] = r; })
+              .catch(function () { results[idx] = null; })
+              .then(function () { active--; done++; next(); });
+          })(i++);
+        }
+      }
+      next();
+    });
+  }
+
+  // ── Multi-level expansion (the real engine) ────────────────────────────────
+  // Frontier queue, best-first (cites desc, then shared desc), global dedup,
+  // hard depth stop, and a unique-paper budget. Three stop conditions, whichever
+  // fires first: depth >= EXPAND_MAX_DEPTH (enforced at enqueue), unique count
+  // >= EXPAND_BUDGET, or frontier empty.
+  // OpenAlex id helpers: keep ORIGINAL case for API filters (ids are
+  // case-sensitive), lowercase only for dedupe/membership matching.
+  function _oaId(x) { return String(x == null ? '' : x).replace(/^https?:\/\/openalex\.org\//i, ''); }
+  function _oaKey(x) { return _oaId(x).toLowerCase(); }
+
+  // ── Session-wide resolved-works map (Option 2) ──────────────────────────────
+  // Every work that flows through workToNode (center, citers, refs, expansion
+  // picks) drops its id -> {title, doi, cites} here as a side effect. Foundational
+  // title resolution then reads from this map and from the in-memory `flat`
+  // nodes (Option 1) and only hits OpenAlex for genuine first-time-seen refs.
+  // Heap-only, never serialized to sessionStorage — no cache-quota interaction.
+  var _resolvedWorks = {};
+  function _rememberWork(id, title, doi, cites) {
+    var k = _oaKey(id);
+    if (!k) return;
+    var cur = _resolvedWorks[k] || {};
+    _resolvedWorks[k] = {
+      title: (title != null && title !== '') ? title : (cur.title || null),
+      doi: (doi != null) ? doi : (cur.doi != null ? cur.doi : null),
+      cites: (cites != null) ? cites : (cur.cites != null ? cur.cites : 0)
+    };
+  }
+
+  // Batch-fetch raw works by OpenAlex id (chunks of 100), failure-safe.
+  // Chunk-level throttle for the resolution path. OpenAlex caps traffic at
+  // ~10 requests/sec; the old Promise.all fired every chunk at once, so an
+  // uncapped id list (~45 chunks) instantly tripped 429s — and the silent
+  // `.catch(() => [])` dropped up to 100 ids per failed chunk, rendering them
+  // as "(unresolved)". We now run a few chunks at a time via _mapPool (a
+  // hoisted declaration, reachable here) and retry transient failures with a
+  // short backoff before giving up.
+  var FETCH_BATCH_CONCURRENCY = 4;   // default chunks in flight at once (stays under 10/sec)
+  var FETCH_BATCH_RETRIES = 3;       // attempts per chunk before giving up
+  var FETCH_STAGGER_MAX_WAVES = 5;   // cap pacing so a big miss-set adds ~1s, not minutes
+
+  // Count API calls we think got rate-limited (HTTP 429). Cumulative for the
+  // session; the expansion report shows the delta for its own run (snapshotted
+  // at run start) as an "end-N" line so you can watch how close you are to the
+  // limit. Each blocked attempt counts, including ones a retry later recovered.
+  var _blockedApiCalls = 0;
+  var _blockedAtRunStart = 0;
+  function _delay(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
+  // opts (optional): { concurrency, pauseMs }. Default = concurrency 4, no pause
+  // (existing callers keep their old behavior). The foundational resolution
+  // passes a gentler { concurrency: 2, pauseMs: 200 } so its larger miss-sets
+  // don't burst into the 10/sec wall.
+  function fetchWorksBatch(ids, select, opts) {
+    opts = opts || {};
+    var concurrency = opts.concurrency != null ? opts.concurrency : FETCH_BATCH_CONCURRENCY;
+    var pauseMs = opts.pauseMs != null ? opts.pauseMs : 0;
+    ids = (ids || []).filter(Boolean);
+    if (!ids.length) return Promise.resolve([]);
+    var chunks = [];
+    for (var i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
+    function fetchChunk(ch, attempt) {
+      attempt = attempt || 1;
+      var url = OPENALEX + '?filter=openalex_id:' + ch.join('|') + '&per-page=' + ch.length + '&select=' + select + MAILTO_Q;
+      return fetch(url)
+        .then(function (r) { if (!r.ok) { if (r.status === 429) _blockedApiCalls++; throw new Error('batch ' + r.status); } return r.json(); })
+        .then(function (d) { return d.results || []; })
+        .catch(function () {
+          if (attempt < FETCH_BATCH_RETRIES) {
+            return _delay(300 * attempt).then(function () { return fetchChunk(ch, attempt + 1); });
+          }
+          return [];
+        });
+    }
+    return _mapPool(chunks, concurrency, function (ch, idx) {
+      // Stagger waves (a wave = `concurrency` chunks) by delaying each wave's
+      // start a little more than the last, capped at FETCH_STAGGER_MAX_WAVES so
+      // even a large miss-set adds ~1s at most rather than ballooning.
+      if (pauseMs > 0) {
+        var wave = Math.min(Math.floor(idx / Math.max(concurrency, 1)), FETCH_STAGGER_MAX_WAVES);
+        if (wave > 0) return _delay(wave * pauseMs).then(function () { return fetchChunk(ch, 1); });
+      }
+      return fetchChunk(ch, 1);
+    }).then(function (arrs) {
+      var out = [];
+      for (var j = 0; j < arrs.length; j++) { if (arrs[j] && arrs[j].length) out = out.concat(arrs[j]); }
+      return out;
+    });
+  }
+
+  // Single-work fetch by id. Unlike the openalex_id: batch filter, GET /works/{id}
+  // follows OpenAlex's merge redirect to the canonical record — so it can resolve
+  // heavily-cited classics that were deduped (the id in referenced_works points at
+  // a merged, non-canonical record the filter silently returns nothing for).
+  // Failure-safe: resolves to null rather than throwing.
+  function fetchWorkSingle(id, select) {
+    id = _oaId(id);
+    if (!id) return Promise.resolve(null);
+    var url = OPENALEX + '/' + id + '?select=' + (select || 'id,doi,display_name,cited_by_count') + MAILTO_Q;
+    return fetch(url)
+      .then(function (r) { if (!r.ok) { if (r.status === 429) _blockedApiCalls++; throw new Error('work ' + r.status); } return r.json(); })
+      .then(function (d) { return d || null; })
+      .catch(function () { return null; });
+  }
+
+  function runExpansionTest(rootPicks, viewName, centerKeys, onPhase, oaOnly) {
+    var now = function () { return (window.performance && performance.now) ? performance.now() : Date.now(); };
+    var t0 = now();
+    _blockedAtRunStart = _blockedApiCalls; // baseline so the report can show this run's blocked calls
+    var field = viewName === 'inside' ? 'inside' : viewName === 'mix' ? 'mix' : 'outside';
+    function keyOf(n) { return _oaKey((n && (n.oaId || n.doi)) || ''); }
+    function pri(a, b) { return (b.node.cites || 0) - (a.node.cites || 0) || (b.node.shared || 0) - (a.node.shared || 0); }
+
+    var centerId = (centerKeys && centerKeys[0]) ? _oaId(centerKeys[0]) : null; // original case, for fetch
+    var seen = {};
+    (centerKeys || []).forEach(function (k) { if (k) seen[_oaKey(k)] = 'center'; });
+    var stats = { expanded: 0, failed: 0, dups: 0, trims: 0, unique: 0, stopReason: null };
+    var roots = [];
+    var flat = [];      // flat deduped set of every unique paper in the tree
+    var frontier = [];  // expandable tree nodes (depth < EXPAND_MAX_DEPTH)
+
+    function addPick(node, depth, parentArr) {
+      var k = keyOf(node);
+      if (seen[k]) { stats.dups++; parentArr.push({ node: node, depth: depth, dup: true, children: [] }); return; }
+      if (stats.unique >= EXPAND_BUDGET) { stats.trims++; parentArr.push({ node: node, depth: depth, trimmed: true, children: [] }); return; }
+      seen[k] = 'd' + depth;
+      stats.unique++;
+      var tn = { node: node, depth: depth, children: [] };
+      parentArr.push(tn);
+      flat.push({ node: node, depth: depth });           // emit into the flat set once, on first sight
+      if (depth < EXPAND_MAX_DEPTH) frontier.push(tn);
+    }
+
+    rootPicks.forEach(function (p) { addPick(p, 1, roots); });
+
+    return new Promise(function (resolve) {
+      var active = 0, finished = false;
+      function finish() {
+        if (finished) return;          // exactly-once: never open two modals / resolve twice
+        finished = true;
+        stats.seconds = (now() - t0) / 1000;
+        if (!stats.stopReason) stats.stopReason = (stats.unique >= EXPAND_BUDGET) ? 'budget' : 'frontier-empty';
+        // Resolve only when the REPORT is fully built (onDone), not when the
+        // expansion finishes — otherwise the caller re-enables the button while
+        // citations/foundational are still loading. resolve is passed as onDone.
+        showExpansionModal(roots, flat, centerId, viewName, stats, onPhase, resolve);
+      }
+      function expand(tn) {
+        active++;
+        if (!tn.node.oaId) { stats.failed++; tn.err = 'no oaId'; active--; pump(); return; }
+        buildData(tn.node.oaId, oaOnly).then(function (data) {
+          tn.expanded = true;
+          var nodes = (data[field] && data[field].nodes) || [];
+          var picks = selectTopNodes(nodes);
+          stats.expanded++;
+          picks.forEach(function (c) { addPick(c, tn.depth + 1, tn.children); });
+        }).catch(function (e) {
+          stats.failed++; tn.err = String((e && e.message) || e);
+        }).then(function () { active--; pump(); });
+      }
+      function pump() {
+        if (stats.unique >= EXPAND_BUDGET && !stats.stopReason) stats.stopReason = 'budget';
+        while (active < EXPAND_CONCURRENCY && frontier.length && stats.unique < EXPAND_BUDGET) {
+          frontier.sort(pri);
+          expand(frontier.shift());
+        }
+        if (active === 0 && (frontier.length === 0 || stats.unique >= EXPAND_BUDGET)) finish();
+      }
+      pump();
+    });
+  }
+
+  // After expansion: build the two flat lists. Citations come straight from the
+  // tree nodes (no fetch). Foundational references need every paper's full ref
+  // list (+ the center as a voter) — one batch fetch — then a second batch to
+  // resolve the top co-cited ids to titles.
+  function buildNeighborhoodLists(flat, centerId, cb, onPhase) {
+    // Membership set (lowercase) = the discovered papers + the center.
+    var memberKey = {};
+    flat.forEach(function (f) { if (f.node.oaId) memberKey[_oaKey(f.node.oaId)] = 1; });
+    if (centerId) memberKey[_oaKey(centerId)] = 1;
+
+    // List 1 — ranked by citations (papers we discovered; center added below).
+    var citations = flat.map(function (f) {
+      return { title: f.node.title, doi: f.node.doi || null, cites: f.node.cites || 0,
+               tier: (f.node.tier && f.node.tier.label) || '?', level: f.depth, isCenter: false };
+    });
+
+    // Fetch refs (+ cites/title) for every discovered paper and the center.
+    var fetchIds = [];
+    flat.forEach(function (f) { if (f.node.oaId) fetchIds.push(_oaId(f.node.oaId)); });
+    if (centerId) fetchIds.push(_oaId(centerId));
+
+    // Fire the callback EXACTLY once. If the chain below throws anywhere (bad
+    // data, a parse error, whatever), the .catch still emits with what we have
+    // instead of leaving the modal stuck on "Building…" forever.
+    var _emitted = false;
+    function emit(res) { if (_emitted) return; _emitted = true; cb(res); }
+
+    fetchWorksBatch(fetchIds, 'id,display_name,cited_by_count,referenced_works').then(function (works) {
+      var voters = 0, freq = {};
+      var centerWork = null;
+      works.forEach(function (w) {
+        if (centerId && _oaKey(w.id) === _oaKey(centerId)) centerWork = w;
+        var refs = w.referenced_works || [];
+        if (refs.length) voters++;
+        refs.forEach(function (r) { var k = _oaKey(r); if (k) freq[k] = (freq[k] || 0) + 1; });
+      });
+      if (centerWork) {
+        citations.push({ title: centerWork.display_name || '(center article)', doi: null,
+                         cites: centerWork.cited_by_count || 0, tier: '\u2014', level: 0, isCenter: true });
+      }
+      citations.sort(function (a, b) { return (b.cites || 0) - (a.cites || 0); });
+
+      // Co-cited reference ids: keep every reference cited by more than one
+      // neighborhood paper (count > 1 = genuinely co-cited), then take the
+      // FOUNDATIONAL_CANDIDATES most co-cited as the candidate pool. We resolve
+      // these, rank by global citation count, and cut to FOUNDATIONAL_TOP below.
+      var entries = Object.keys(freq).map(function (k) { return { key: k, count: freq[k] }; });
+      entries.sort(function (a, b) { return b.count - a.count || (a.key < b.key ? -1 : 1); });
+      var top = entries.filter(function (e) { return e.count > 1; }).slice(0, FOUNDATIONAL_CANDIDATES);
+
+      // ── Resolve co-cited ids to titles (Options 1 + 2) ─────────────────────
+      // Source titles from what we already hold in memory and hit OpenAlex only
+      // for genuine first-time-seen refs:
+      //   • Option 1 — neighborhood papers: title/doi/cites live on `flat`.
+      //   • Option 2 — the session-wide _resolvedWorks map fed by every fetch.
+      // freq keys are lowercased; OpenAlex ids are case-sensitive, so rebuild
+      // original-case ids from the referenced_works we already pulled.
+      var caseMap = {};
+      works.forEach(function (w) { (w.referenced_works || []).forEach(function (r) { caseMap[_oaKey(r)] = _oaId(r); }); });
+
+      // resolver: key -> { title, doi, cites }. Seed from flat nodes (Option 1).
+      var resolver = {};
+      flat.forEach(function (f) {
+        var n = f.node; if (!n || !n.oaId) return;
+        resolver[_oaKey(n.oaId)] = { title: n.title || null, doi: n.doi || null, cites: n.cites || 0 };
+      });
+
+      // Only ids missing from flat AND the session map need a network fetch.
+      var misses = [];
+      top.forEach(function (t) {
+        if (resolver[t.key]) return;                              // Option 1 hit
+        var mem = _resolvedWorks[t.key];
+        if (mem && mem.title) { resolver[t.key] = mem; return; }  // Option 2 hit
+        misses.push(caseMap[t.key] || t.key);
+      });
+
+      if (onPhase) onPhase('Building foundational references\u2026');
+      return fetchWorksBatch(misses, 'id,doi,display_name,cited_by_count', { concurrency: 2, pauseMs: 200 }).then(function (rworks) {
+        rworks.forEach(function (w) {
+          var rdoi = w.doi ? String(w.doi).replace(/^https?:\/\/(dx\.)?doi\.org\//i, '') : null;
+          resolver[_oaKey(w.id)] = { title: w.display_name || null, doi: rdoi, cites: w.cited_by_count || 0 };
+          _rememberWork(w.id, w.display_name, rdoi, w.cited_by_count); // grow the session map
+        });
+
+        // Stragglers: top entries the batch still couldn't resolve — usually
+        // heavily co-cited classics whose referenced_works id is a merged,
+        // non-canonical record. Retry each via GET /works/{id}, which follows
+        // the merge redirect the batch filter ignores.
+        var stragglers = top.filter(function (t) { var r = resolver[t.key]; return !(r && r.title); })
+                            .map(function (t) { return { key: t.key, id: caseMap[t.key] || t.key }; });
+
+        return _mapPool(stragglers, 2, function (s) {
+          return fetchWorkSingle(s.id).then(function (w) {
+            if (!w) return;
+            var rdoi = w.doi ? String(w.doi).replace(/^https?:\/\/(dx\.)?doi\.org\//i, '') : null;
+            resolver[s.key] = { title: w.display_name || null, doi: rdoi, cites: w.cited_by_count || 0 };
+            _rememberWork(w.id, w.display_name, rdoi, w.cited_by_count);
+          });
+        }).then(function () {
+          // Build from resolved entries only. Anything still without a title
+          // means OpenAlex genuinely doesn't know it — drop it rather than
+          // showing "(unresolved)".
+          var foundational = top
+            .filter(function (t) { var r = resolver[t.key]; return r && r.title; })
+            .map(function (t) {
+              var r = resolver[t.key];
+              return {
+                count: t.count,                 // co-citation count (the relevance filter)
+                title: r.title,
+                doi: r.doi || null,
+                cites: r.cites || 0,            // global citation count (the ranking key)
+                inNeighborhood: !!memberKey[t.key]
+              };
+            });
+          // Rank the resolved candidate pool by global citation count desc (ties:
+          // the more co-cited one first), then cut to the final FOUNDATIONAL_TOP
+          // and number 1..N over what remains.
+          foundational.sort(function (a, b) { return (b.cites - a.cites) || (b.count - a.count); });
+          foundational = foundational.slice(0, FOUNDATIONAL_TOP);
+          foundational.forEach(function (row, i) { row.rank = i + 1; });
+          emit({ citations: citations, foundational: foundational, voters: voters });
+        });
+      });
+    }).catch(function (err) {
+      try { console.error('[connections] neighborhood list build failed:', err); } catch (e) {}
+      // Degrade gracefully: keep the citations list (from the tree, already in
+      // hand) and let foundational fall back to empty rather than hanging.
+      emit({ citations: citations, foundational: [], voters: 0 });
+    });
+  }
+
+  function showExpansionModal(roots, flat, centerId, viewName, stats, onPhase, onDone) {
+    var existing = document.getElementById('conn-l3-modal');
+    if (existing) existing.remove();
+    var viewLabel = viewName === 'inside' ? 'Inside (references)'
+                  : viewName === 'mix'   ? 'Mix' : 'Outside (cited by)';
+    var lists = null; // filled when buildNeighborhoodLists resolves
+
+    function renderNode(tn) {
+      var n = tn.node, pad = 8 + (tn.depth - 1) * 22, marker = '';
+      if (tn.dup) marker = ' <span style="color:#c47f00;">(dup)</span>';
+      else if (tn.trimmed) marker = ' <span style="color:#cc0000;">(budget-trimmed)</span>';
+      else if (tn.err) marker = ' <span style="color:#cc0000;">(failed: ' + esc(tn.err) + ')</span>';
+      else if (tn.depth < EXPAND_MAX_DEPTH && !tn.expanded) marker = ' <span style="color:#cc0000;">(not expanded \u2014 budget)</span>';
+      else if (tn.expanded && !tn.children.length) marker = ' <span style="color:#9a978d;">(no picks)</span>';
+      var meta = (n.cites || 0) + 'c \u00b7 ' + (n.shared || 0) + 's \u00b7 ' + ((n.tier && n.tier.label) || '?');
+      var freeTag = n.isOa ? ' <span style="color:#3b6d11; font-weight:700;">FREE</span>' : '';
+      var color = (tn.dup || tn.trimmed) ? '#b0ada4' : (tn.depth === 1 ? '#1a1a18' : '#444');
+      var html = '<div style="padding:3px 0 3px ' + pad + 'px; font-size:12px; line-height:1.4; color:' + color + ';">' +
+        '<span style="font-family:\'IBM Plex Mono\',monospace; color:#005a8c;">L' + tn.depth + '</span> ' +
+        esc(truncate(n.title, 78)) + ' <span style="color:#9a978d;">[' + esc(meta) + ']</span>' + freeTag + marker + '</div>';
+      for (var i = 0; i < tn.children.length; i++) html += renderNode(tn.children[i]);
+      return html;
+    }
+    function sectionHead(t) { return '<div style="margin:18px 0 6px; font-size:13px; font-weight:600; color:#005a8c; border-top:1px solid #eee; padding-top:12px;">' + esc(t) + '</div>'; }
+    function renderCitations(rows) {
+      return rows.map(function (r, i) {
+        return '<div style="padding:3px 0; font-size:12px; color:' + (r.isCenter ? '#005a8c' : '#333') + ';">' +
+          '<span style="font-family:\'IBM Plex Mono\',monospace; color:#9a978d;">' + String(i + 1).padStart(2, '0') + '</span> ' +
+          esc(truncate(r.title, 74)) + (r.isCenter ? ' <span style="color:#005a8c;">(center)</span>' : '') +
+          ' <span style="color:#9a978d;">[' + (r.cites || 0) + ' cites \u00b7 ' + esc(r.tier) + ' \u00b7 L' + r.level + ']</span></div>';
+      }).join('');
+    }
+    function renderFoundational(rows, voters) {
+      if (!rows.length) return '<div style="color:#999; font-style:italic; font-size:12px;">No shared references found.</div>';
+      return rows.map(function (r) {
+        return '<div style="padding:3px 0; font-size:12px; color:#333;">' +
+          '<span style="font-family:\'IBM Plex Mono\',monospace; color:#9a978d;">' + String(r.rank).padStart(2, '0') + '</span> ' +
+          esc(truncate(r.title, 70)) +
+          ' <span style="color:#005a8c;">[cited by ' + r.count + '/' + voters + ']</span>' +
+          ' <span style="color:#666;">\u00b7 ' + (r.cites || 0).toLocaleString() + ' cites</span>' +
+          (r.inNeighborhood ? ' <span style="color:#9a978d;">(in tree)</span>' : ' <span style="color:#c47f00;">(outside)</span>') +
+          '</div>';
+      }).join('');
+    }
+
+    var treeBody = roots.length ? roots.map(renderNode).join('')
+      : '<div style="color:#999; font-style:italic; padding:10px 0;">No level-1 picks to expand.</div>';
+
+    var overlay = document.createElement('div');
+    overlay.id = 'conn-l3-modal';
+    overlay.style.cssText = 'position:fixed; inset:0; z-index:10001; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; padding:20px;';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff; border:1.5px solid #005a8c; max-width:700px; width:100%; max-height:86vh; overflow-y:auto; padding:22px 24px; font-family:\'IBM Plex Sans\',sans-serif; box-shadow:0 4px 18px rgba(0,0,0,0.20);';
+    box.innerHTML =
+      '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">' +
+        '<div style="font-size:16px; font-weight:600; color:#005a8c;">Multi-level expansion \u2014 ' + esc(viewLabel) + '</div>' +
+        '<span id="conn-l3-close" role="button" tabindex="0" title="Close" style="cursor:pointer; color:#888; font-size:18px; line-height:1;">\u2715</span>' +
+      '</div>' +
+      '<div style="font-size:12px; color:#666; margin-bottom:4px;"><strong>' + stats.unique + '</strong> unique papers \u00b7 ' +
+        stats.expanded + ' expanded \u00b7 ' + stats.dups + ' dup \u00b7 ' + stats.trims + ' trimmed' +
+        (stats.failed ? ' \u00b7 <span style="color:#cc0000;">' + stats.failed + ' failed</span>' : '') +
+        ' \u00b7 <strong>' + stats.seconds.toFixed(1) + 's</strong> \u00b7 stop: ' + esc(stats.stopReason) + '</div>' +
+      '<div style="margin:8px 0 4px; padding:8px 11px; background:#fdf6e3; border-left:3px solid #c47f00; font-size:11.5px; line-height:1.45; color:#7a5200;">' +
+        '<strong>Heads-up:</strong> each Expanded Analysis report makes many API calls. Running ~20+ a day can temporarily block your IP from the free data tier for the rest of the day \u2014 space them out if you\u2019re running several. The standard lookup and Connections chart should not reach any limits.' +
+      '</div>' +
+      '<div style="margin:8px 0;"><button id="conn-l3-export" disabled style="padding:6px 14px; border:1px solid #bbb; background:#f4f3ef; color:#999; cursor:default; font-family:\'IBM Plex Mono\',monospace; font-size:12px;">Export CSV (building lists\u2026)</button></div>' +
+      sectionHead('Expansion tree') + treeBody +
+      sectionHead('Ranked by citations') +
+      '<div id="conn-l3-cites"><span style="color:#9a978d; font-size:12px;">Building\u2026</span></div>' +
+      sectionHead('Foundational references (most co-cited across the neighborhood)') +
+      '<div id="conn-l3-found"><span style="color:#9a978d; font-size:12px;">Building\u2026</span></div>' +
+      '<div id="conn-l3-end" style="margin-top:16px; font-family:\'IBM Plex Mono\',monospace; font-size:12px; color:#9a978d;">end-\u2026</div>';
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    document.addEventListener('keydown', onKey);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+    var c = document.getElementById('conn-l3-close');
+    if (c) c.addEventListener('click', close);
+
+    // Build the two lists asynchronously, then fill the placeholders + enable export.
+    if (onPhase) onPhase('Building citation ranking\u2026');
+    buildNeighborhoodLists(flat, centerId, function (res) {
+      try {
+        lists = res;
+        var cEl = document.getElementById('conn-l3-cites');
+        var fEl = document.getElementById('conn-l3-found');
+        if (cEl) cEl.innerHTML = renderCitations(res.citations);
+        if (fEl) fEl.innerHTML = renderFoundational(res.foundational, res.voters);
+        var endEl = document.getElementById('conn-l3-end');
+        if (endEl) {
+          var blocked = Math.max(0, _blockedApiCalls - _blockedAtRunStart);
+          endEl.textContent = 'end-' + blocked;
+          endEl.title = blocked + ' API call' + (blocked === 1 ? '' : 's') + ' looked rate-limited (HTTP 429) while building this report';
+        }
+        var ex = document.getElementById('conn-l3-export');
+        if (ex) {
+          ex.disabled = false;
+          ex.textContent = 'Export CSV';
+          ex.style.cssText = 'padding:6px 14px; border:1px solid #005a8c; background:#fff; color:#005a8c; cursor:pointer; font-family:\'IBM Plex Mono\',monospace; font-size:12px;';
+          ex.addEventListener('click', function () { exportExpansionCsv(roots, lists, viewName, stats); });
+        }
+      } catch (e) {
+        try { console.error('[connections] expansion report render failed:', e); } catch (e2) {}
+      } finally {
+        // Signal "report 100% done" exactly once, even if a render step threw —
+        // so the trigger button is never left stuck in its disabled state.
+        if (onDone) { try { onDone(); } catch (e3) {} }
+      }
+    }, onPhase);
+  }
+
+  // CSV with three labeled sections: tree, citations ranking, foundational refs.
+  function exportExpansionCsv(roots, lists, viewName, stats) {
+    function q(s) { s = String(s == null ? '' : s); return '"' + s.replace(/"/g, '""') + '"'; }
+    var lines = [];
+    lines.push('# Connections multi-level expansion');
+    lines.push('# view,' + q(viewName) + ',unique_papers,' + stats.unique + ',expanded,' + stats.expanded + ',seconds,' + stats.seconds.toFixed(1) + ',stop,' + q(stats.stopReason));
+    lines.push('');
+    lines.push('## TREE');
+    lines.push(['level', 'title', 'doi', 'citations', 'shared_with_parent', 'quality', 'free', 'status'].join(','));
+    function status(tn) {
+      if (tn.dup) return 'duplicate';
+      if (tn.trimmed) return 'budget-trimmed';
+      if (tn.err) return 'failed:' + tn.err;
+      if (tn.depth < EXPAND_MAX_DEPTH && !tn.expanded) return 'not-expanded-budget';
+      if (tn.expanded && !tn.children.length) return 'expanded-no-picks';
+      return 'ok';
+    }
+    (function walk(arr) {
+      arr.forEach(function (tn) {
+        var n = tn.node;
+        lines.push([tn.depth, q(n.title), q(n.doi || ''), (n.cites || 0), (n.shared || 0), q((n.tier && n.tier.label) || ''), (n.isOa ? 'yes' : 'no'), q(status(tn))].join(','));
+        if (tn.children && tn.children.length) walk(tn.children);
+      });
+    })(roots);
+    lines.push('');
+    lines.push('## RANKED BY CITATIONS');
+    lines.push(['rank', 'title', 'doi', 'citations', 'quality', 'found_at_level', 'is_center'].join(','));
+    lists.citations.forEach(function (r, i) {
+      lines.push([(i + 1), q(r.title), q(r.doi || ''), (r.cites || 0), q(r.tier), r.level, (r.isCenter ? 'yes' : 'no')].join(','));
+    });
+    lines.push('');
+    lines.push('## FOUNDATIONAL REFERENCES');
+    lines.push(['rank', 'title', 'doi', 'cited_by_n_of_' + lists.voters, 'own_citations', 'in_neighborhood'].join(','));
+    lists.foundational.forEach(function (r) {
+      lines.push([r.rank, q(r.title), q(r.doi || ''), r.count, (r.cites || 0), (r.inNeighborhood ? 'yes' : 'no')].join(','));
+    });
+    var csv = lines.join('\r\n');
+    var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'neighborhood-expansion-' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  var SELECT = 'id,doi,display_name,publication_year,cited_by_count,primary_location,abstract_inverted_index,referenced_works,authorships,open_access,best_oa_location';
+
+  function fetchCiters(workId, n, oaOnly) {
     var id = String(workId).toLowerCase().replace(/^https?:\/\/openalex\.org\//, '');
-    var url = OPENALEX + '?filter=cites:' + encodeURIComponent(id) + '&sort=cited_by_count:desc&per-page=' + n + '&select=' + SELECT;
+    var filter = 'cites:' + encodeURIComponent(id) + (oaOnly ? ',open_access.is_oa:true' : '');
+    var url = OPENALEX + '?filter=' + filter + '&sort=cited_by_count:desc&per-page=' + n + '&select=' + SELECT + MAILTO_Q;
     return fetch(url).then(function (r) { if (!r.ok) throw new Error('citers ' + r.status); return r.json(); })
       .then(function (d) { return { total: (d.meta && d.meta.count) || (d.results || []).length, nodes: (d.results || []).map(function (w) { return workToNode(w, 'out'); }) }; });
   }
 
-  function fetchRefs(workId, n) {
+  function fetchRefs(workId, n, oaOnly) {
     var id = String(workId).replace(/^https?:\/\/openalex\.org\//, '');
-    return fetch(OPENALEX + '/' + id + '?select=referenced_works').then(function (r) { if (!r.ok) throw new Error('refs ' + r.status); return r.json(); })
+    return fetch(OPENALEX + '/' + id + '?select=referenced_works' + MAILTO_Q).then(function (r) { if (!r.ok) throw new Error('refs ' + r.status); return r.json(); })
       .then(function (d) {
         var refs = (d.referenced_works || []).map(function (u) { return u.replace('https://openalex.org/', ''); });
         if (!refs.length) return { total: 0, nodes: [], centerRefs: [] };
         var batch = refs.slice(0, 100);
-        var url = OPENALEX + '?filter=openalex_id:' + batch.join('|') + '&sort=cited_by_count:desc&per-page=' + n + '&select=' + SELECT;
+        // centerRefs stays the FULL reference list (coupling needs every ref);
+        // oaOnly only restricts which of the first 100 get resolved + shown.
+        var filter = 'openalex_id:' + batch.join('|') + (oaOnly ? ',open_access.is_oa:true' : '');
+        var url = OPENALEX + '?filter=' + filter + '&sort=cited_by_count:desc&per-page=' + n + '&select=' + SELECT + MAILTO_Q;
         return fetch(url).then(function (r2) { if (!r2.ok) throw new Error('ref-resolve ' + r2.status); return r2.json(); })
-          .then(function (d2) { return { total: refs.length, nodes: (d2.results || []).map(function (w) { return workToNode(w, 'in'); }), centerRefs: refs }; });
+          .then(function (d2) {
+            // In oaOnly mode the meaningful denominator is "free refs among the
+            // resolvable first 100", which meta.count reports; otherwise it's the
+            // article's full reference count.
+            var total = oaOnly ? ((d2.meta && d2.meta.count) || (d2.results || []).length) : refs.length;
+            return { total: total, nodes: (d2.results || []).map(function (w) { return workToNode(w, 'in'); }), centerRefs: refs };
+          });
       });
   }
 
@@ -127,7 +721,7 @@
     if (!clean.length) return Promise.resolve([]);
     var batch = clean.slice(0, 100); // OpenAlex OR-filter cap
     var url = OPENALEX + '?filter=openalex_id:' + batch.join('|') +
-              '&per-page=' + batch.length + '&select=id,doi,display_name';
+              '&per-page=' + batch.length + '&select=id,doi,display_name' + MAILTO_Q;
     return fetch(url)
       .then(function (r) { if (!r.ok) throw new Error('shared-refs ' + r.status); return r.json(); })
       .then(function (d) {
@@ -141,8 +735,8 @@
       });
   }
 
-  function buildData(workId) {
-    var key = SCACHE + String(workId).toLowerCase().replace(/^https?:\/\/openalex\.org\//, '');
+  function buildData(workId, oaOnly) {
+    var key = SCACHE + (oaOnly ? 'oa:' : '') + String(workId).toLowerCase().replace(/^https?:\/\/openalex\.org\//, '');
     try { var c = sessionStorage.getItem(key); if (c) return Promise.resolve(JSON.parse(c)); } catch (e) {}
     // Ensure the SJR cache is loaded BEFORE building nodes — node tiers (and
     // thus bubble colors) are computed at build time via sjrForIssns, so if the
@@ -151,7 +745,7 @@
       ? window.__loadSjrCache().catch(function () { return null; })
       : Promise.resolve(null);
     return sjrReady.then(function () {
-      return Promise.all([fetchCiters(workId, N_SINGLE), fetchRefs(workId, N_SINGLE)]);
+      return Promise.all([fetchCiters(workId, N_SINGLE, oaOnly), fetchRefs(workId, N_SINGLE, oaOnly)]);
     }).then(function (res) {
       var citers = res[0], refs = res[1];
 
@@ -319,6 +913,7 @@
     var dirLabel = node.direction === 'in' ? 'Referenced by this article' : 'Cites this article';
     var numPrefix = numLabel ? '<span style="font-family:\'IBM Plex Mono\',monospace; margin-right:8px;">' + esc(numLabel) + '</span>' : '';
     var links = [];
+    if (node.isOa && node.oaUrl) links.push('<a href="' + esc(node.oaUrl) + '" target="_blank" rel="noopener" style="color:#0f6e56; font-weight:600;">Free full text \u2192</a>');
     if (node.doi) links.push('<a href="https://doi.org/' + esc(node.doi) + '" target="_blank" rel="noopener" style="color:#005a8c;">View article (DOI) \u2192</a>');
     if (node.oaId) links.push('<a href="https://openalex.org/' + esc(node.oaId) + '" target="_blank" rel="noopener" style="color:#005a8c;">OpenAlex \u2192</a>');
     // "Make this center" — only meaningful if we have a DOI to navigate to,
@@ -337,7 +932,7 @@
       : '';
     el.innerHTML =
       '<div style="font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:#9a978d; margin-bottom:6px;">' + numPrefix + dirLabel + '</div>' +
-      '<div style="font-size:15px; font-weight:600; line-height:1.35; color:#1a1a18; margin-bottom:8px;">' + retractedBadge + heart + esc(node.title) + '</div>' +
+      '<div style="font-size:15px; font-weight:600; line-height:1.35; color:#1a1a18; margin-bottom:8px;">' + retractedBadge + oaBadge(node) + heart + esc(node.title) + '</div>' +
       '<div style="font-size:12px; color:#666; margin-bottom:4px;">' + esc(node.journal || '') + (node.year ? (node.journal ? ', ' : '') + node.year : '') + '</div>' +
       '<div style="font-size:12px; color:#666; margin-bottom:10px;">' + node.cites.toLocaleString() + ' citations &#183; <span style="color:' + node.tier.text + ';">' + node.tier.label + ' quality</span> &#183; ' + ((node.shared && node.shared > 0) ? '<span id="conn-shared-toggle" role="button" tabindex="0" style="color:#005a8c; cursor:pointer; text-decoration:underline;">' + node.shared + ' shared reference' + (node.shared === 1 ? '' : 's') + '</span>' : '<span>0 shared references</span>') + '</div>' +
       '<div id="conn-shared-list" style="display:none; margin:-4px 0 10px; font-size:12px;"></div>' +
@@ -434,6 +1029,12 @@
           '<button data-view="inside" class="conn-tab" style="padding:7px 14px; border:none; background:#fff; cursor:pointer;">Inside (refs)</button>' +
           '<button data-view="outside" class="conn-tab" style="padding:7px 14px; border:none; background:#005a8c; color:#fff; cursor:pointer;">Outside (cited by)</button>' +
           '<button data-view="mix" class="conn-tab" style="padding:7px 14px; border:none; background:#fff; cursor:pointer;">Mix</button></div>' +
+        '<button id="conn-test-level3" title="Full multi-level expansion (budget + depth-3 + dedup)" style="margin-top:12px; margin-left:10px; padding:7px 14px; border:1px solid #005a8c; background:#fff; color:#005a8c; cursor:pointer; font-family:\'IBM Plex Mono\',monospace; font-size:12px; letter-spacing:0.3px; vertical-align:top;">Expanded Analysis</button>' +
+        '<label id="conn-free-top-label" title="Show only articles that are free to read" style="margin-top:12px; margin-left:14px; display:inline-flex; align-items:center; gap:6px; font-family:\'IBM Plex Mono\',monospace; font-size:12px; font-weight:600; color:#0f6e56; cursor:pointer; user-select:none; vertical-align:top;">' +
+          '<input type="checkbox" id="conn-free-toggle-top" style="margin:0; cursor:pointer; accent-color:#0f6e56;"> Free only' +
+        '</label>' +
+        '<button id="conn-copy-link" title="Copy a shareable link to this connections view" style="margin-top:12px; margin-left:14px; padding:7px 14px; border:1px solid #005a8c; background:#fff; color:#005a8c; cursor:pointer; font-family:\'IBM Plex Mono\',monospace; font-size:12px; letter-spacing:0.3px; vertical-align:top;">Copy link</button>' +
+        '<span id="conn-copy-msg" style="display:none; margin-left:8px; margin-top:12px; vertical-align:top; line-height:30px; font-size:12px; color:#3b6d11; font-style:italic;"></span>' +
         '<div id="conn-viewinfo" style="font-size:12px; color:#888; margin-top:8px;"></div></div>' +
       '<div style="display:flex; flex-wrap:wrap; align-items:flex-start;">' +
         '<div id="conn-graphpane" style="flex:1 1 560px; min-width:320px; padding:14px;">' +
@@ -450,11 +1051,13 @@
           '<div style="font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:#9a978d;">Articles in this view</div>' +
           '<div style="display:flex; align-items:center; gap:14px; margin-left:auto;">' +
             '<label style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#555; cursor:pointer; user-select:none;">' +
+              '<input type="checkbox" id="conn-free-toggle" style="margin:0; cursor:pointer;"> Free only' +
+            '</label>' +
+            '<label style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#555; cursor:pointer; user-select:none;">' +
               '<input type="checkbox" id="conn-fav-toggle" style="margin:0; cursor:pointer;"> Show favorites only' +
             '</label>' +
             '<button id="conn-export-csv" style="font-family:\'IBM Plex Mono\',monospace; font-size:11px; padding:5px 11px; border:1px solid #005a8c; background:#fff; color:#005a8c; cursor:pointer; letter-spacing:0.3px;">Export CSV</button>' +
             '<button id="conn-export-ris" style="font-family:\'IBM Plex Mono\',monospace; font-size:11px; padding:5px 11px; border:1px solid #005a8c; background:#fff; color:#005a8c; cursor:pointer; letter-spacing:0.3px;" title="For Zotero, Mendeley, EndNote, RefWorks">Export RIS</button>' +
-            '<button id="conn-copy-link" style="font-family:\'IBM Plex Mono\',monospace; font-size:11px; padding:5px 11px; border:1px solid #005a8c; background:#fff; color:#005a8c; cursor:pointer; letter-spacing:0.3px;">Copy link</button>' +
             '<span id="conn-export-msg" style="font-size:11px; color:#9a978d; font-style:italic; display:none;"></span>' +
           '</div>' +
         '</div>' +
@@ -468,9 +1071,19 @@
     else document.body.appendChild(panel);
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-    function close() { panel.remove(); document.removeEventListener('keydown', onKey); }
+    function close(fromPop) {
+      panel.remove();
+      document.removeEventListener('keydown', onKey);
+      _activeClose = null;
+      // If we pushed a history entry to open this panel, closing via X/Esc should
+      // pop it so the URL reverts to the list. When close came FROM a Back press
+      // (fromPop), the browser already popped — don't bounce again.
+      if (_connPushed && !fromPop) { _connPushed = false; try { history.back(); } catch (e) {} }
+      else { _connPushed = false; }
+    }
     function onKey(e) { if (e.key === 'Escape') close(); }
-    document.getElementById('conn-close').onclick = close;
+    _activeClose = close;
+    document.getElementById('conn-close').onclick = function () { close(); };
     document.addEventListener('keydown', onKey);
 
     var workId = result._openAlexWorkId || result._oaWorkId || null;
@@ -485,6 +1098,12 @@
     var favSet = {};
     var favRecords = {};
     var favoritesOnly = false;
+    // "Free only" filter state. FREE_DATA is a second dataset (same shape as
+    // DATA) holding the top free citers/refs, fetched lazily the first time the
+    // toggle is switched on and then cached for the life of the panel.
+    var freeOnly = false;
+    var FREE_DATA = null;
+    var freeLoading = false;
 
     function isFav(doi) { return doi && !!favSet[doi.toLowerCase()]; }
     function favRecord(node) {
@@ -509,7 +1128,11 @@
     // infrastructure — same URL shape, same handler on page load.
     function makeCenter(targetDoi, targetTitle) {
       var url = _connectionsUrl(targetDoi);
-      showMakeCenterModal(targetTitle, url);
+      if (SHOW_MAKE_CENTER_WARNING) {
+        showMakeCenterModal(targetTitle, url);
+      } else {
+        window.location.href = url;
+      }
     }
 
     function showMakeCenterModal(targetTitle, targetUrl) {
@@ -568,7 +1191,7 @@
       return s;
     }
     function buildCsv() {
-      var headers = ['#', 'Title', 'Authors', 'Journal', 'Year', 'Citations', 'Shared references', 'Quality', 'Direction', 'DOI', 'Article URL', 'Retracted', 'Favorite', 'Center DOI', 'Connections link', 'Export date'];
+      var headers = ['#', 'Title', 'Authors', 'Journal', 'Year', 'Citations', 'Shared references', 'Quality', 'Direction', 'DOI', 'Article URL', 'Free', 'Retracted', 'Favorite', 'Center DOI', 'Connections link', 'Export date'];
       var lines = [headers.join(',')];
       // Single human-readable date for all rows in this export — text month avoids
       // US (MM/DD) vs EU (DD/MM) ambiguity when merging exports later.
@@ -590,6 +1213,7 @@
           n.cites != null ? n.cites : '', n.shared != null ? n.shared : 0,
           n.tier ? n.tier.label : '',
           dirLabel, n.doi || '', url,
+          n.isOa ? 'Yes' : 'No',
           n.retracted ? 'Yes' : 'No', fav, doi, shareLink, exportDate
         ].map(csvEscape).join(','));
       }
@@ -656,6 +1280,7 @@
         if (n.cites != null) noteParts.push(n.cites + ' citations');
         if (n.tier && n.tier.label) noteParts.push(n.tier.label + ' quality');
         if (n.shared != null) noteParts.push(n.shared + ' shared refs with center');
+        if (n.isOa) noteParts.push('Free to read');
         if (n.retracted) noteParts.push('RETRACTED');
         var favKey = n.doi ? n.doi.toLowerCase() : '';
         if (favKey && favSet[favKey]) noteParts.push('Favorite');
@@ -689,7 +1314,7 @@
 
     // ── Copy share link: writes a doilookup.com URL to the clipboard ──
     function copyLink() {
-      var msg = document.getElementById('conn-export-msg');
+      var msg = document.getElementById('conn-copy-msg');
       function flash(text) {
         if (!msg) return;
         msg.textContent = text; msg.style.display = 'inline';
@@ -731,6 +1356,8 @@
         metaParts.push('0 shared references');
       }
       var metaHtml = metaParts.join(' \u00b7 ');
+      // Free-to-read marker at the end of the meta line (matches the detail badge).
+      if (node.isOa) metaHtml += ' <span style="display:inline-block; background:#e3f1d4; color:#3b6d11; font-size:9px; font-weight:700; letter-spacing:0.5px; padding:1px 6px; border-radius:3px; margin-left:6px; vertical-align:1px;">FREE</span>';
       var retractedBadge = isRetracted
         ? '<span style="display:inline-block; background:#cc0000; color:#fff; font-size:9px; font-weight:700; letter-spacing:0.5px; padding:1px 6px; border-radius:3px; margin-right:8px; vertical-align:1px;">RETRACTED</span>'
         : '';
@@ -754,28 +1381,33 @@
     function paint(view) {
       currentView = view;
       var info = document.getElementById('conn-viewinfo'), holder = document.getElementById('conn-graphholder');
+      // When the "free only" filter is on, paint from the lazily-built free
+      // dataset (top free citers/refs) instead of the default one. The "f"
+      // adjective threads into the count labels so it's clear the set is filtered.
+      var SRC = (freeOnly && FREE_DATA) ? FREE_DATA : DATA;
+      var freeAdj = (freeOnly && FREE_DATA) ? 'free ' : '';
       var rawNodes, label;
       if (view === 'inside') {
-        rawNodes = DATA.inside.nodes;
-        var insideTotal = DATA.inside.total;
-        if (insideTotal === 0)              label = 'No references found in OpenAlex';
-        else if (rawNodes.length >= insideTotal) label = 'Showing all ' + rawNodes.length + ' reference' + (rawNodes.length === 1 ? '' : 's');
-        else                                 label = insideTotal.toLocaleString() + ' references in this article \u2014 showing top ' + rawNodes.length + ' by citations';
+        rawNodes = SRC.inside.nodes;
+        var insideTotal = SRC.inside.total;
+        if (insideTotal === 0)              label = 'No ' + freeAdj + 'references found in OpenAlex';
+        else if (rawNodes.length >= insideTotal) label = 'Showing all ' + rawNodes.length + ' ' + freeAdj + 'reference' + (rawNodes.length === 1 ? '' : 's');
+        else                                 label = insideTotal.toLocaleString() + ' ' + freeAdj + 'references \u2014 showing top ' + rawNodes.length + ' by citations';
       } else if (view === 'mix') {
-        rawNodes = DATA.mix.nodes;
+        rawNodes = SRC.mix.nodes;
         // Recompute the split: Mix is up to 12 refs + 12 citers from the same underlying data
         var mixRefCount = 0, mixCiteCount = 0;
         for (var mi = 0; mi < rawNodes.length; mi++) {
           if (rawNodes[mi].direction === 'in') mixRefCount++; else mixCiteCount++;
         }
-        if (rawNodes.length === 0)           label = 'No references or citing articles found';
-        else                                 label = 'Showing ' + mixRefCount + ' reference' + (mixRefCount === 1 ? '' : 's') + ' + ' + mixCiteCount + ' citing article' + (mixCiteCount === 1 ? '' : 's');
+        if (rawNodes.length === 0)           label = 'No ' + freeAdj + 'references or citing articles found';
+        else                                 label = 'Showing ' + mixRefCount + ' ' + freeAdj + 'reference' + (mixRefCount === 1 ? '' : 's') + ' + ' + mixCiteCount + ' ' + freeAdj + 'citing article' + (mixCiteCount === 1 ? '' : 's');
       } else {
-        rawNodes = DATA.outside.nodes;
-        var outsideTotal = DATA.outside.total;
-        if (outsideTotal === 0)             label = 'No articles cite this yet';
-        else if (rawNodes.length >= outsideTotal) label = 'Showing all ' + rawNodes.length + ' citing article' + (rawNodes.length === 1 ? '' : 's');
-        else                                 label = outsideTotal.toLocaleString() + ' articles cite this \u2014 showing top ' + rawNodes.length + ' by citations';
+        rawNodes = SRC.outside.nodes;
+        var outsideTotal = SRC.outside.total;
+        if (outsideTotal === 0)             label = 'No ' + freeAdj + 'articles cite this yet';
+        else if (rawNodes.length >= outsideTotal) label = 'Showing all ' + rawNodes.length + ' ' + freeAdj + 'citing article' + (rawNodes.length === 1 ? '' : 's');
+        else                                 label = outsideTotal.toLocaleString() + ' ' + freeAdj + 'articles cite this \u2014 showing top ' + rawNodes.length + ' by citations';
       }
 
       // Split raw into visible (non-retracted) and retracted
@@ -811,7 +1443,8 @@
       });
 
       if (!nodes.length) {
-        holder.innerHTML = '<div style="padding:30px; text-align:center; color:#999; font-style:italic;">No data for this view.</div>';
+        holder.innerHTML = '<div style="padding:30px; text-align:center; color:#999; font-style:italic;">' +
+          (freeOnly ? 'No free-to-read articles found in this view.' : 'No data for this view.') + '</div>';
       } else {
         holder.innerHTML = renderGraph(nodes, { retracted: !!result._isRetracted, concern: !!result._hasEOC });
         document.getElementById('conn-legend').style.display = 'block';
@@ -991,12 +1624,80 @@
       document.querySelectorAll('.conn-tab').forEach(function (t) { t.addEventListener('click', function () { paint(t.getAttribute('data-view')); }); });
       var favChk = document.getElementById('conn-fav-toggle');
       if (favChk) favChk.addEventListener('change', function () { favoritesOnly = favChk.checked; paint(currentView); });
+      // "Free only" has two checkboxes — one on the view-tab line (always
+      // visible) and one in the list section (visible after scrolling). Both
+      // drive the same freeOnly state and FREE_DATA, and are kept in sync so
+      // flipping either updates both.
+      var freeChk = document.getElementById('conn-free-toggle');
+      var freeChkTop = document.getElementById('conn-free-toggle-top');
+      function syncFreeChecks(v) {
+        if (freeChk) freeChk.checked = v;
+        if (freeChkTop) freeChkTop.checked = v;
+      }
+      function setFreeDisabled(v) {
+        if (freeChk) freeChk.disabled = v;
+        if (freeChkTop) freeChkTop.disabled = v;
+      }
+      function applyFreeOnly(checked) {
+        freeOnly = checked;
+        syncFreeChecks(checked);
+        // Off, or on with the free set already cached → just repaint.
+        if (!freeOnly || FREE_DATA) { paint(currentView); return; }
+        if (freeLoading) return;               // a fetch is already in flight
+        freeLoading = true;
+        setFreeDisabled(true);                 // both boxes locked during the one-time fetch
+        var info = document.getElementById('conn-viewinfo');
+        var holder = document.getElementById('conn-graphholder');
+        if (info) info.textContent = 'Finding free papers\u2026';
+        if (holder) holder.innerHTML = '<div style="padding:30px; text-align:center; color:#999; font-style:italic;">Finding free papers\u2026</div>';
+        buildData(workId, true).then(function (fd) {
+          FREE_DATA = fd; freeLoading = false; setFreeDisabled(false);
+          paint(currentView);                  // boxes were locked, so freeOnly is still true
+        }).catch(function () {
+          freeLoading = false; setFreeDisabled(false);
+          freeOnly = false; syncFreeChecks(false);
+          if (info) info.textContent = 'Could not load free-article data \u2014 try again.';
+          paint(currentView);
+        });
+      }
+      if (freeChk) freeChk.addEventListener('change', function () { applyFreeOnly(freeChk.checked); });
+      if (freeChkTop) freeChkTop.addEventListener('change', function () { applyFreeOnly(freeChkTop.checked); });
       var exportBtn = document.getElementById('conn-export-csv');
       if (exportBtn) exportBtn.addEventListener('click', exportCsv);
       var risBtn = document.getElementById('conn-export-ris');
       if (risBtn) risBtn.addEventListener('click', exportRis);
       var copyBtn = document.getElementById('conn-copy-link');
       if (copyBtn) copyBtn.addEventListener('click', copyLink);
+      var l3Btn = document.getElementById('conn-test-level3');
+      if (l3Btn) l3Btn.addEventListener('click', function () {
+        if (l3Btn.disabled) return; // hard guard: ignore clicks while a run is active
+        // Follow the "Free only" filter: seed from the free dataset and expand
+        // the whole tree free. Foundational references stay full (computed
+        // separately in showExpansionModal), by design.
+        var useFree = freeOnly && !!FREE_DATA;
+        var src = useFree ? FREE_DATA : DATA;
+        var raw = currentView === 'inside' ? (src.inside && src.inside.nodes)
+                : currentView === 'mix'    ? (src.mix && src.mix.nodes)
+                :                            (src.outside && src.outside.nodes);
+        var level1 = selectTopNodes(raw || []);
+        var label = l3Btn.textContent;
+        var settled = false, watchdog = null;
+        function restore() {
+          if (settled) return; settled = true;
+          if (watchdog) { clearTimeout(watchdog); watchdog = null; }
+          l3Btn.disabled = false; l3Btn.textContent = label; l3Btn.style.opacity = '1';
+        }
+        // Pure UI: update the button label as the run advances. Ignored once
+        // settled, and never throws into the run.
+        function onPhase(msg) { if (settled) return; try { l3Btn.textContent = msg; } catch (e) {} }
+        l3Btn.disabled = true; l3Btn.style.opacity = '0.6';
+        onPhase('Running tree\u2026');
+        // Backstop: never leave the button stuck disabled, even if the report
+        // somehow never signals completion.
+        watchdog = setTimeout(restore, 60000);
+        // Resolves only when the report is 100% built (see runExpansionTest).
+        runExpansionTest(level1, currentView, [workId], onPhase, useFree).then(restore, restore);
+      });
       paint('outside');
     }).catch(function (err) { document.getElementById('conn-status').textContent = 'Could not load citation data: ' + err.message; });
   }
@@ -1027,9 +1728,13 @@
       btn.textContent = 'View connections graph';
       btn.style.cssText = 'font-family:"IBM Plex Mono",monospace; font-size:12px; font-weight:600; padding:7px 14px; border:1px solid #005a8c; background:#fff; color:#005a8c; cursor:pointer; letter-spacing:0.3px;';
       btn.addEventListener('click', function () {
-        // Navigate to the DOI + chart URL; full reload runs a fresh lookup and
-        // opens the chart on the load side. URL becomes copyable/shareable.
-        window.location.href = _connectionsUrl(doi);
+        // Open in place over the current cards (no reload, so a multi-DOI list
+        // stays intact behind the panel) and push a shareable URL. Browser Back
+        // then closes the panel and reveals the list again. A fresh visit to the
+        // pushed URL still runs the reload + auto-open path below.
+        if (document.getElementById('conn-graph-panel')) return;
+        try { history.pushState({ connDoi: doi }, '', _connectionsUrl(doi)); _connPushed = true; } catch (e) { _connPushed = false; }
+        openPanel(result, doi);
       });
       // Prefer the dedicated slot just below the DOI line; fall back to appending
       // to the card if the slot is missing (older card templates).
