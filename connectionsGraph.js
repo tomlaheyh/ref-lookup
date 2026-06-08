@@ -27,6 +27,15 @@
   // Flip back to true if later feedback wants the safety prompt restored.
   var SHOW_MAKE_CENTER_WARNING = false;
 
+  // ── Hover preview (config) ─────────────────────────────────────────────────
+  // Hovering the "View connections graph" button for HOVER_PREVIEW_DELAY ms
+  // pops up a static teaser image, which auto-dismisses after
+  // HOVER_PREVIEW_DURATION ms (or immediately on mouse-out / click).
+  // >>> Set PREVIEW_IMAGE_URL to your own image (relative path or full URL). <<<
+  var PREVIEW_IMAGE_URL = 'connections-preview.png';
+  var HOVER_PREVIEW_DELAY = 1000;     // ms of hover before the preview appears
+  var HOVER_PREVIEW_DURATION = 4000;  // ms the preview stays before auto-closing
+
   // ── Expansion (multi-level) config ─────────────────────────────────────────
   // Budget = max UNIQUE papers in the whole tree (the real blow-up guard).
   // Depth = hard ceiling: center is level 0, so 3 = three rounds of picks below
@@ -1537,6 +1546,12 @@
         }
       }
 
+      // Auto-select bubble #1 on first paint so the right panel opens with a
+      // card instead of the empty "Click any bubble" placeholder. Applies to
+      // every fresh panel (button click, "Make this center", shared links).
+      // Only fires when nothing is selected yet, so it never overrides a click.
+      if (!currentSelected && nodes.length) select(nodes[0], '1', false);
+
       // Wire list rows
       listEl.querySelectorAll('.conn-row').forEach(function (row) {
         row.addEventListener('click', function (e) {
@@ -1741,6 +1756,38 @@
       var slot = card.querySelector('.conn-trigger-slot');
       if (slot) slot.appendChild(btn);
       else card.appendChild(btn);
+
+      // Hover preview: after HOVER_PREVIEW_DELAY of hovering the button, show a
+      // static teaser image; auto-close after HOVER_PREVIEW_DURATION, or right
+      // away on mouse-out / click. Positioned just below the button.
+      var _pvOpenTimer = null, _pvCloseTimer = null, _pvEl = null;
+      function _pvRemove() {
+        if (_pvCloseTimer) { clearTimeout(_pvCloseTimer); _pvCloseTimer = null; }
+        if (_pvEl) { _pvEl.remove(); _pvEl = null; }
+      }
+      function _pvShow() {
+        _pvRemove();
+        _pvEl = document.createElement('div');
+        _pvEl.className = 'conn-graph-preview';
+        _pvEl.style.cssText = 'position:absolute; z-index:10002; padding:6px; background:#fff; border:1px solid #d8d5cc; border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,0.18); pointer-events:none; opacity:0; transition:opacity 0.15s ease;';
+        var img = document.createElement('img');
+        img.src = PREVIEW_IMAGE_URL;
+        img.alt = 'Connections graph preview';
+        img.style.cssText = 'display:block; width:320px; max-width:60vw; height:auto; border-radius:4px;';
+        _pvEl.appendChild(img);
+        document.body.appendChild(_pvEl);
+        var rect = btn.getBoundingClientRect();
+        _pvEl.style.left = (window.scrollX + rect.left) + 'px';
+        _pvEl.style.top = (window.scrollY + rect.bottom + 8) + 'px';
+        requestAnimationFrame(function () { if (_pvEl) _pvEl.style.opacity = '1'; });
+        _pvCloseTimer = setTimeout(_pvRemove, HOVER_PREVIEW_DURATION);
+      }
+      btn.addEventListener('mouseenter', function () {
+        clearTimeout(_pvOpenTimer);
+        _pvOpenTimer = setTimeout(_pvShow, HOVER_PREVIEW_DELAY);
+      });
+      btn.addEventListener('mouseleave', function () { clearTimeout(_pvOpenTimer); _pvRemove(); });
+      btn.addEventListener('click', function () { clearTimeout(_pvOpenTimer); _pvRemove(); });
 
       // If the URL requested the chart for this DOI (captured at load, before
       // index.html rewrote the URL), open it now.

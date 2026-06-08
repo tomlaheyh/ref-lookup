@@ -94,6 +94,7 @@ function _closeAllCiteCharts() {
 function _toggleCiteChart(chartId) {
   const el = document.getElementById(chartId);
   if (!el) return;
+  _citeChartCancelTimers(chartId);
   const isOpen = el.style.display !== 'none';
   _closeAllCiteCharts();
   if (!isOpen) el.style.display = 'block';
@@ -104,6 +105,28 @@ function _closeCiteChart(chartId) {
   const el = document.getElementById(chartId);
   if (el) el.style.display = 'none';
 }
+
+// --- Chart-icon hover open ---
+// Hovering the chart icon for CITE_CHART_HOVER_DELAY ms opens the chart, which
+// then behaves exactly like a clicked-open chart: it stays until the user
+// closes it with the X, clicks elsewhere on the page, or opens another chart.
+// Leaving the icon before the delay cancels the pending open.
+const CITE_CHART_HOVER_DELAY = 1000;  // ms of hover before the chart appears
+const _citeChartHoverTimers = {};     // chartId -> pending-open timer id
+function _citeChartCancelTimers(chartId) {
+  if (_citeChartHoverTimers[chartId]) { clearTimeout(_citeChartHoverTimers[chartId]); delete _citeChartHoverTimers[chartId]; }
+}
+function _citeChartHoverStart(chartId) {
+  _citeChartCancelTimers(chartId);
+  _citeChartHoverTimers[chartId] = setTimeout(() => {
+    delete _citeChartHoverTimers[chartId];
+    const el = document.getElementById(chartId);
+    if (!el || el.style.display !== 'none') return; // already open - leave it alone
+    _closeAllCiteCharts();
+    el.style.display = 'block';
+  }, CITE_CHART_HOVER_DELAY);
+}
+function _citeChartHoverEnd(chartId) { _citeChartCancelTimers(chartId); }
 
 // Close citation chart when clicking outside it
 document.addEventListener('click', function(e) {
@@ -756,8 +779,9 @@ function showDOIModal(result, linksHtml) {
     const chartIconColor = hasChartData ? '#005a8c' : '#ccc';
     const chartIconCursor = hasChartData ? 'cursor:pointer;' : 'cursor:default;';
     const chartIconClick = hasChartData ? `onclick="_toggleCiteChart('${chartId}')"` : '';
+    const chartIconHover = hasChartData ? `onmouseenter="_citeChartHoverStart('${chartId}')" onmouseleave="_citeChartHoverEnd('${chartId}')"` : '';
     const chartIconTitle = hasChartData ? 'title="Show citations by year (OpenAlex)"' : 'title="No citation data available"';
-    const chartIcon = `<span ${chartIconClick} ${chartIconTitle} style="${chartIconCursor} vertical-align:middle; margin-left:6px; display:inline-block;"><svg width="16" height="14" viewBox="0 0 16 14" style="vertical-align:middle;"><rect x="1" y="8" width="3" height="5" fill="${chartIconColor}" rx="0.5"/><rect x="6" y="4" width="3" height="9" fill="${chartIconColor}" rx="0.5"/><rect x="11" y="1" width="3" height="12" fill="${chartIconColor}" rx="0.5"/></svg></span>`;
+    const chartIcon = `<span ${chartIconClick} ${chartIconHover} ${chartIconTitle} style="${chartIconCursor} vertical-align:middle; margin-left:6px; display:inline-block;"><svg width="16" height="14" viewBox="0 0 16 14" style="vertical-align:middle;"><rect x="1" y="8" width="3" height="5" fill="${chartIconColor}" rx="0.5"/><rect x="6" y="4" width="3" height="9" fill="${chartIconColor}" rx="0.5"/><rect x="11" y="1" width="3" height="12" fill="${chartIconColor}" rx="0.5"/></svg></span>`;
 
     const parts = [
       `CrossRef: ${crossRefCites !== null ? crossRefCites : 'N/A'}`,
