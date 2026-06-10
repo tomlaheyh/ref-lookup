@@ -339,40 +339,72 @@ let CONFIG = null;
 const CACHE_KEY = 'pubmed_report_cache';
 const EUTILS_BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi';
 
-// ─── YEAR HELPERS ─────────────────────────────────────────────────
-function getYears() {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const years = [];
-  for (let y = currentYear - 6; y <= currentYear; y++) years.push(y);
-  return years;
+// ─── FRAME MODEL ──────────────────────────────────────────────────
+// A "frame" is the single source of truth for which columns/timeframe
+// are shown. It is built EITHER from the data file (server CSV) OR from
+// the clock (a live Force Refresh) — never a mix — so a column's label
+// can never drift away from the data sitting under it.
+//   frame = {
+//     years:    [Number]    // year keys used to look up counts
+//     labels:   [String]    // parallel display labels (last may be "May YTD")
+//     ytdYear:  Number|null // which year is the YTD column (null = none)
+//     ytdRange: String|null // PubMed date range for the YTD term/link
+//   }
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// PubMed date range "YYYY/01/01:YYYY/MM/DD" ending at the last day of
+// monthIdx (0-based) in `year`.
+function ytdRangeFor(year, monthIdx) {
+  const lastDay = new Date(year, monthIdx + 1, 0).getDate();
+  const mm = String(monthIdx + 1).padStart(2, '0');
+  const dd = String(lastDay).padStart(2, '0');
+  return `${year}/01/01:${year}/${mm}/${dd}`;
 }
 
-function buildTerm(template, year) {
+// "Apr YTD" → 3 (0-based month index); -1 if unparseable.
+function ytdMonthIdx(label) {
+  const t = String(label).trim().slice(0, 3).toLowerCase();
+  return MONTHS.findIndex(mo => mo.toLowerCase() === t);
+}
+
+// Clock frame — used ONLY for a live fetch / Force Refresh.
+// Always 6 full years. A current-year YTD column is added ONLY when at
+// least one month of the current year is complete; in January there is
+// no complete month yet, so no current-year column appears at all. The
+// YTD range always ends at the last fully complete month.
+function buildClockFrame() {
   const now = new Date();
-  const currentYear = now.getFullYear();
-  if (year === currentYear) {
-    // YTD: use date range from Jan 1 to end of last complete month
-    let lastMonth = now.getMonth(); // 0-indexed, so this is "last month" number in 1-indexed
-    if (lastMonth === 0) {
-      // January — no complete month yet, use up to today
-      lastMonth = 1;
-    }
-    const lastDay = new Date(year, lastMonth, 0).getDate();
-    const mm = String(lastMonth).padStart(2, '0');
-    const dd = String(lastDay).padStart(2, '0');
-    const dateRange = `${year}/01/01:${year}/${mm}/${dd}`;
-    return template.replace('{year}', dateRange);
+  const cy = now.getFullYear();
+  const m = now.getMonth(); // 0-11 = current (incomplete) month
+  const years = [], labels = [];
+  for (let y = cy - 6; y <= cy - 1; y++) { years.push(y); labels.push(String(y)); }
+  let ytdYear = null, ytdRange = null;
+  if (m >= 1) {
+    const lastCompleteIdx = m - 1; // last fully complete month, 0-based
+    ytdYear = cy;
+    ytdRange = ytdRangeFor(cy, lastCompleteIdx);
+    years.push(cy);
+    labels.push(`${MONTHS[lastCompleteIdx]} YTD`);
+  }
+  return { years, labels, ytdYear, ytdRange };
+}
+
+// Substitute {year} in a query term. For the YTD column we use the
+// frame's explicit date range so the live query — and the row link —
+// match the label exactly. All other columns use the plain year.
+function buildTerm(template, year, frame) {
+  if (frame && frame.ytdYear === year && frame.ytdRange) {
+    return template.replace('{year}', frame.ytdRange);
   }
   return template.replace('{year}', String(year));
 }
 
-function getYTDLabel() {
-  const now = new Date();
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  let lastMonth = now.getMonth(); // current month 0-indexed
-  if (lastMonth === 0) lastMonth = 1;
-  return `${months[lastMonth - 1]} YTD`;
+// Human-readable period for the header, derived from the active frame.
+function describeFrame(frame) {
+  const first = frame.years[0];
+  if (!frame.ytdYear) return `${first}–${frame.years[frame.years.length - 1]}`;
+  const last = frame.labels[frame.labels.length - 1].replace(' YTD', '');
+  return `${first}–${frame.ytdYear} (through ${last} ${frame.ytdYear})`;
 }
 
 // ─── CACHE ────────────────────────────────────────────────────────
@@ -400,9 +432,10 @@ function shouldRefresh(cache) {
     if (now.getDate() >= refreshDay) return true;
   }
 
-  // Cache is from a different year range
-  const currentYears = getYears();
-  if (cache.years && cache.years[0] !== currentYears[0]) return true;
+  // Cache is from a different year range than the clock would now produce
+  const currentFirst = buildClockFrame().years[0];
+  const cacheFirst = cache.frame ? cache.frame.years[0] : null;
+  if (cacheFirst !== null && cacheFirst !== currentFirst) return true;
 
   return false;
 }
@@ -425,8 +458,8 @@ async function fetchCount(db, term) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-async function fetchAllData(counts, onProgress) {
-  const years = getYears();
+async function fetchAllData(counts, frame, onProgress) {
+  const years = frame.years;
   const rows = CONFIG.rows.filter(r => r.type === 'count');
   const totalQueries = rows.length * years.length;
   let completed = 0;
@@ -434,7 +467,7 @@ async function fetchAllData(counts, onProgress) {
   for (const row of rows) {
     counts[row.id] = counts[row.id] || {};
     for (const year of years) {
-      const term = buildTerm(row.term, year);
+      const term = buildTerm(row.term, year, frame);
       const count = await fetchCount(row.db, term);
       counts[row.id][year] = count;
       completed++;
@@ -466,15 +499,14 @@ function getComputedValue(row, year, counts) {
   return null;
 }
 
-function renderTable(years, counts) {
+function renderTable(frame, counts) {
   const head = document.getElementById('tableHead');
   const body = document.getElementById('tableBody');
-  const ytdLabel = getYTDLabel();
+  const years = frame.years;
 
-  // Header
+  // Header — labels come straight from the frame (data-owned)
   head.innerHTML = '<th></th>';
-  years.forEach((y, i) => {
-    const label = i === years.length - 1 ? ytdLabel : y;
+  frame.labels.forEach(label => {
     const th = document.createElement('th');
     th.textContent = label;
     head.appendChild(th);
@@ -510,13 +542,17 @@ function renderTable(years, counts) {
 
     const labelTd = document.createElement('td');
     if (row.type === 'count' && row.term) {
-      const currentYear = years[years.length - 1];
-      const term = buildTerm(row.term, currentYear);
+      // Link opens the LAST column's results in PubMed. buildTerm uses the
+      // frame's YTD range when that column is the YTD year, so the link
+      // matches the displayed label (and falls back to a plain year
+      // otherwise, e.g. in January when there is no YTD column).
+      const lastYear = years[years.length - 1];
+      const term = buildTerm(row.term, lastYear, frame);
       const pubmedUrl = 'https://pubmed.ncbi.nlm.nih.gov/?term=' + encodeURIComponent(term);
       const link = document.createElement('a');
       link.href = pubmedUrl;
       link.target = '_blank';
-      link.title = 'Click to open YTD results in PubMed';
+      link.title = 'Click to open latest-column results in PubMed';
       link.textContent = row.label;
       labelTd.appendChild(link);
     } else {
@@ -536,12 +572,12 @@ function renderTable(years, counts) {
   }
 }
 
-function renderChart(years, counts) {
+function renderChart(frame, counts) {
   const canvas = document.getElementById('chartCanvas');
   const ctx = canvas.getContext('2d');
   const legend = document.getElementById('chartLegend');
   const series = CONFIG.chart.series;
-  const ytdLabel = getYTDLabel();
+  const years = frame.years;
 
   // Dimensions
   const dpr = window.devicePixelRatio || 1;
@@ -605,11 +641,11 @@ function renderChart(years, counts) {
       stackY += barH;
     });
 
-    // X label
+    // X label — from the frame, so it matches the data
     ctx.fillStyle = '#64748b';
     ctx.textAlign = 'center';
     ctx.font = '12px Source Sans 3, sans-serif';
-    const label = yi === years.length - 1 ? ytdLabel : yr;
+    const label = frame.labels[yi];
     ctx.fillText(label, pad.left + yi * barGroupW + barGroupW / 2, H - pad.bottom + 20);
   });
 
@@ -624,10 +660,11 @@ function renderChart(years, counts) {
 }
 
 // ─── VENN DIAGRAM ─────────────────────────────────────────────────
-function renderVenn(years, counts) {
+function renderVenn(frame, counts) {
   const canvas = document.getElementById('vennCanvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
+  const years = frame.years;
 
   // Use last full year (second to last in array)
   const lastFullYear = years[years.length - 2];
@@ -799,21 +836,19 @@ async function init() {
   document.getElementById('footnote').textContent = CONFIG.footnote;
   document.getElementById('chartTitle').textContent = CONFIG.chart.title;
 
-  const years = getYears();
-  const currentYear = years[years.length - 1];
-  document.getElementById('reportPeriod').textContent =
-    `${years[0]}–${currentYear} (through ${getYTDLabel().replace(' YTD', '')} ${currentYear})`;
-
-  // 1. Try server-side data file first
+  // 1. Try server-side data file first. The file owns its own timeframe,
+  //    so we render the frame parsed from its header — the label can never
+  //    outrun the data, no matter when the page is opened.
   const serverData = await loadServerData();
-  if (serverData && serverData.counts && Object.keys(serverData.counts).length > 0) {
-    // Cache it locally too
-    setCache({ years, counts: serverData.counts });
-    renderTable(years, serverData.counts);
-    renderChart(years, serverData.counts);
-    renderVenn(years, serverData.counts);
+  if (serverData && serverData.frame && Object.keys(serverData.counts).length > 0) {
+    const frame = serverData.frame;
+    document.getElementById('reportPeriod').textContent = describeFrame(frame);
+    setCache({ frame, counts: serverData.counts });
+    renderTable(frame, serverData.counts);
+    renderChart(frame, serverData.counts);
+    renderVenn(frame, serverData.counts);
     const d = new Date(serverData.timestamp);
-    const stale = shouldRefresh({ timestamp: serverData.timestamp });
+    const stale = shouldRefresh({ timestamp: serverData.timestamp, frame });
     const ageMsg = stale
       ? `Server data from ${d.toLocaleDateString()} (may be outdated — click Force Refresh for live data)`
       : `Server data from ${d.toLocaleDateString()}`;
@@ -825,12 +860,16 @@ async function init() {
     return;
   }
 
+  // No server file → fall back to clock-driven columns
+  const clockFrame = buildClockFrame();
+  document.getElementById('reportPeriod').textContent = describeFrame(clockFrame);
+
   // 2. Try localStorage cache
   const cache = getCache();
-  if (cache && cache.counts && !shouldRefresh(cache)) {
-    renderTable(years, cache.counts);
-    renderChart(years, cache.counts);
-    renderVenn(years, cache.counts);
+  if (cache && cache.counts && cache.frame && !shouldRefresh(cache)) {
+    renderTable(cache.frame, cache.counts);
+    renderChart(cache.frame, cache.counts);
+    renderVenn(cache.frame, cache.counts);
     const d = new Date(cache.timestamp);
     setStatus('cached', `Cached ${d.toLocaleDateString()}`);
     document.getElementById('refreshBtn').disabled = false;
@@ -839,42 +878,42 @@ async function init() {
   }
 
   // 3. Show stale cache while fetching live
-  if (cache && cache.counts) {
-    renderTable(years, cache.counts);
-    renderChart(years, cache.counts);
-    renderVenn(years, cache.counts);
+  if (cache && cache.counts && cache.frame) {
+    renderTable(cache.frame, cache.counts);
+    renderChart(cache.frame, cache.counts);
+    renderVenn(cache.frame, cache.counts);
   } else {
-    renderTable(years, {});
-    renderChart(years, {});
-    renderVenn(years, {});
+    renderTable(clockFrame, {});
+    renderChart(clockFrame, {});
+    renderVenn(clockFrame, {});
   }
 
-  await runFetch(years);
+  await runFetch(clockFrame);
 }
 
-async function runFetch(years) {
+async function runFetch(frame) {
   setStatus('updating', 'Fetching data from NCBI...');
   document.getElementById('refreshBtn').disabled = true;
   showProgress(0);
 
   const counts = {};
 
-  await fetchAllData(counts, (done, total) => {
+  await fetchAllData(counts, frame, (done, total) => {
     const pct = Math.round((done / total) * 100);
     showProgress(pct);
     setStatus('updating', `Fetching... ${done}/${total}`);
 
     // Live-update table every 7 rows
     if (done % 7 === 0 || done === total) {
-      renderTable(years, counts);
+      renderTable(frame, counts);
     }
   });
 
   // Final render
-  renderTable(years, counts);
-  renderChart(years, counts);
-  renderVenn(years, counts);
-  setCache({ years, counts });
+  renderTable(frame, counts);
+  renderChart(frame, counts);
+  renderVenn(frame, counts);
+  setCache({ frame, counts });
   hideProgress();
   setStatus('done', `Updated ${new Date().toLocaleDateString()}`);
   document.getElementById('refreshBtn').disabled = false;
@@ -883,25 +922,25 @@ async function runFetch(years) {
 
 async function forceRefresh() {
   localStorage.removeItem(CACHE_KEY);
-  const years = getYears();
-  await runFetch(years);
+  await runFetch(buildClockFrame());
 }
 
 function exportCSV() {
   const cache = getCache();
-  if (!cache || !cache.counts) return;
+  if (!cache || !cache.counts || !cache.frame) return;
 
-  const years = getYears();
-  const ytdLabel = getYTDLabel();
+  const frame = cache.frame;
+  const years = frame.years;
   const lines = [];
 
-  // Header with date range info
-  const currentYear = years[years.length - 1];
-  lines.push(`"PubMed Summary Report","${years[0]}-${currentYear}","Generated ${new Date().toISOString().slice(0,10)}"`);
+  // Header with date range info — the YTD year comes from the frame, so
+  // the exported file's own header describes exactly the data it carries.
+  const endYear = frame.ytdYear || years[years.length - 1];
+  lines.push(`"PubMed Summary Report","${years[0]}-${endYear}","Generated ${new Date().toISOString().slice(0,10)}"`);
   lines.push('');
 
-  // Column headers
-  const colHeaders = [''].concat(years.map((y, i) => i === years.length - 1 ? ytdLabel : String(y)));
+  // Column headers come straight from the frame's labels
+  const colHeaders = [''].concat(frame.labels.map(String));
   lines.push(colHeaders.map(c => `"${c}"`).join(','));
 
   // Data rows
@@ -945,7 +984,7 @@ function parseCSVData(csv) {
   if (lines.length < 3) return null;
 
   // Line 0: header with date info
-  // Line 1: empty (skip)  
+  // Line 1: empty (skip)
   // Line 2: column headers (year labels)
   // Line 3+: data rows
 
@@ -957,32 +996,41 @@ function parseCSVData(csv) {
   }
   if (headerIdx === -1) return null;
 
-  const headers = parseCSVLine(lines[headerIdx]);
-  const years = headers.slice(1).map(h => {
-    const y = parseInt(h);
-    return isNaN(y) ? h : y;
-  });
-
-  // Map numeric years; YTD column maps to current year
-  const currentYear = new Date().getFullYear();
-  const yearKeys = years.map(y => typeof y === 'number' ? y : currentYear);
+  // ── Build the frame straight from the header. The file owns its
+  //    timeframe: numeric tokens are full years; a non-numeric token
+  //    (e.g. "Apr YTD") is the YTD column, whose year is lastFullYear+1
+  //    so it is independent of when the page is opened. ──
+  const tokens = parseCSVLine(lines[headerIdx]).slice(1);
+  const years = [], labels = [];
+  let ytdYear = null, ytdRange = null, lastFullYear = null;
+  for (const tok of tokens) {
+    if (/^\s*\d{4}\s*$/.test(tok)) {
+      const y = parseInt(tok, 10);
+      years.push(y); labels.push(String(y)); lastFullYear = y;
+    } else {
+      // YTD column — derive its year from the data, not the clock
+      const yy = (lastFullYear !== null ? lastFullYear : new Date().getFullYear() - 1) + 1;
+      ytdYear = yy;
+      years.push(yy); labels.push(tok);
+      const mi = ytdMonthIdx(tok);
+      ytdRange = mi >= 0 ? ytdRangeFor(yy, mi) : null;
+    }
+  }
+  const frame = { years, labels, ytdYear, ytdRange };
 
   const counts = {};
-  const countRows = CONFIG.rows.filter(r => r.type === 'count');
-
-  let dataIdx = headerIdx + 1;
   let configIdx = 0;
 
-  for (let i = dataIdx; i < lines.length && configIdx < CONFIG.rows.length; i++) {
+  for (let i = headerIdx + 1; i < lines.length && configIdx < CONFIG.rows.length; i++) {
     const row = CONFIG.rows[configIdx];
     const cells = parseCSVLine(lines[i]);
     if (!cells[0]) { configIdx++; continue; }
 
     if (row.type === 'count') {
       counts[row.id] = {};
-      for (let c = 1; c < cells.length && c - 1 < yearKeys.length; c++) {
-        const val = parseInt(cells[c]);
-        counts[row.id][yearKeys[c - 1]] = isNaN(val) ? null : val;
+      for (let c = 1; c < cells.length && c - 1 < years.length; c++) {
+        const val = parseInt(cells[c], 10);
+        counts[row.id][years[c - 1]] = isNaN(val) ? null : val;
       }
     }
     configIdx++;
@@ -992,7 +1040,7 @@ function parseCSVData(csv) {
   const firstLine = parseCSVLine(lines[0]);
   const generated = firstLine.length >= 3 ? firstLine[2].replace('Generated ', '') : '';
 
-  return { counts, timestamp: generated || new Date().toISOString() };
+  return { frame, counts, timestamp: generated || new Date().toISOString() };
 }
 
 function parseCSVLine(line) {
@@ -1013,9 +1061,9 @@ function parseCSVLine(line) {
 window.addEventListener('DOMContentLoaded', init);
 window.addEventListener('resize', () => {
   const cache = getCache();
-  if (cache && cache.counts) {
-    renderChart(getYears(), cache.counts);
-    renderVenn(getYears(), cache.counts);
+  if (cache && cache.counts && cache.frame) {
+    renderChart(cache.frame, cache.counts);
+    renderVenn(cache.frame, cache.counts);
   }
 });
 </script>

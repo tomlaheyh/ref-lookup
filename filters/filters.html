@@ -258,32 +258,63 @@ let CONFIG = null;
 const CACHE_KEY = 'pubmed_filters_cache';
 const EUTILS_BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi';
 
-// ─── DATE HELPERS ─────────────────────────────────────────────────
-function getDateRange() {
+// ─── PERIOD MODEL ─────────────────────────────────────────────────
+// A "period" is the single source of truth for the timeframe shown. It
+// is built EITHER from the data file (server CSV header) OR from the
+// clock (a live Force Refresh) — never a mix — so the header label and
+// the row links can never drift away from the data they describe.
+//   period = {
+//     label: 'Jan-Apr'                 // display text
+//     year:  2026                      // the data year
+//     range: '2026/01/01:2026/04/30'   // PubMed [crdt] date range
+//   }
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// Clock period — used ONLY for a live fetch / Force Refresh.
+// The range always ends at the last fully complete month. In January no
+// month of the new year is complete yet, so we roll back to the most
+// recent complete period: the whole of the prior year (Jan-Dec).
+function buildClockPeriod() {
   const now = new Date();
-  const year = now.getFullYear();
-  let lastMonth = now.getMonth();
-  if (lastMonth === 0) lastMonth = 1;
-  const lastDay = new Date(year, lastMonth, 0).getDate();
-  const mm = String(lastMonth).padStart(2, '0');
+  const cy = now.getFullYear();
+  const m = now.getMonth(); // 0-11 = current (incomplete) month
+  if (m === 0) {
+    const py = cy - 1; // January → show the full prior year
+    return { label: 'Jan-Dec', year: py, range: `${py}/01/01:${py}/12/31` };
+  }
+  const lastCompleteIdx = m - 1; // last fully complete month, 0-based
+  const lastDay = new Date(cy, m, 0).getDate();
+  const mm = String(m).padStart(2, '0');
   const dd = String(lastDay).padStart(2, '0');
-  return `${year}/01/01:${year}/${mm}/${dd}`;
+  return { label: `Jan-${MONTHS[lastCompleteIdx]}`, year: cy, range: `${cy}/01/01:${cy}/${mm}/${dd}` };
 }
 
-function getMonthLabel() {
-  const now = new Date();
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  let lastMonth = now.getMonth();
-  if (lastMonth === 0) lastMonth = 1;
-  return `Jan-${months[lastMonth - 1]}`;
+// Parse the period straight from the CSV's first line, e.g.
+//   "PubMed Filters Report","Jan-Apr 2026","Generated 2026-05-18"
+// The file owns its timeframe, so the displayed label/links match the
+// data no matter when the page is opened. Returns null if unparseable.
+function parsePeriodFromHeader(cells) {
+  if (!cells || cells.length < 2) return null;
+  const txt = cells[1] || '';
+  const ym = txt.match(/(\d{4})/);
+  if (!ym) return null;
+  const year = parseInt(ym[1], 10);
+  const label = txt.replace(ym[1], '').trim(); // e.g. "Jan-Apr"
+  const endTok = label.split('-').pop().trim().slice(0, 3).toLowerCase();
+  const endIdx = MONTHS.findIndex(mo => mo.toLowerCase() === endTok);
+  if (endIdx < 0) return null;
+  const lastDay = new Date(year, endIdx + 1, 0).getDate();
+  const mm = String(endIdx + 1).padStart(2, '0');
+  const dd = String(lastDay).padStart(2, '0');
+  return { label, year, range: `${year}/01/01:${year}/${mm}/${dd}` };
 }
 
-function buildTerm(template) {
-  return template.replace('{daterange}', getDateRange());
+function buildTerm(template, period) {
+  return template.replace('{daterange}', period.range);
 }
 
-function buildPubmedUrl(template) {
-  const term = buildTerm(template);
+function buildPubmedUrl(template, period) {
+  const term = buildTerm(template, period);
   return 'https://pubmed.ncbi.nlm.nih.gov/?term=' + encodeURIComponent(term);
 }
 
@@ -328,7 +359,7 @@ async function fetchCount(term) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-async function fetchAllData(counts, onProgress) {
+async function fetchAllData(counts, period, onProgress) {
   const allRows = [];
   CONFIG.sections.forEach(s => {
     s.rows.forEach(r => {
@@ -340,7 +371,7 @@ async function fetchAllData(counts, onProgress) {
   let completed = 0;
 
   for (const row of allRows) {
-    const term = buildTerm(row.term);
+    const term = buildTerm(row.term, period);
     const count = await fetchCount(term);
     counts[row.id] = count;
     completed++;
@@ -380,7 +411,7 @@ function formatNumber(n) {
 }
 
 // ─── RENDER ───────────────────────────────────────────────────────
-function appendSectionRows(table, section, counts) {
+function appendSectionRows(table, section, counts, period) {
   for (const row of section.rows) {
     const tr = document.createElement('tr');
     if (row.bold) tr.className = 'total-row';
@@ -388,7 +419,7 @@ function appendSectionRows(table, section, counts) {
     const labelTd = document.createElement('td');
     if (row.term) {
       const link = document.createElement('a');
-      link.href = buildPubmedUrl(row.term);
+      link.href = buildPubmedUrl(row.term, period);
       link.target = '_blank';
       link.title = 'Open in PubMed';
       link.textContent = row.label;
@@ -408,7 +439,7 @@ function appendSectionRows(table, section, counts) {
   }
 }
 
-function render(counts) {
+function render(counts, period) {
   const area = document.getElementById('columnsArea');
   area.innerHTML = '';
 
@@ -419,7 +450,7 @@ function render(counts) {
   t1.className = 'col-table';
 
   const fixedSections = CONFIG.sections.filter(s => !s.sorted);
-  
+
   // Separate core and non-core sections
   const coreSections = fixedSections.filter(s => s.core);
   const otherSections = fixedSections.filter(s => !s.core);
@@ -430,13 +461,13 @@ function render(counts) {
     coreDiv.style.cssText = 'border:2px solid #93b3df;border-radius:6px;overflow:hidden;margin-bottom:6px';
     const coreTable = document.createElement('table');
     coreTable.className = 'col-table';
-    
+
     for (const section of coreSections) {
       const htr = document.createElement('tr');
       htr.className = 'section-header';
       htr.innerHTML = `<td colspan="2">${section.header}</td>`;
       coreTable.appendChild(htr);
-      appendSectionRows(coreTable, section, counts);
+      appendSectionRows(coreTable, section, counts, period);
     }
     coreDiv.appendChild(coreTable);
     col1.appendChild(coreDiv);
@@ -448,7 +479,7 @@ function render(counts) {
     htr.className = 'section-header';
     htr.innerHTML = `<td colspan="2">${section.header}</td>`;
     t1.appendChild(htr);
-    appendSectionRows(t1, section, counts);
+    appendSectionRows(t1, section, counts, period);
   }
 
   col1.appendChild(t1);
@@ -506,7 +537,7 @@ function render(counts) {
         const labelTd = document.createElement('td');
         if (row.term) {
           const link = document.createElement('a');
-          link.href = buildPubmedUrl(row.term);
+          link.href = buildPubmedUrl(row.term, period);
           link.target = '_blank';
           link.title = 'Open in PubMed';
           link.textContent = row.label;
@@ -593,12 +624,15 @@ function hideProgress() {
 // ─── CSV EXPORT ───────────────────────────────────────────────────
 function exportCSV() {
   const cache = getCache();
-  if (!cache || !cache.counts) return;
+  if (!cache || !cache.counts || !cache.period) return;
   const counts = cache.counts;
+  const period = cache.period;
 
   const lines = [];
   const now = new Date();
-  lines.push(`"PubMed Filters Report","${getMonthLabel()} ${now.getFullYear()}","Generated ${now.toISOString().slice(0,10)}"`);
+  // Header period comes from the active period, so the exported file's
+  // own header always describes exactly the data it carries.
+  lines.push(`"PubMed Filters Report","${period.label} ${period.year}","Generated ${now.toISOString().slice(0,10)}"`);
   lines.push('');
 
   // Fixed sections
@@ -657,7 +691,6 @@ function parseCSVData(csv) {
   const allRows = [];
   CONFIG.sections.forEach(s => s.rows.forEach(r => allRows.push(r)));
 
-  let rowIdx = 0;
   for (let i = 0; i < lines.length; i++) {
     const cells = parseCSVLine(lines[i]);
     if (!cells[0] || cells[1] === '') continue; // skip headers/blanks
@@ -671,9 +704,11 @@ function parseCSVData(csv) {
     }
   }
 
+  // The file owns its timeframe — parse the period straight from line 0.
   const firstLine = parseCSVLine(lines[0]);
+  const period = parsePeriodFromHeader(firstLine);
   const generated = firstLine.length >= 3 ? firstLine[2].replace('Generated ', '') : '';
-  return { counts, timestamp: generated || new Date().toISOString() };
+  return { counts, period, timestamp: generated || new Date().toISOString() };
 }
 
 function parseCSVLine(line) {
@@ -702,20 +737,26 @@ async function loadConfig() {
   }
 }
 
+function setReportPeriod(period) {
+  document.getElementById('reportPeriod').textContent =
+    `Standard Side Filters  •  ${period.label} ${period.year}`;
+}
+
 async function init() {
   const ok = await loadConfig();
   if (!ok) { setStatus('error', 'Failed to load config'); return; }
 
-  const now = new Date();
   document.getElementById('noteBar').textContent = CONFIG.note;
-  document.getElementById('reportPeriod').textContent =
-    `Standard Side Filters with ${now.getFullYear()} data  •  ${getMonthLabel()} Run ${now.toLocaleDateString()}`;
 
-  // 1. Try server data
+  // 1. Try server data — the file owns its own timeframe, so we render
+  //    the period parsed from its header. The label and the row links can
+  //    never outrun the data, no matter when the page is opened.
   const serverData = await loadServerData();
   if (serverData && serverData.counts && Object.keys(serverData.counts).length > 0) {
-    setCache({ counts: serverData.counts });
-    render(serverData.counts);
+    const period = serverData.period || buildClockPeriod();
+    setReportPeriod(period);
+    setCache({ counts: serverData.counts, period });
+    render(serverData.counts, period);
     const d = new Date(serverData.timestamp);
     const stale = shouldRefresh({ timestamp: serverData.timestamp });
     const ageMsg = stale
@@ -729,10 +770,15 @@ async function init() {
     return;
   }
 
+  // No server file → fall back to clock-driven period
+  const clockPeriod = buildClockPeriod();
+  setReportPeriod(clockPeriod);
+
   // 2. Try localStorage
   const cache = getCache();
-  if (cache && cache.counts && !shouldRefresh(cache)) {
-    render(cache.counts);
+  if (cache && cache.counts && cache.period && !shouldRefresh(cache)) {
+    setReportPeriod(cache.period);
+    render(cache.counts, cache.period);
     setStatus('cached', `Cached ${new Date(cache.timestamp).toLocaleDateString()}`);
     document.getElementById('refreshBtn').disabled = false;
     document.getElementById('exportBtn').disabled = false;
@@ -740,15 +786,15 @@ async function init() {
   }
 
   // 3. Fetch live
-  if (cache && cache.counts) {
-    render(cache.counts);
+  if (cache && cache.counts && cache.period) {
+    render(cache.counts, cache.period);
   } else {
-    render({});
+    render({}, clockPeriod);
   }
-  await runFetch();
+  await runFetch(clockPeriod);
 }
 
-async function runFetch() {
+async function runFetch(period) {
   setStatus('updating', 'Fetching data from NCBI...');
   document.getElementById('refreshBtn').disabled = true;
   document.getElementById('exportBtn').disabled = true;
@@ -756,15 +802,15 @@ async function runFetch() {
 
   const counts = {};
 
-  await fetchAllData(counts, (done, total) => {
+  await fetchAllData(counts, period, (done, total) => {
     const pct = Math.round((done / total) * 100);
     showProgress(pct);
     setStatus('updating', `Fetching... ${done}/${total}`);
-    if (done % 5 === 0 || done === total) render(counts);
+    if (done % 5 === 0 || done === total) render(counts, period);
   });
 
-  render(counts);
-  setCache({ counts });
+  render(counts, period);
+  setCache({ counts, period });
   hideProgress();
   setStatus('done', `Updated ${new Date().toLocaleDateString()}`);
   document.getElementById('refreshBtn').disabled = false;
@@ -773,7 +819,9 @@ async function runFetch() {
 
 async function forceRefresh() {
   localStorage.removeItem(CACHE_KEY);
-  await runFetch();
+  const period = buildClockPeriod();
+  setReportPeriod(period);
+  await runFetch(period);
 }
 
 window.addEventListener('DOMContentLoaded', init);

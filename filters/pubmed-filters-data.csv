@@ -1,105 +1,105 @@
-"PubMed Filters Report","Jan-Apr 2026","Generated 2026-05-18"
+"PubMed Filters Report","Jan-May 2026","Generated 2026-06-09"
 
 "Medline and PrePrints",""
-"Total",583212
-"* MEDLINE",218515
-"* Exclude Preprints",576518
-"* Preprint",6694
+"Total",739383
+"* MEDLINE",196478
+"* Exclude Preprints",730634
+"* Preprint",8749
 
 "Text Availability",""
-"* Abstract",506527
-"* Free Full Text",352110
-"* Full Text",568929
+"* Abstract",651005
+"* Free Full Text",451517
+"* Full Text",721504
 
 "Associated Data",""
-"Associated Data",11557
+"Associated Data",15173
 
 "Language (only showing English)",""
-"English",573031
-"English Abstract",7591
+"English",727026
+"English Abstract",9270
 
 "Species",""
-"Humans",164823
-"Other Animals",59570
+"Humans",206167
+"Other Animals",75175
 
 "Sex",""
-"Male",93839
-"Female",95037
+"Male",113684
+"Female",117000
 
 "Age",""
-"Child: birth-18 years",24419
-"Newborn: birth-1 month",3346
-"Infant: birth-23 months",5271
-"Infant: 1-23 months",1925
-"Preschool Child: 2-5 years",7150
-"Child: 6-12 years",11810
-"Adolescent: 13-18 years",16180
-"Adult: 19+ years",75070
-"Young Adult: 19-24 years",20715
-"Adult: 19-44 years",54244
-"Middle Aged + Aged: 45+ years",58082
-"Middle Aged: 45-64 years",53527
-"Aged: 65+ years",39285
-"80 and over: 80+ years",10547
+"Child: birth-18 years",29983
+"Newborn: birth-1 month",4078
+"Infant: birth-23 months",6537
+"Infant: 1-23 months",2459
+"Preschool Child: 2-5 years",8855
+"Child: 6-12 years",14594
+"Adolescent: 13-18 years",19473
+"Adult: 19+ years",90857
+"Young Adult: 19-24 years",23946
+"Adult: 19-44 years",63864
+"Middle Aged + Aged: 45+ years",70010
+"Middle Aged: 45-64 years",63851
+"Aged: 65+ years",47032
+"80 and over: 80+ years",12401
 
 "Article Type (sorted)",""
-"Article Type Total (sum, overlaps)",221975
-"Review",71489
-"Case Reports",22096
-"Systematic Review",17862
-"Letter",15280
-"Clinical Study",12165
-"Editorial",11029
-"Published Erratum",8641
-"Comparative Study",7008
-"Clinical Trial",6536
-"Multicenter Study",5454
-"Controlled Clinical Trial",5441
-"Randomized Controlled Trial",5418
-"Research Support, Non-U.S. Gov't",5245
-"Observational Study",4568
-"Meta-Analysis",4521
-"Comment",3162
-"News",1989
-"Validation Study",1828
-"Research Support, U.S. Gov't",1194
-"Books and Documents",1158
-"Evaluation Study",1096
-"Clinical Trial Protocol",976
-"Research Support, N.I.H., Extramural",946
-"Historical Article",882
-"Electronic Supplementary Materials",756
-"Video-Audio Media",756
-"Guideline",563
-"Practice Guideline",551
-"Clinical Trial, Phase II",513
-"Dataset",404
-"Clinical Trial, Phase I",363
-"Clinical Trial, Phase III",355
-"Expression of Concern",321
-"Introductory Journal Article",269
-"Research Support, U.S. Gov't, Non-P.H.S.",218
-"Biography",135
-"Interview",102
-"Clinical Trial, Veterinary",93
-"Research Support, N.I.H., Intramural",87
+"Article Type Total (sum, overlaps)",256703
+"Review",87891
+"Case Reports",25830
+"Systematic Review",22173
+"Letter",19225
+"Editorial",13823
+"Clinical Study",12058
+"Published Erratum",10826
+"Clinical Trial",6463
+"Comparative Study",6362
+"Research Support, Non-U.S. Gov't",6333
+"Controlled Clinical Trial",5321
+"Randomized Controlled Trial",5296
+"Multicenter Study",5227
+"Observational Study",4613
+"Meta-Analysis",4374
+"Comment",4084
+"News",2472
+"Validation Study",1645
+"Books and Documents",1345
+"Research Support, U.S. Gov't",1306
+"Research Support, N.I.H., Extramural",1044
+"Evaluation Study",937
+"Electronic Supplementary Materials",924
+"Video-Audio Media",924
+"Clinical Trial Protocol",910
+"Historical Article",809
+"Guideline",581
+"Practice Guideline",566
+"Clinical Trial, Phase II",483
+"Expression of Concern",395
+"Clinical Trial, Phase I",351
+"Clinical Trial, Phase III",345
+"Dataset",317
+"Research Support, U.S. Gov't, Non-P.H.S.",247
+"Introductory Journal Article",240
+"Biography",141
+"Interview",109
+"Equivalence Trial",107
+"Research Support, N.I.H., Intramural",89
 "Pragmatic Clinical Trial",81
-"Randomized Controlled Trial, Veterinary",74
-"Equivalence Trial",64
-"Retracted Publication",57
-"Twin Study",50
-"Research Support, U.S. Gov't, P.H.S.",47
-"Clinical Trial, Phase IV",45
-"Personal Narrative",33
-"Lecture",21
-"Observational Study, Veterinary",12
-"Address",5
-"Corrected and Republished Article",5
+"Retracted Publication",74
+"Clinical Trial, Veterinary",71
+"Randomized Controlled Trial, Veterinary",58
+"Research Support, U.S. Gov't, P.H.S.",53
+"Clinical Trial, Phase IV",47
+"Twin Study",46
+"Personal Narrative",32
+"Lecture",19
+"Observational Study, Veterinary",11
+"Address",7
+"Corrected and Republished Article",6
 "Patient Education Handout",4
-"Webcast",3
-"Periodical Index",2
-"Adaptive Clinical Trial",1
-"Clinical Conference",1
+"Adaptive Clinical Trial",3
+"Clinical Conference",3
+"Webcast",1
+"Periodical Index",1
 "Retraction of Publication",0
 "Congress",0
 "Portrait",0

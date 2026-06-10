@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PubMed Journal Ranking 2026</title>
+<title>PubMed Journal Ranking</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -269,7 +269,6 @@
 </div>
 
 <script>
-const DATA_FILE = 'Journal_Ranking_YTD_2026.csv';
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 let allRows = [];
@@ -279,24 +278,56 @@ const PAGE_SIZE = 100;
 let sortCol = 0;
 let sortDir = 'asc'; // rank is ascending by default
 
+// ─── TIMEFRAME (data-owned) ───────────────────────────────────────
+// The report's year and the PubMed link date range are derived from the
+// data file itself — the stamped metadata line (preferred) or, failing
+// that, the months actually present and the filename. The clock is only
+// ever used to locate the newest file, never to label or query it.
+let REPORT_YEAR = new Date().getFullYear();
+let LINK_RANGE = '';
+
+function splitCSVLine(line) {
+  const cells = [];
+  let current = '';
+  let inQuotes = false;
+  for (let c = 0; c < line.length; c++) {
+    const ch = line[c];
+    if (ch === '"') { inQuotes = !inQuotes; }
+    else if (ch === ',' && !inQuotes) { cells.push(current.trim()); current = ''; }
+    else { current += ch; }
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
+// Parse the optional self-describing line, e.g.
+//   "Journal Ranking YTD","2026","Jan-Apr","Generated 2026-05-18"
+function parseMeta(cells) {
+  let year = null, period = null, generated = '';
+  for (const c of cells) {
+    if (/^\d{4}$/.test(c)) year = parseInt(c, 10);
+    else if (/^[A-Za-z]{3}-[A-Za-z]{3}$/.test(c)) period = c;
+    else if (/^generated/i.test(c)) generated = c.replace(/^generated\s*/i, '');
+  }
+  return { year, period, generated };
+}
+
+// Returns { meta, rows }. Handles both stamped files (metadata line first)
+// and legacy files whose first line is the "Rank,..." table header.
 function parseCSV(text) {
   const lines = text.trim().split('\n');
-  if (lines.length < 2) return [];
+  if (lines.length < 2) return { meta: null, rows: [] };
+
+  let idx = 0, meta = null;
+  const first = splitCSVLine(lines[0]);
+  if (first[0] && first[0].toLowerCase() !== 'rank') {
+    meta = parseMeta(first);
+    idx = 1; // header is on the next line
+  }
 
   const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cells = [];
-    let current = '';
-    let inQuotes = false;
-    const line = lines[i];
-    for (let c = 0; c < line.length; c++) {
-      const ch = line[c];
-      if (ch === '"') { inQuotes = !inQuotes; }
-      else if (ch === ',' && !inQuotes) { cells.push(current.trim()); current = ''; }
-      else { current += ch; }
-    }
-    cells.push(current.trim());
-
+  for (let i = idx + 1; i < lines.length; i++) {
+    const cells = splitCSVLine(lines[i]);
     if (cells.length < 7) continue;
 
     const row = {
@@ -318,11 +349,16 @@ function parseCSV(text) {
     if (row.total > 0) rows.push(row);
   }
 
-  return rows;
+  return { meta, rows };
 }
 
-function getActiveMonths() {
-  return [0,1,2,3,4,5,6,7,8,9,10,11];
+// PubMed [crdt] range for the row links: Jan 1 → end of the last month
+// that actually has data, in the report's own year.
+function buildLinkRange(year, lastMonthIdx) {
+  const mm = String(lastMonthIdx + 1).padStart(2, '0');
+  const lastDay = new Date(year, lastMonthIdx + 1, 0).getDate();
+  const dd = String(lastDay).padStart(2, '0');
+  return `${year}/01/01:${year}/${mm}/${dd}`;
 }
 
 function buildHeader() {
@@ -407,17 +443,6 @@ function buildRowHTML(r, dateRange) {
   return row;
 }
 
-function getDateRange() {
-  const now = new Date();
-  const yr = now.getFullYear();
-  let lm = now.getMonth();
-  if (lm === 0) lm = 1;
-  const ld = new Date(yr, lm, 0).getDate();
-  const mm = String(lm).padStart(2, '0');
-  const dd = String(ld).padStart(2, '0');
-  return `${yr}/01/01:${yr}/${mm}/${dd}`;
-}
-
 function renderRows() {
   const searchTerm = document.getElementById('searchInput').value.toLowerCase();
 
@@ -444,12 +469,11 @@ function renderRows() {
 
   // Render only the first PAGE_SIZE rows
   const body = document.getElementById('tableBody');
-  const dateRange = getDateRange();
   const initialCount = Math.min(PAGE_SIZE, sortedFiltered.length);
 
   const htmlParts = [];
   for (let i = 0; i < initialCount; i++) {
-    htmlParts.push(buildRowHTML(sortedFiltered[i], dateRange));
+    htmlParts.push(buildRowHTML(sortedFiltered[i], LINK_RANGE));
   }
   body.innerHTML = htmlParts.join('');
   renderedCount = initialCount;
@@ -464,11 +488,10 @@ function renderRows() {
 function appendNextPage() {
   if (renderedCount >= sortedFiltered.length) return;
   const body = document.getElementById('tableBody');
-  const dateRange = getDateRange();
   const end = Math.min(renderedCount + PAGE_SIZE, sortedFiltered.length);
   const htmlParts = [];
   for (let i = renderedCount; i < end; i++) {
-    htmlParts.push(buildRowHTML(sortedFiltered[i], dateRange));
+    htmlParts.push(buildRowHTML(sortedFiltered[i], LINK_RANGE));
   }
   body.insertAdjacentHTML('beforeend', htmlParts.join(''));
   renderedCount = end;
@@ -492,7 +515,18 @@ function filterTable() {
 }
 
 function exportCSV() {
+  // Re-emit a self-describing file: metadata line, header, then rows.
+  const monthsWithData = [];
+  for (let m = 0; m < 12; m++) {
+    if (allRows.some(r => r.months[m] > 0)) monthsWithData.push(m);
+  }
+  const fm = monthsWithData.length ? MONTHS[monthsWithData[0]] : 'Jan';
+  const lm = monthsWithData.length ? MONTHS[monthsWithData[monthsWithData.length - 1]] : 'Dec';
+  const today = new Date().toISOString().slice(0, 10);
+
   const lines = [];
+  lines.push(`"Journal Ranking YTD","${REPORT_YEAR}","${fm}-${lm}","Generated ${today}"`);
+
   const headers = ['Rank','ISSN','Journal Title','Medline %','FreeFull %','ORCID %','Total'];
   MONTHS.forEach(m => headers.push(m));
   lines.push(headers.map(h => `"${h}"`).join(','));
@@ -518,28 +552,53 @@ function exportCSV() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'journal-ranking-2026.csv';
+  a.download = `journal-ranking-${REPORT_YEAR}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
 
+// Locate the newest data file. The filename carries the year only as a
+// locator; the year SHOWN comes from the file's own stamp. Try the current
+// year, then the prior year (covers early January before the new year's
+// file has been generated).
+async function loadData() {
+  const clockYear = new Date().getFullYear();
+  for (const y of [clockYear, clockYear - 1]) {
+    try {
+      const resp = await fetch(`Journal_Ranking_YTD_${y}.csv?_=` + Date.now());
+      if (resp.ok) return { text: await resp.text(), fileYear: y };
+    } catch (e) { /* try next */ }
+  }
+  return null;
+}
+
 async function init() {
   try {
-    const resp = await fetch(DATA_FILE + '?_=' + Date.now());
-    if (!resp.ok) throw new Error('File not found');
-    const text = await resp.text();
-    allRows = parseCSV(text);
+    const loaded = await loadData();
+    if (!loaded) throw new Error('Data file not found');
 
-    // Find which months have data for the subtitle
+    const { meta, rows } = parseCSV(loaded.text);
+    allRows = rows;
+
+    // Which months actually have data
     const monthsWithData = [];
     for (let m = 0; m < 12; m++) {
       if (allRows.some(r => r.months[m] > 0)) monthsWithData.push(m);
     }
     const firstMonth = monthsWithData.length > 0 ? MONTHS[monthsWithData[0]] : 'Jan';
-    const lastMonth = monthsWithData.length > 0 ? MONTHS[monthsWithData[monthsWithData.length - 1]] : 'Dec';
+    const lastIdx = monthsWithData.length > 0 ? monthsWithData[monthsWithData.length - 1] : 11;
+    const lastMonth = MONTHS[lastIdx];
 
+    // Year: the file's stamp wins; fall back to the filename, then the clock.
+    REPORT_YEAR = (meta && meta.year) || loaded.fileYear || new Date().getFullYear();
+    // Period label: prefer the stamp, else derive from the data.
+    const periodLabel = (meta && meta.period) || `${firstMonth}-${lastMonth}`;
+    // Link range always reflects the data window (never the clock).
+    LINK_RANGE = buildLinkRange(REPORT_YEAR, lastIdx);
+
+    document.title = `PubMed Journal Ranking ${REPORT_YEAR}`;
     document.getElementById('reportPeriod').textContent =
-      `${allRows.length} journals ranked by total articles — ${firstMonth}–${lastMonth} 2026 YTD`;
+      `${allRows.length} journals ranked by total articles — ${periodLabel} ${REPORT_YEAR} YTD`;
     document.getElementById('statusText').textContent = `${allRows.length} journals loaded`;
 
     buildHeader();
