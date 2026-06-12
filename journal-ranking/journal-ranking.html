@@ -134,7 +134,8 @@
 
   thead th:nth-child(1) { text-align: center; width: 50px; }
   thead th:nth-child(2) { text-align: left; width: 90px; }
-  thead th:nth-child(3) { text-align: left; min-width: 180px; }
+  thead th:nth-child(3) { text-align: right; width: 60px; }   /* SJR */
+  thead th:nth-child(4) { text-align: left; min-width: 180px; } /* Journal Title */
 
   tbody td {
     padding: 5px 10px;
@@ -156,7 +157,14 @@
     color: var(--text-muted);
   }
 
+  /* SJR column (numeric, right-aligned, subtly emphasized) */
   tbody td:nth-child(3) {
+    font-size: 0.72rem;
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  tbody td:nth-child(4) {
     text-align: left;
     font-family: 'Source Sans 3', sans-serif;
     font-size: 0.82rem;
@@ -169,6 +177,33 @@
     color: var(--text-muted);
   }
 
+  /* Retractions column: muted by default, flagged red when non-zero */
+  tbody td.retr-cell {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+  }
+  tbody td.retr-hit {
+    color: #b91c1c;
+    font-weight: 600;
+  }
+  /* Withdrawn-preprint count ("W25"): amber, distinct from retraction red */
+  tbody td.withdrawn-hit {
+    color: #b45309;
+    font-weight: 600;
+  }
+
+  tbody td:nth-child(4) a {
+    color: var(--text);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--text-muted);
+  }
+  tbody td:nth-child(4) a:hover {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    border-bottom-style: solid;
+  }
+
+  /* SJR column link to SCImago profile */
   tbody td:nth-child(3) a {
     color: var(--text);
     text-decoration: none;
@@ -180,13 +215,23 @@
     border-bottom-style: solid;
   }
 
+  /* Retractions link: keep the cell's red emphasis, signal clickability */
+  tbody td.retr-cell a {
+    color: inherit;
+    text-decoration: none;
+    border-bottom: 1px dotted currentColor;
+  }
+  tbody td.retr-cell a:hover {
+    border-bottom-style: solid;
+  }
+
   tbody tr:hover { background: #f7f9fc; }
   tbody tr:nth-child(even) { background: #fafbfd; }
   tbody tr:nth-child(even):hover { background: #f7f9fc; }
 
   /* Top 10 highlight */
   tbody tr.top10 td:nth-child(1) { font-weight: 700; color: var(--accent); }
-  tbody tr.top10 td:nth-child(3) { font-weight: 600; }
+  tbody tr.top10 td:nth-child(4) { font-weight: 600; }
 
   .status-bar .btn, .search-bar .btn {
     font-family: inherit;
@@ -245,7 +290,7 @@
     <span style="font-size:0.82rem;color:var(--text-muted)" id="reportPeriod"></span>
     <button class="btn" id="exportBtn" onclick="exportCSV()" disabled>Export CSV</button>
   </div>
-  <div class="note-bar" style="margin-bottom:12px">Journals ranked by total articles YTD. Medline %, Free Full Text %, and ORCID % are ratios for articles in that journal. Monthly columns show article counts by create date.</div>
+  <div class="note-bar" style="margin-bottom:12px">Journals ranked by total articles YTD. SJR is the SCImago Journal Rank (annual prestige metric); click an SJR value to open the journal's SCImago profile. Medline %, Free Full Text %, and ORCID % are ratios for articles in that journal. Retractions counts retracted journal articles (by last-revised date) over the same period; preprint rows instead show withdrawn-preprint counts as "W" (e.g. W25), since preprints are withdrawn, not retracted. Monthly columns show article counts by create date.</div>
 
   <div class="search-bar">
     <input type="text" id="searchInput" placeholder="Search by journal title or ISSN..." onkeydown="if(event.key==='Enter')filterTable()">
@@ -264,7 +309,7 @@
   </div>
 
   <div class="footnote" id="footnote">
-    Rankings based on PubMed create date [crdt]. Journals with no articles in the period are excluded.
+    Rankings based on PubMed create date [crdt]. Retractions use "Retracted Publication"[pt] dated by last-revised [lr] over the same period (a separate benchmark — this year's new articles are too recent to have been retracted yet). Preprint servers can't be retracted in PubMed's data model; their pulled papers are withdrawals, shown as "W<n>" from the WITHDRAWN[ti] title flag over the same [lr] window. Journals with no articles in the period are excluded.
   </div>
 </div>
 
@@ -285,6 +330,10 @@ let sortDir = 'asc'; // rank is ascending by default
 // ever used to locate the newest file, never to label or query it.
 let REPORT_YEAR = new Date().getFullYear();
 let LINK_RANGE = '';
+
+// ISSN -> SCImago Sourceid, loaded client-side from SJR.csv (same file the
+// extension bundles). Populates the SJR-column links; empty until loaded.
+let SJR_SOURCEMAP = {};
 
 function splitCSVLine(line) {
   const cells = [];
@@ -328,21 +377,33 @@ function parseCSV(text) {
   const rows = [];
   for (let i = idx + 1; i < lines.length; i++) {
     const cells = splitCSVLine(lines[i]);
-    if (cells.length < 7) continue;
+    if (cells.length < 9) continue;
+
+    // The Retractions column carries a combined value: a bare integer for
+    // retracted journal articles, or "W<n>" for withdrawn preprints. Split it
+    // into two numeric fields so each renders and links its own way.
+    let retr = 0, withdrawn = 0;
+    const retrRaw = (cells[7] || '').trim();
+    const wMatch = /^W(\d+)$/i.exec(retrRaw);
+    if (wMatch) withdrawn = parseInt(wMatch[1]) || 0;
+    else retr = parseInt(retrRaw) || 0;
 
     const row = {
       rank: parseInt(cells[0]) || 0,
       issn: cells[1] || '',
-      title: cells[2] || '',
-      medlinePct: parseFloat(cells[3]) || 0,
-      freeFullPct: parseFloat(cells[4]) || 0,
-      orcidPct: parseFloat(cells[5]) || 0,
-      total: parseInt(cells[6]) || 0,
+      sjr: parseFloat(cells[2]) || 0,
+      title: cells[3] || '',
+      medlinePct: parseFloat(cells[4]) || 0,
+      freeFullPct: parseFloat(cells[5]) || 0,
+      orcidPct: parseFloat(cells[6]) || 0,
+      retractions: retr,
+      withdrawals: withdrawn,
+      total: parseInt(cells[8]) || 0,
       months: []
     };
 
-    // Months are columns 7-18
-    for (let m = 7; m <= 18; m++) {
+    // SJR is column 2, Retractions 7, Total 8, Months are columns 9-20.
+    for (let m = 9; m <= 20; m++) {
       row.months.push(parseInt(cells[m]) || 0);
     }
 
@@ -368,10 +429,12 @@ function buildHeader() {
   const cols = [
     { label: 'Rank', key: 'rank' },
     { label: 'ISSN', key: 'issn' },
+    { label: 'SJR', key: 'sjr' },
     { label: 'Journal Title', key: 'title' },
     { label: 'Medline %', key: 'medlinePct' },
     { label: 'FreeFull %', key: 'freeFullPct' },
     { label: 'ORCID %', key: 'orcidPct' },
+    { label: 'Retractions', key: 'retractions' },
     { label: 'Total', key: 'total' }
   ];
 
@@ -407,7 +470,7 @@ function buildHeader() {
 }
 
 function getCellValue(row, colIdx) {
-  const fixedCols = ['rank', 'issn', 'title', 'medlinePct', 'freeFullPct', 'orcidPct', 'total'];
+  const fixedCols = ['rank', 'issn', 'sjr', 'title', 'medlinePct', 'freeFullPct', 'orcidPct', 'retractions', 'total'];
   if (colIdx < fixedCols.length) {
     return row[fixedCols[colIdx]];
   }
@@ -429,10 +492,55 @@ function buildRowHTML(r, dateRange) {
   let row = `<tr${rowCls}>`;
   row += `<td>${r.rank}</td>`;
   row += `<td>${r.issn}</td>`;
+  // SJR cell: link to the journal's SCImago profile when we have a Sourceid.
+  // URL format mirrors the extension's getSJRdata.js exactly (incl. text fragment).
+  let sjrCell = '';
+  if (r.sjr > 0) {
+    const sjrText = r.sjr.toFixed(2);
+    const sourceid = SJR_SOURCEMAP[r.issn];
+    if (sourceid) {
+      const sjrUrl = `https://www.scimagojr.com/journalsearch.php?q=${sourceid}&tip=sid&clean=0#:~:text=External%20Cites%20per%20Doc`;
+      sjrCell = `<a href="${sjrUrl}" target="_blank" title="Open journal in SCImago">${sjrText}</a>`;
+    } else {
+      sjrCell = sjrText;
+    }
+  }
+  row += `<td>${sjrCell}</td>`;
   row += `<td>${titleCell}</td>`;
   row += `<td class="pct-cell">${(r.medlinePct * 100).toFixed(0)}%</td>`;
   row += `<td class="pct-cell">${(r.freeFullPct * 100).toFixed(0)}%</td>`;
   row += `<td class="pct-cell">${(r.orcidPct * 100).toFixed(0)}%</td>`;
+  // Retractions / Withdrawals cell. One column, two signals: a retracted-article
+  // count (red) takes the cell when present; otherwise a withdrawn-preprint count
+  // shows as amber "W<n>". Each links to the matching PubMed query for this
+  // journal over the report window, dated by last-revised [lr].
+  const rv = r.retractions || 0;
+  const wv = r.withdrawals || 0;
+  let retrCell = '';
+  let retrCls = 'retr-cell';
+  if (rv > 0) {
+    retrCls += ' retr-hit';
+    const retrText = rv.toLocaleString();
+    if (isValidISSN) {
+      const retrTerm = `"Retracted Publication"[pt] AND ${dateRange}[lr] AND ${r.issn}[ta]`;
+      const retrUrl = 'https://pubmed.ncbi.nlm.nih.gov/?term=' + encodeURIComponent(retrTerm);
+      retrCell = `<a href="${retrUrl}" target="_blank" title="Retracted articles in PubMed, by last-revised date">${retrText}</a>`;
+    } else {
+      retrCell = retrText;
+    }
+  } else if (wv > 0) {
+    retrCls += ' withdrawn-hit';
+    const wText = 'W' + wv.toLocaleString();
+    const wTitle = `${wv.toLocaleString()} preprint withdrawal${wv === 1 ? '' : 's'} over ${dateRange.replace(':', ' to ')} (by last-revised). Preprints are withdrawn, not retracted — counted separately.`;
+    if (isValidISSN) {
+      const wTerm = `WITHDRAWN[ti] AND ${dateRange}[lr] AND ${r.issn}[ta]`;
+      const wUrl = 'https://pubmed.ncbi.nlm.nih.gov/?term=' + encodeURIComponent(wTerm);
+      retrCell = `<a href="${wUrl}" target="_blank" title="${wTitle}">${wText}</a>`;
+    } else {
+      retrCell = `<span title="${wTitle}">${wText}</span>`;
+    }
+  }
+  row += `<td class="${retrCls}">${retrCell}</td>`;
   row += `<td class="total-cell">${r.total.toLocaleString()}</td>`;
   for (let m = 0; m < 12; m++) {
     const val = r.months[m];
@@ -527,7 +635,7 @@ function exportCSV() {
   const lines = [];
   lines.push(`"Journal Ranking YTD","${REPORT_YEAR}","${fm}-${lm}","Generated ${today}"`);
 
-  const headers = ['Rank','ISSN','Journal Title','Medline %','FreeFull %','ORCID %','Total'];
+  const headers = ['Rank','ISSN','SJR','Journal Title','Medline %','FreeFull %','ORCID %','Retractions','Total'];
   MONTHS.forEach(m => headers.push(m));
   lines.push(headers.map(h => `"${h}"`).join(','));
 
@@ -535,10 +643,14 @@ function exportCSV() {
     const cells = [
       r.rank,
       `"${r.issn}"`,
+      r.sjr > 0 ? r.sjr : '',
       `"${r.title.replace(/"/g, '""')}"`,
       r.medlinePct,
       r.freeFullPct,
       r.orcidPct,
+      // Re-emit the combined Retractions/Withdrawals cell in the same format
+      // the file uses: integer retractions, else "W<n>", else 0.
+      r.retractions > 0 ? r.retractions : (r.withdrawals > 0 ? 'W' + r.withdrawals : 0),
       r.total
     ];
     for (let m = 0; m < 12; m++) {
@@ -555,6 +667,31 @@ function exportCSV() {
   a.download = `journal-ranking-${REPORT_YEAR}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// Load ISSN -> Sourceid from SJR.csv (sits alongside this page). Matches the
+// extension's getSJRdata.js: keys on both ISSN1 and ISSN2. Failure is silent —
+// the SJR column simply renders as plain numbers with no links.
+async function loadSJRMap() {
+  try {
+    const resp = await fetch('SJR.csv?_=' + Date.now());
+    if (!resp.ok) return;
+    const text = await resp.text();
+    const lines = text.split('\n');
+    const start = (lines[0].includes('Sourceid') || lines[0].includes('ISSN')) ? 1 : 0;
+    const map = {};
+    for (let i = start; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      const cols = splitCSVLine(line);
+      if (cols.length < 3) continue;
+      const issn1 = cols[0], issn2 = cols[1], sourceid = cols[2];
+      if (!sourceid) continue;
+      if (issn1) map[issn1] = sourceid;
+      if (issn2) map[issn2] = sourceid;
+    }
+    SJR_SOURCEMAP = map;
+  } catch (e) { /* links just won't render */ }
 }
 
 // Locate the newest data file. The filename carries the year only as a
@@ -605,6 +742,12 @@ async function init() {
     renderRows();
     attachScrollListener();
     document.getElementById('exportBtn').disabled = false;
+
+    // Load SCImago Sourceids in the background, then re-render so the SJR
+    // column picks up its links without delaying the initial table paint.
+    loadSJRMap().then(() => {
+      if (Object.keys(SJR_SOURCEMAP).length) renderRows();
+    });
 
   } catch (e) {
     document.getElementById('statusText').textContent = 'Error loading data: ' + e.message;
