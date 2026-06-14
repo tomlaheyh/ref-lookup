@@ -290,7 +290,7 @@
     <span style="font-size:0.82rem;color:var(--text-muted)" id="reportPeriod"></span>
     <button class="btn" id="exportBtn" onclick="exportCSV()" disabled>Export CSV</button>
   </div>
-  <div class="note-bar" style="margin-bottom:12px">Journals ranked by total articles YTD. SJR is the SCImago Journal Rank (annual prestige metric); click an SJR value to open the journal's SCImago profile. Medline %, Free Full Text %, and ORCID % are ratios for articles in that journal. Retractions counts retracted journal articles (by last-revised date) over the same period; preprint rows instead show withdrawn-preprint counts as "W" (e.g. W25), since preprints are withdrawn, not retracted. Monthly columns show article counts by create date.</div>
+  <div class="note-bar" style="margin-bottom:12px">Journals ranked by total articles YTD. SJR is the SCImago Journal Rank (annual prestige metric); click an SJR value to open the journal's SCImago profile. Medline %, Free Full Text %, and ORCID % are ratios for articles in that journal. Retractions counts retracted journal articles (by last-revised date) over the same period; a "W" value (e.g. W25) instead shows withdrawals, matched from PubMed's "WITHDRAWN:" title text. PubMed has no official withdrawal field, so the W count is an approximate, best-effort signal rather than an exact figure. Monthly columns show article counts by create date.</div>
 
   <div class="search-bar">
     <input type="text" id="searchInput" placeholder="Search by journal title or ISSN..." onkeydown="if(event.key==='Enter')filterTable()">
@@ -309,7 +309,7 @@
   </div>
 
   <div class="footnote" id="footnote">
-    Rankings based on PubMed create date [crdt]. Retractions use "Retracted Publication"[pt] dated by last-revised [lr] over the same period (a separate benchmark — this year's new articles are too recent to have been retracted yet). Preprint servers can't be retracted in PubMed's data model; their pulled papers are withdrawals, shown as "W<n>" from the WITHDRAWN[ti] title flag over the same [lr] window. Journals with no articles in the period are excluded.
+    Rankings based on PubMed create date [crdt]. Retractions use "Retracted Publication"[pt] dated by last-revised [lr] over the same period (a separate benchmark — this year's new articles are too recent to have been retracted yet). Withdrawals (shown as "W<n>") are detected from the "WITHDRAWN:" prefix PubMed adds to a citation's title — the route NLM uses for both withdrawn ahead-of-print articles (publisher-updated) and withdrawn preprints (PMC-updated). Per NLM, there is no publication type or comment/correction type for withdrawals, so this is a title-text match over the same [lr] window and won't always map exactly to official withdrawals. Journals with no articles in the period are excluded.
   </div>
 </div>
 
@@ -399,6 +399,13 @@ function parseCSV(text) {
       retractions: retr,
       withdrawals: withdrawn,
       total: parseInt(cells[8]) || 0,
+      // API_Ref (col V, idx 21) and Withdrawn_URL (col W, idx 22) ride after the
+      // month columns. withdrawnUrl is an explicit PubMed id-list URL for this
+      // journal's withdrawn preprints (or '' when none, or when the journal has
+      // retractions). It's the only link that resolves to exactly the
+      // "WITHDRAWN:" records, since no query reproduces that set.
+      apiRef: cells[21] || '',
+      withdrawnUrl: cells[22] || '',
       months: []
     };
 
@@ -481,11 +488,21 @@ function getCellValue(row, colIdx) {
 function buildRowHTML(r, dateRange) {
   const rowCls = r.rank <= 10 ? ' class="top10"' : '';
   const isValidISSN = /^\d{4}-\d{3}[\dXx]$/.test(r.issn);
+  const titleSearchable = r.title && r.title !== 'N/A';
   let titleCell;
   if (isValidISSN) {
     const term = `${dateRange} [crdt] ${r.issn} [ta]`;
     const pubmedUrl = 'https://pubmed.ncbi.nlm.nih.gov/?term=' + encodeURIComponent(term);
     titleCell = `<a href="${pubmedUrl}" target="_blank" title="Open in PubMed">${r.title}</a>`;
+  } else if (titleSearchable) {
+    // No standard ISSN (e.g. preprint servers like medRxiv/bioRxiv, whose key is
+    // "NLM<id>"): PubMed has no searchable NLM Unique ID field [jid], so link via
+    // the journal's title abbreviation in [ta] (quoted) over the same [crdt]
+    // period. [ta] is the field the NLM ID corresponds to, so this gives these
+    // rows the same working period link the ISSN journals get.
+    const term = `${dateRange} [crdt] "${r.title}" [ta]`;
+    const pubmedUrl = 'https://pubmed.ncbi.nlm.nih.gov/?term=' + encodeURIComponent(term);
+    titleCell = `<a href="${pubmedUrl}" target="_blank" title="Open in PubMed (matched by journal title)">${r.title}</a>`;
   } else {
     titleCell = r.title;
   }
@@ -531,11 +548,14 @@ function buildRowHTML(r, dateRange) {
   } else if (wv > 0) {
     retrCls += ' withdrawn-hit';
     const wText = 'W' + wv.toLocaleString();
-    const wTitle = `${wv.toLocaleString()} preprint withdrawal${wv === 1 ? '' : 's'} over ${dateRange.replace(':', ' to ')} (by last-revised). Preprints are withdrawn, not retracted — counted separately.`;
-    if (isValidISSN) {
-      const wTerm = `WITHDRAWN[ti] AND ${dateRange}[lr] AND ${r.issn}[ta]`;
-      const wUrl = 'https://pubmed.ncbi.nlm.nih.gov/?term=' + encodeURIComponent(wTerm);
-      retrCell = `<a href="${wUrl}" target="_blank" title="${wTitle}">${wText}</a>`;
+    const wTitle = `${wv.toLocaleString()} withdrawn preprint${wv === 1 ? '' : 's'} matched from the WITHDRAWN: title flag over ${dateRange.replace(':', ' to ')} (by last-revised). The link opens exactly these ${wv.toLocaleString()} record${wv === 1 ? '' : 's'} by PMID. Withdrawn is not the same as retracted.`;
+    // Link to the explicit PMID list from the data file (Withdrawn_URL, col W).
+    // This resolves to exactly the WITHDRAWN: records — a WITHDRAWN[ti] search
+    // can't isolate the colon-prefixed set — and it works for preprint servers
+    // (medRxiv/bioRxiv) that have no standard ISSN, which the old ISSN-gated
+    // search link never reached.
+    if (r.withdrawnUrl) {
+      retrCell = `<a href="${r.withdrawnUrl}" target="_blank" title="${wTitle}">${wText}</a>`;
     } else {
       retrCell = `<span title="${wTitle}">${wText}</span>`;
     }
@@ -637,6 +657,7 @@ function exportCSV() {
 
   const headers = ['Rank','ISSN','SJR','Journal Title','Medline %','FreeFull %','ORCID %','Retractions','Total'];
   MONTHS.forEach(m => headers.push(m));
+  headers.push('API_Ref', 'Withdrawn_URL');
   lines.push(headers.map(h => `"${h}"`).join(','));
 
   allRows.forEach(r => {
@@ -656,6 +677,11 @@ function exportCSV() {
     for (let m = 0; m < 12; m++) {
       cells.push(r.months[m] || '');
     }
+    // Trailing helper columns, matching the source layout so the exported file
+    // re-imports with withdrawn links intact. Withdrawn_URL carries no comma, so
+    // it needs no quoting.
+    cells.push(r.apiRef || '');
+    cells.push(r.withdrawnUrl || '');
     lines.push(cells.join(','));
   });
 
