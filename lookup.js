@@ -559,7 +559,14 @@ function showDOIModal(result, linksHtml) {
     const citeRefKey = `_citeRef_${summaryDoi.replace(/[^a-zA-Z0-9]/g, '_')}`;
     window[citeRefKey] = result;
 
-    let doiLine = `${summaryDoi} (<a href="https://doi.org/${summaryDoi}" target="_blank" style="color: #005a8c;">Link</a>)`;
+    // Registration Agency (RA) tag — sourced from doi.org/doiRA and stored on
+    // result.doiOrgRa during lookup. Shown on every result as a quiet teaching
+    // cue that Crossref is one of ~11 RAs (DataCite, mEDRA, JaLC, etc.), and
+    // links to the raw doi.org/doiRA JSON so users can see where it comes from.
+    const raTag = result.doiOrgRa
+      ? `  RA=<a href="https://doi.org/doiRA/${summaryDoi}" target="_blank" style="color: #005a8c;">${result.doiOrgRa}</a>  `
+      : ' ';
+    let doiLine = `${summaryDoi}${raTag}(<a href="https://doi.org/${summaryDoi}" target="_blank" style="color: #005a8c;">Link</a>)`;
     if (result._oaFreePdf) {
       const label = result._oaLabel || 'Free PDF';
       doiLine += ` (<a href="${result._oaFreePdf}" target="_blank" style="color: #1a7a1a;">${label}</a>)`;
