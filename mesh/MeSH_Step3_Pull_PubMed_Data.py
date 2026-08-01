@@ -8,7 +8,7 @@ import concurrent.futures
 from Bio import Entrez
 
 # Set your email for Entrez (required by NCBI)
-Entrez.email = "tomlaheyh@gmail.com"  # Your email for NCBI
+Entrez.email = "tomlaheyh" + chr(64) + "gmail.com"  # Your email for NCBI
 
 def search_pubmed_biopython(mesh_term, start_date, end_date, api_key=None):
    """
@@ -279,7 +279,7 @@ def get_user_input():
    print("\n=== PubMed MeSH Term Count Tool (BioPython Version) ===\n")
    
    # Hardcoded credentials
-   email = "tomlaheyh@gmail.com"
+   email = "tomlaheyh" + chr(64) + "gmail.com"
    api_key_default = "667d9d4cd132c5923512c20ef2849169fb08"
    
    Entrez.email = email

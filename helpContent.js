@@ -12,7 +12,7 @@ const DOIHelp = {
     {
       section: 'Getting Started',
       label: 'What is this tool?',
-      description: 'Awesome DOI-Ref-Lookup retrieves metadata, metrics, author information, and external links for DOIs, ISBNs, and more. It queries over a dozen data sources in real time and presents a consolidated summary. Unrecognized input is sent to CrossRef as a general search; prefix with <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">worldcat</code> or <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">book</code> to search WorldCat instead. All feedback is appreciated — <a href="mailto:tomlaheyh@gmail.com" style="color:#005a8c;">tomlaheyh@gmail.com</a>.',
+      description: 'Awesome DOI-Ref-Lookup retrieves metadata, metrics, author information, and external links for DOIs, ISBNs, and more. It queries over a dozen data sources in real time and presents a consolidated summary. Unrecognized input is sent to CrossRef as a general search; prefix with <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">worldcat</code> or <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">book</code> to search WorldCat instead. All feedback is appreciated — <a class="obf-email" data-user="tomlaheyh" data-domain="gmail.com" href="#" style="color:#005a8c;">email me</a>.',
       ref: 'https://www.doi.org/'
     },
     {
@@ -568,6 +568,13 @@ All API calls are made directly from your browser. There is no backend server, n
       color: #1a1a18;
     `;
     body.innerHTML = this.generateHelpHTML();
+
+    // Assemble obfuscated email links (kept out of the markup to deter scrapers)
+    body.querySelectorAll('a.obf-email').forEach(function (a) {
+      var e = (a.dataset.user || '') + String.fromCharCode(64) + (a.dataset.domain || '');
+      a.href = 'mailto:' + e;
+      a.textContent = e;
+    });
 
     // Assemble
     modal.appendChild(header);

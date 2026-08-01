@@ -82,7 +82,7 @@
   // rate limit. Not faster per request, but far less likely to be throttled
   // during burst expansion (level 2/3). Appended to every OpenAlex URL below.
   // Swap for a dedicated tool address later — one line.
-  var OPENALEX_MAILTO = 'tomlaheyh@gmail.com';
+  var OPENALEX_MAILTO = ['tomlaheyh','gmail.com'].join(String.fromCharCode(64));
   var MAILTO_Q = '&mailto=' + encodeURIComponent(OPENALEX_MAILTO);
   var N_SINGLE = 25, N_MIX_EACH = 12;
 
