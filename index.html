@@ -3,10 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="canonical.js"></script>
 
   <!-- ============================ SEO ============================ -->
   <title>DOI-Ref-Lookup — Free DOI, PubMed &amp; Citation Metadata Tool</title>
+  <!-- Static self-canonical. doilookup.com is the only public host, so this is
+       correct as-is; declared statically (not via JS) so every crawler sees it. -->
+  <link rel="canonical" href="https://doilookup.com/">
   <meta name="description" content="Free tool to look up DOIs, ISSNs, ISBNs, ORCIDs and PMIDs. Instantly retrieve article metadata, journal quality metrics, retraction status, and ready-to-copy citations in APA, AMA, Vancouver and MLA.">
   <meta name="keywords" content="DOI lookup, DOI resolver, citation generator, PubMed lookup, ISSN lookup, ISBN lookup, ORCID lookup, retraction check, journal metrics, reference manager, APA citation, AMA citation, Vancouver citation, MLA citation">
   <meta name="author" content="DOI-Ref-Lookup">
@@ -104,6 +106,21 @@
       min-height: 100vh;
       padding: 0 16px 40px;
     }
+
+    nav.site-nav {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 12px 0 10px;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    nav.site-nav a { color: var(--accent); text-decoration: none; }
+    nav.site-nav a:hover, nav.site-nav a:focus { color: var(--accent2); text-decoration: underline; }
+    nav.site-nav a[aria-current="page"] { color: var(--text); font-weight: 600; }
 
     header {
       max-width: 1400px;
@@ -329,6 +346,7 @@
 <body>
 
   <header>
+    <h1>DOI-Ref-Lookup — DOI, PubMed, ISSN &amp; Citation Metadata Lookup</h1>
     <p>Enter a DOI (up to 15, separated by commas), a single ISSN, ISBN, ORCID, or PMID to retrieve article metadata, metrics, <span style="color:var(--accent2);font-weight:500;">retraction status</span>, and more. Any other text searches CrossRef. Prefix with <span style="font-family:var(--mono);font-size:12px;">worldcat</span> or <span style="font-family:var(--mono);font-size:12px;">book</span> to search WorldCat instead. Each result also offers an optional connections view showing a paper's references and the works that cite it.</p>
     <p style="margin-top:5px; font-size:11.5px;">2025: CrossRef registered 13.2M, where 8.75M are academic (articles, preprints, reports) &middot; DataCite 1M academic &middot; together ~95% of 2025 academic DOIs globally.</p>
   </header>
@@ -353,12 +371,20 @@
   <!-- Footer removed — attribution now appears on each result card -->
 
   <script>
-    // Cache-busting: add &nocache to URL to force fresh script loads
-    const _nocache = new URLSearchParams(window.location.search).has('nocache');
-    const _bust = _nocache ? '?' + Date.now() : '';
-    ['helpContent.js', 'doiLookup.js', 'pubmedLookup-nonmodule.js', 'citationBuilder.js', 'lookup.js', 'retractionCheck.js', 'connectionsGraph.js'].forEach(src => {
-      document.write('<script src="' + src + _bust + '"><\/script>');
-    });
+    // Load app scripts without document.write (render-blocking and throttled by
+    // Chrome on slow connections). Dynamically-inserted scripts are async by
+    // default; async=false preserves execution order — same ordered load as
+    // before, just non-blocking. ?nocache still busts caches.
+    (function () {
+      var _nocache = new URLSearchParams(window.location.search).has('nocache');
+      var _bust = _nocache ? '?' + Date.now() : '';
+      ['helpContent.js', 'doiLookup.js', 'pubmedLookup-nonmodule.js', 'citationBuilder.js', 'lookup.js', 'retractionCheck.js', 'connectionsGraph.js'].forEach(function (src) {
+        var s = document.createElement('script');
+        s.src = src + _bust;
+        s.async = false;
+        document.head.appendChild(s);
+      });
+    })();
   </script>
   <script>
     const input   = document.getElementById('doiInput');

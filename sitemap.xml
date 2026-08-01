@@ -2,42 +2,18 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://doilookup.com/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>1.0</priority>
+    <lastmod>2026-08-01</lastmod>
+  </url>
+  <url>
+    <loc>https://doilookup.com/help.html</loc>
+    <lastmod>2026-08-01</lastmod>
   </url>
   <url>
     <loc>https://doilookup.com/med/guidelines.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <lastmod>2026-08-01</lastmod>
   </url>
-  <url>
-    <loc>https://doilookup.com/search/search.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://doilookup.com/nutrition/nutrition.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://doilookup.com/pubmed-summary/pubmed-summary.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://doilookup.com/filters/filters.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://doilookup.com/mesh/mesh.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://doilookup.com/journal-ranking/journal-ranking.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
+  <!-- changefreq/priority dropped on purpose (Google ignores them). Update a
+       page's <lastmod> only when its content actually changes.
+       The six PubMed/nutrition reference pages are intentionally omitted:
+       they are supplementary drafts, noindex'd, and off-topic for doilookup.com. -->
 </urlset>

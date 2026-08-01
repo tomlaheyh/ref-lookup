@@ -1,9 +1,9 @@
 // helpContent.js - Help text and styles for Awesome DOI-Ref-Lookup
-// Ver 1.0 Feb-2026
+// Ver 1.6 Jul-2026
 
 const DOIHelp = {
 
-  version: '1.5 — Mar 2026',
+  version: '1.6 — Jul 2026',
 
   helpItems: [
     // =====================
@@ -16,6 +16,11 @@ const DOIHelp = {
       ref: 'https://www.doi.org/'
     },
     {
+      label: 'Quick demo — type "example"',
+      description: 'You do not need a DOI to try this. Type <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">example</code> (or <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">sample</code>, <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">demo</code>, <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">try</code>) and press Enter to run a live lookup on a real article. Type <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;color:#cc0000;">tryretraction</code> (or <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;color:#cc0000;">try retraction</code> / <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;color:#cc0000;">tryretracted</code>) to load a known retracted paper and see how a retraction is flagged. These are real lookups, not screenshots — every panel behaves exactly as it would for your own DOI.',
+      ref: null
+    },
+    {
       label: 'Entering DOIs',
       description: 'Enter a DOI in standard format (e.g. <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">10.1038/s41586-025-09227-0</code>) or as a full URL — prefixes like <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">doi:</code> and <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">https://doi.org/</code> are stripped automatically. Retraction and correction status is checked automatically across multiple sources including Retraction Watch and PubMed — try <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;color:red;">10.1016/S0140-6736(97)11096-0</code> for an example.',
       ref: null
@@ -23,6 +28,19 @@ const DOIHelp = {
     {
       label: 'Batch lookup (up to 15 DOIs)',
       description: 'Separate multiple DOIs with commas. Duplicates are removed automatically, and the list is capped at 15. Each DOI is looked up sequentially, and errors on one DOI will not stop the rest. New DOIs are added to existing results — the newest appears at the top.',
+      ref: null
+    },
+    {
+      label: 'ORCID, ISSN, PMID → authoritative source',
+      description: `Three identifier types are recognised on input and handed straight to the authority that owns them, in a new tab. No result card is built for these — the destination site is already the definitive record:
+
+<strong>ORCID</strong> (e.g. <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">0000-0002-1825-0097</code>, or the full orcid.org URL) → the researcher's ORCID profile.
+<strong>ISSN</strong> (e.g. <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">0140-6736</code>) → the ISSN Portal record for that journal.
+<strong>PMID</strong> (plain digits, e.g. <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">40670798</code>) → the PubMed record.
+
+Prefixes such as <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">ORCID:</code>, <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">ISSN:</code> and <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">PMID:</code> are stripped automatically.
+
+Note the difference between typing an ISSN and looking up a DOI: enter a DOI and the tool resolves that journal's ISSNs for you, tags them print or electronic, and uses them to fetch SJR and DOAJ data (see "ISSN links" under Journal-Level Data).`,
       ref: null
     },
     {
@@ -42,13 +60,44 @@ const DOIHelp = {
     },
     {
       label: 'Shareable URLs',
-      description: 'After a lookup, the browser URL updates to include a <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">?doi=</code> query parameter. You can copy and share this URL — anyone opening it will automatically run the same lookup. Comma-separated DOIs are supported in the URL as well.',
+      description: `After a lookup, the browser URL updates to include a <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">?doi=</code> query parameter. You can copy and share this URL — anyone opening it will automatically run the same lookup. Comma-separated DOIs are supported in the URL as well.
+
+Two further parameters can be added by hand:
+
+<strong>&connections=1</strong> — opens the Connections graph automatically for the first DOI listed, so the link lands directly on the chart.
+<strong>&nocache</strong> — forces a fresh load of the tool's own scripts, bypassing the browser cache. Useful after an update.`,
       ref: null
     },
     {
-      label: 'Caching',
-      description: 'Results are cached in your browser\'s localStorage for 24 hours. Cached lookups are nearly instant and show <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">[Cache] HIT</code> in the console. To force a fresh lookup, clear your browser\'s localStorage or wait 24 hours.',
+      label: 'Caching (session only)',
+      description: `Lookups are cached for the life of the browser tab, using sessionStorage. Revisiting a DOI you have already looked up in this tab is nearly instant and logs <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">[Session Cache] HIT</code> to the console.
+
+Nothing persists once the tab is closed. There is no expiry to wait out and nothing to clear — close the tab, or open the page in a new one, and every lookup starts fresh.
+
+Three separate caches work this way: article results, retraction-status checks, and Connections graph data. The SJR table is held in memory only and reloads on every page refresh.
+
+The <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">&nocache</code> URL parameter is unrelated to lookup results — it forces a fresh load of the tool's own JavaScript files.`,
       ref: null
+    },
+    {
+      label: 'Page controls',
+      description: `The row beneath the input box holds:
+
+<strong>?</strong> — this help panel.
+<strong>Export CSV</strong> — appears once you have results (see CSV Export below).
+<strong>Clear list</strong> — removes every result card except the newest one at the top, and clears any error cards. It does not clear the whole page; to start completely fresh, reload without a <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">?doi=</code> parameter.
+<strong>Advanced Retraction Search</strong> — opens the Retraction Watch Database directly, for searching retractions by author, journal, subject or reason rather than by DOI.`,
+      ref: 'https://retractiondatabase.org/RetractionSearch.aspx'
+    },
+    {
+      label: 'Retraction alerts (batch)',
+      description: 'When any DOI currently on the page is retracted or carries an Expression of Concern, a warning line appears near the top of the page listing that DOI and its status — <span style="color:#cc0000;font-weight:bold;">red</span> for retracted, <span style="color:#e07000;font-weight:bold;">orange</span> for Expression of Concern. This is deliberately placed above the result cards so that in a batch of fifteen you see the problem immediately, without scrolling through every card. The list updates as you add or remove DOIs.',
+      ref: null
+    },
+    {
+      label: 'Chrome extension',
+      description: 'A companion Chrome extension adds a small "Ref" link next to DOIs it finds on any web page — journal tables of contents, PubMed results, reference lists — which opens that DOI here. It can be toggled on and off per site. The link to install it sits at the right-hand end of the button row.',
+      ref: 'https://chromewebstore.google.com/detail/doi-ref-lookup/eeefkdjjcilinphodokjljocffkkgkfa'
     },
     // =====================
     // SUMMARY SECTION
@@ -103,7 +152,7 @@ Note: SJR measures journal-level visibility, not individual article quality. It 
 <strong>Semantic Scholar:</strong> AI-powered academic search. Also reports "influential citations" — citations where the citing paper meaningfully builds on this work, detected via machine learning.
 <strong>iCite:</strong> NIH's citation analysis tool. Only available for articles with a PubMed ID (PMID).
 
-Click the small bar-chart icon (▊▊▊) at the beginning of the citations line to see a "Citations by Year" chart (from OpenAlex). The chart shows the last 10 years of data; for older articles, earlier citations are noted separately. The icon is greyed out when there are no citations. Below the chart, a "View citing articles" link opens OpenAlex filtered to the last two years of citing works — you can adjust the year range and other filters directly on OpenAlex.`,
+Click the small bar-chart icon (▊▊▊) at the beginning of the citations line to see a "Citations by Year" chart (from OpenAlex). Resting the pointer on the icon for about a second opens the same chart without clicking; it then stays put until you close it with the ×, click elsewhere, or open another chart. Only one chart is open at a time. The chart shows the last 10 years of data; for older articles, earlier citations are noted separately. The icon is greyed out when there are no citations. Below the chart, a "View citing articles" link opens OpenAlex filtered to the last two years of citing works — you can adjust the year range and other filters directly on OpenAlex.`,
       ref: 'https://icite.od.nih.gov/'
     },
     {
@@ -143,7 +192,9 @@ These are percentile-based classes, not raw counts.`,
     },
     {
       label: 'ISSN links',
-      description: 'ISSNs (International Standard Serial Numbers) are shown with links to the ISSN Portal, which provides authoritative journal identity data including publisher, country, and linked ISSNs.',
+      description: `A journal usually has more than one ISSN — typically one for the print edition and one for the electronic edition — and different sources report different ones. The tool collects every ISSN it can find for the article, from the Registration Agency record and from PubMed (both its ISSN and ESSN fields), removes duplicates, and labels each one <strong>print</strong> or <strong>electronic</strong> where the source says so. Each is linked to its ISSN Portal record, which holds the authoritative journal identity: publisher, country, and linked ISSNs.
+
+That collected set is then used as the key for the journal-level lookups further down the card. SJR, DOAJ and the publisher-country lookup are each tried against every ISSN in turn rather than just the first, because a journal's SJR row may be filed under its print ISSN while CrossRef reports only the electronic one. This is why journal metrics resolve for articles where a single-ISSN match would come back empty.`,
       ref: 'https://portal.issn.org/'
     },
     // =====================
@@ -223,9 +274,75 @@ Different sources (Google Scholar, Scopus, Web of Science) calculate these metri
     // =====================
     {
       section: 'Connections Graph',
-      label: 'Exploring connections',
-      description: 'After a lookup, click "View connections graph" to see the article at the center of a wheel of related papers — the works it cites and the works citing it, drawn from OpenAlex. Click any node to open a detail card with its title, journal, quality tier, citation count, and links. Spokes are weighted by shared references, so more strongly related papers stand out. Retracted papers are flagged directly in the graph. Click a node\'s "shared references" count to reveal the overlapping references (title + DOI), and use "Make this center" to recenter the wheel on that paper — your browser\'s back button returns to the previous view.',
+      label: 'Opening the graph',
+      description: 'Every result card carries a "View connections graph" button. It opens a panel in place, above the cards, showing that article at the center of a wheel of related papers drawn from OpenAlex. Close it with the × or the Escape key; your browser\'s Back button also closes it and returns you to the full card list without reloading anything. A link ending in <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">&connections=1</code> opens straight to the graph.',
       ref: 'https://openalex.org/'
+    },
+    {
+      label: 'Three views — Inside, Outside, Mix',
+      description: `The toggle at the top of the panel switches between three ways of looking at the same article:
+
+<strong>Inside (refs)</strong> — up to 25 works this article cites. Arrows point outward, from the center to each node.
+<strong>Outside (cited by)</strong> — up to 25 works that cite this article. Arrows point inward. This is the view you land on first.
+<strong>Mix</strong> — 12 of each in one ring, so you can see what the article drew on and what it went on to influence side by side.
+
+Inside answers "what is this built on"; Outside answers "what came of it". Mix is the fastest way to place a paper in its lineage.`,
+      ref: null
+    },
+    {
+      label: 'Reading the graph',
+      description: `Nothing in the picture is decorative:
+
+<strong>Bubble size</strong> — citation count. Bigger means more cited.
+<strong>Bubble colour</strong> — journal quality tier, using the same SJR bands as the quality badge on the result card.
+<strong>Arrow direction</strong> — inward arrows cite the center article; outward arrows are cited by it.
+<strong>Blue spokes</strong> — that paper shares references with the center article. More shared references means a stronger visual link, so papers working from the same literature stand out from papers that merely happen to cite it.
+<strong>Flags</strong> — retracted papers are marked in the graph itself, and open-access papers carry a free-to-read badge.
+
+A legend beneath the wheel restates all of this. Click any bubble's "shared references" count to list the overlapping works by title and DOI.`,
+      ref: null
+    },
+    {
+      label: 'Node details and abstracts',
+      description: 'Clicking a bubble fills the right-hand panel with that paper\'s title, journal, year, citation count, quality tier and links. The abstract is fetched through a cascade designed to show something immediately rather than spin: OpenAlex first (already in hand, so instant), then any copy already loaded on the page, then a live PubMed request, then CrossRef. If none of them has one, it says so plainly rather than leaving the space blank.',
+      ref: null
+    },
+    {
+      label: 'Favorites and filters',
+      description: `Two controls narrow what you are looking at:
+
+<strong>Free only</strong> — restricts the view to articles that are free to read. Useful when you want a reading list you can actually open today rather than a list of paywalls.
+<strong>Show favorites only</strong> — hides everything you have not starred.
+
+Click the heart on any node or list row to favorite it. Favorites are deliberately temporary: they exist to help you triage one graph in one sitting, and they are cleared when the panel closes. Export before you close if you want to keep them — the export marks which rows were favorited.`,
+      ref: null
+    },
+    {
+      label: 'Expanded Analysis (multi-level)',
+      description: `The single wheel shows one step out from the center article. "Expanded Analysis" walks further, following the strongest picks outward through up to three levels and stopping at a budget of 50 unique papers, so the search stays bounded rather than snowballing. The report it produces has three parts:
+
+<strong>Expansion tree</strong> — what was followed, and from where.
+<strong>Ranked by citations</strong> — the neighborhood ordered by how heavily cited each paper is.
+<strong>Foundational references</strong> — the most co-cited works across the whole neighborhood. These are the papers that many of the surrounding articles independently cite, which is a good proxy for the foundational literature of a topic, and they will often include work the center article never cited itself.
+
+The foundational list is the reason to use this feature. Ranking by raw citations tells you what is famous; ranking by co-citation across a neighborhood tells you what that specific corner of the literature is actually built on. Results are drawn from a candidate pool of about 300 works and reported as a ranked list of up to 200. It makes many API calls, so it takes noticeably longer than the single wheel.`,
+      ref: null
+    },
+    {
+      label: 'Exporting and sharing from the graph',
+      description: `The article list beneath the graph has its own exports, separate from the main CSV export on the results page:
+
+<strong>Export CSV</strong> — every article in the current view, with its direction (referenced by the center article, or citing it), shared-reference count, favorite status, the center DOI, and a link back to this connections view.
+<strong>Export RIS</strong> — the same set as a .ris file for Zotero, Mendeley, EndNote or RefWorks. This is the quickest route from "explore a topic" to "populate a reference library".
+<strong>Copy link</strong> — a shareable URL that reopens this graph on this article.
+
+Exports respect the filters, so "Free only" plus Export RIS gives you a reference list of papers you can read immediately.`,
+      ref: null
+    },
+    {
+      label: 'Make this the new center',
+      description: 'Any node can become the center of its own wheel. Click "Make this center" on a detail card and the graph rebuilds around that paper, letting you walk through a literature one hop at a time. Your browser\'s Back button retraces the path. Favorites are not carried across, since they belong to the graph you were looking at.',
+      ref: null
     },
     // =====================
     // REGISTRATION AGENCIES
@@ -273,7 +390,11 @@ Blue links are available; greyed-out links mean the service did not have data fo
     {
       section: 'CSV Export',
       label: 'Export CSV',
-      description: 'After looking up DOIs, click "Export CSV" to download a spreadsheet with one row per DOI. Each result card has a checkbox (enabled by default) — uncheck a card to exclude it from the export. Unchecked cards are greyed out. The CSV includes 25 columns covering DOI, title, journal, publisher, year, volume, issue, pages, type, ISSN, authors, ORCIDs, citation counts from multiple sources, RCR, SJR, DOAJ status, PubMed status, free PDF URL, funders, and grant numbers.',
+      description: `After looking up DOIs, click "Export CSV" to download a spreadsheet with one row per DOI. The button shows how many results are currently included. The file is named with the date, e.g. <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">ref-lookup-2026-07-31.csv</code>.
+
+26 columns are written: DOI, title, journal, publisher, year, volume, issue, pages, type and ISSN; first and last author with their ORCIDs; citation counts from CrossRef, OpenAlex, Semantic Scholar and iCite, plus FWCI, RCR and SJR; DOAJ and PubMed status; the free PDF URL; and funders, grant numbers and the grant source.
+
+<strong>Note on the card checkbox:</strong> unticking the checkbox on a result card <em>removes</em> that card — it disappears from the page, from the export, and from the URL. It is not a reversible include/exclude toggle. To get a removed DOI back, look it up again.`,
       ref: null
     },
     // =====================
@@ -320,10 +441,20 @@ DOAJ (open access journal directory)
 CORE (open access aggregator)
 OpenAIRE (European research metrics)
 ISSN Portal (journal identity)
-SJR (journal ranking, from bundled CSV)
+Retraction Watch (retraction notices, reached via CrossRef)
+WorldCat (books, by ISBN or title search)
+SJR (journal ranking, from a bundled CSV snapshot rather than a live API — it is refreshed when a new SCImago release is published)
 
-All API calls are made directly from your browser. There is no backend server, no tracking, and no user data collection.`,
+All API calls are made directly from your browser. There is no backend server, no tracking, and no user data collection. Nothing you look up is transmitted to, logged by, or visible to this site — there is no server here to receive it.`,
       ref: 'https://github.com/tomlaheyh/ref-lookup'
+    },
+    {
+      section: 'Other Pages',
+      label: 'Supplementary reference pages',
+      description: `The site menu links to a few standalone reference pages that sit alongside the lookup tool but are not part of it. They are working references — data snapshots and notes kept here for convenience — and are intentionally left out of search engines (noindexed), so they will not surface in Google results for the DOI tool.
+
+<strong>Topic Search</strong>, <strong>Nutrition Reference</strong>, and the PubMed reports (<strong>Summary</strong>, <strong>Filters</strong>, <strong>MeSH Counts</strong>, <strong>Journal Ranking</strong>) each load their own data and behave independently of the DOI lookup. Nothing on these pages is needed to use the lookup, and — like the rest of the site — they carry no tracking.`,
+      ref: null
     },
   ],
 

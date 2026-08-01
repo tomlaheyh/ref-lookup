@@ -1,33 +1,8 @@
 (function() {
-  // ── Canonical URL + selective noindex (covers all pages that load siteNav.js) ──
-  // doilookup.com is the real, indexable site. Any copy served from GitHub
-  // Pages (*.github.io) gets noindex + a canonical link back to doilookup.com,
-  // avoiding duplicate-content penalties. Runs from the shared nav script so
-  // every page is covered without editing each HTML file. Guarded so it does
-  // nothing if canonical.js already handled it (e.g. on the homepage).
-  (function canonicalGuard() {
-    var head = document.head || document.getElementsByTagName('head')[0];
-    if (!head) return;
-    var host = window.location.hostname.toLowerCase();
-    var PRIMARY = 'doilookup.com';
-    var isPrimary = (host === PRIMARY || host === 'www.' + PRIMARY);
-
-    var path = window.location.pathname.replace(/^\/ref-lookup(?=\/|$)/, '');
-    if (path === '') path = '/';
-
-    if (!document.querySelector('link[rel="canonical"]')) {
-      var canon = document.createElement('link');
-      canon.rel = 'canonical';
-      canon.href = 'https://doilookup.com' + path;
-      head.appendChild(canon);
-    }
-    if (!isPrimary && !document.querySelector('meta[name="robots"]')) {
-      var robots = document.createElement('meta');
-      robots.name = 'robots';
-      robots.content = 'noindex, nofollow';
-      head.appendChild(robots);
-    }
-  })();
+  // Canonical / mirror-noindex handling removed. doilookup.com is now the only
+  // public host (the github.io Pages site was unpublished), and each page
+  // declares its canonical statically in <head>. This script only builds the
+  // nav now — no runtime canonical or robots injection.
 
   // ── Configuration: all pages in the nav ──
   var pages = [
