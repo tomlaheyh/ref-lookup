@@ -1,0 +1,42 @@
+ 
+delete.bat  Sun 09/06/2026 22:48:34.42 
+root: C:\My_Data\GitHub-doi-lookup 
+protected by delete-keep.txt: 36 file(s) 
+ 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\delete-keep-vUTC-0906-1951.txt 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\delete-vUTC-0906-1951.bat 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_check_step00-vUTC-0906-0003.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_check_step00-vUTC-0906-0021.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_check_step00-vUTC-0906-0032.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_check_step00-vUTC-0906-0449.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_check_step00-vUTC-0906-0801.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_pull_data_retractions_step02-vUTC-0906-0003.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_pull_data_retractions_step02-vUTC-0906-0021.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_pull_data_retractions_step02-vUTC-0906-0032.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_pull_data_retractions_step02-vUTC-0906-0449.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_pull_data_retractions_step02-vUTC-0906-0801.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_pull_data_step01-vUTC-0906-0003.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_pull_data_step01-vUTC-0906-0021.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_pull_data_step01-vUTC-0906-0032.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_pull_data_step01-vUTC-0906-0449.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_pull_data_step01-vUTC-0906-0801.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_pull_data_step01-vUTC-0906-0821.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_pull_data_step01_continue-vUTC-0906-0003.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_sum_step03-vUTC-0906-0003.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_sum_step03-vUTC-0906-0021.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_sum_step03-vUTC-0906-0032.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_sum_step03-vUTC-0906-0449.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_sum_step03-vUTC-0906-0801.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_top200_retractions_step04-vUTC-0906-0003.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_top200_retractions_step04-vUTC-0906-0021.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_top200_retractions_step04-vUTC-0906-0032.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_top200_retractions_step04-vUTC-0906-0449.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\journal_ranking_top200_retractions_step04-vUTC-0906-0801.py 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\README-vUTC-0906-0449.txt 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\README-vUTC-0906-0821.txt 
+deleted C:\My_Data\GitHub-doi-lookup\Exclude-DIR\journal-ranking\README-vUTC-0906-1022.txt 
+deleted C:\My_Data\GitHub-doi-lookup\filters\filters-config-vUTC-0906-2240.json 
+deleted C:\My_Data\GitHub-doi-lookup\filters\filters-vUTC-0906-2250.html 
+deleted C:\My_Data\GitHub-doi-lookup\filters\pubmed-filter-audit-vUTC-0906-2230.md 
+deleted C:\My_Data\GitHub-doi-lookup\filters\_to_delete\Claude outputs\filters-config.json 
+deleted C:\My_Data\GitHub-doi-lookup\filters\_to_delete\Claude outputs\filters-vUTC-0906-2250.html 

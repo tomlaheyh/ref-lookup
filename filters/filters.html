@@ -195,6 +195,25 @@
     font-style: italic;
   }
 
+  /* A filter name PubMed no longer recognises. Must never look like a 0. */
+  td.dead-cell {
+    color: #b3261e;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  #deadBanner {
+    background: #fdecea;
+    border: 1px solid #f5c2bd;
+    border-left: 4px solid #b3261e;
+    border-radius: 4px;
+    padding: 9px 12px;
+    margin-bottom: 12px;
+    font-size: 0.85rem;
+    color: #7a1a12;
+    line-height: 1.45;
+  }
+  #deadBanner b { color: #b3261e; }
+
   /* References section */
   .ref-section {
     background: var(--surface);
@@ -253,6 +272,8 @@
     <div class="progress-bar" id="progressBar"></div>
   </div>
 
+  <div id="deadBanner" hidden></div>
+
   <div class="columns" id="columnsArea"></div>
 
   <div class="ref-section" id="refSection"></div>
@@ -262,6 +283,12 @@
 let CONFIG = null;
 const CACHE_KEY = 'pubmed_filters_cache';
 const EUTILS_BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi';
+
+// Sentinel for "PubMed no longer recognises this filter name". Distinct from
+// null (fetch failed / not yet loaded) and from 0 (filter works, no records).
+// A retired filter returns Count=0 with no error, so without this the report
+// silently prints a plausible zero forever. See ErrorList handling below.
+const DEAD = 'DEAD';
 
 // ─── PERIOD MODEL ─────────────────────────────────────────────────
 // A "period" is the single source of truth for the timeframe shown. It
@@ -349,11 +376,20 @@ function shouldRefresh(cache) {
 
 // ─── NCBI FETCH ───────────────────────────────────────────────────
 async function fetchCount(term) {
-  const url = `${EUTILS_BASE}?db=pubmed&rettype=count&term=${encodeURIComponent(term)}`;
+  // NOTE: retmax=0, NOT rettype=count. rettype=count strips <ErrorList> from
+  // the response, making a retired filter byte-identical to a genuine zero.
+  // retmax=0 returns the same <Count> plus the ErrorList we need, ~570 bytes.
+  const url = `${EUTILS_BASE}?db=pubmed&retmax=0&term=${encodeURIComponent(term)}`;
   for (let attempt = 1; attempt <= 5; attempt++) {
     try {
       const resp = await fetch(url);
       const text = await resp.text();
+      // A name PubMed does not know comes back as
+      //   <ErrorList><PhraseNotFound>congress</PhraseNotFound></ErrorList>
+      // alongside <Count>0</Count>. Our terms are "{daterange} [crdt] AND
+      // (token)", and a date range never yields PhraseNotFound, so any
+      // PhraseNotFound here means the filter token itself is gone.
+      if (/<PhraseNotFound>/.test(text)) return DEAD;
       const match = text.match(/<Count>(\d+)<\/Count>/);
       if (match) return parseInt(match[1]);
     } catch (e) { /* retry */ }
@@ -392,15 +428,23 @@ function getRowValue(row, counts) {
     const parts = row.formula.split(' - ');
     const a = counts[parts[0]];
     const b = counts[parts[1]];
+    // A measure built on a dead filter is not a number — withhold it rather
+    // than publish an understated one.
+    if (a === DEAD || b === DEAD) return DEAD;
     if (a === null || a === undefined || b === null || b === undefined) return null;
     return a - b;
   }
   if (row.type === 'sum_all_at') {
-    // Sum all article type count rows (ids starting with "at_")
+    // Sum all article type count rows (ids starting with "at_"). If ANY of
+    // them is dead the sum is understated by an unknown amount, so the whole
+    // total is withheld — an understated total that still looks plausible is
+    // exactly the failure this guard exists to prevent.
     let sum = 0;
     let hasAny = false;
     for (const key in counts) {
-      if (key.startsWith('at_') && counts[key] !== null && counts[key] !== undefined) {
+      if (!key.startsWith('at_')) continue;
+      if (counts[key] === DEAD) return DEAD;
+      if (counts[key] !== null && counts[key] !== undefined) {
         sum += counts[key];
         hasAny = true;
       }
@@ -411,8 +455,29 @@ function getRowValue(row, counts) {
 }
 
 function formatNumber(n) {
+  if (n === DEAD) return 'FILTER GONE';
   if (n === null || n === undefined) return '—';
   return n.toLocaleString('en-US');
+}
+
+// Single place that decides how a value is painted, so a dead filter can
+// never be rendered by a path that only knows about numbers and null.
+function setValueCell(td, val) {
+  td.textContent = formatNumber(val);
+  if (val === DEAD) td.className = 'dead-cell';
+  else if (val === null) td.className = 'loading-cell';
+}
+
+// Sort helper: dead rows float to the top — a broken filter is the first
+// thing that should be seen, not something buried at the bottom of column 2.
+function compareRowValues(va, vb) {
+  if (va === DEAD && vb === DEAD) return 0;
+  if (va === DEAD) return -1;
+  if (vb === DEAD) return 1;
+  if (va === null && vb === null) return 0;
+  if (va === null) return 1;
+  if (vb === null) return -1;
+  return vb - va;
 }
 
 // ─── RENDER ───────────────────────────────────────────────────────
@@ -436,8 +501,7 @@ function appendSectionRows(table, section, counts, period) {
 
     const valTd = document.createElement('td');
     const val = getRowValue(row, counts);
-    valTd.textContent = formatNumber(val);
-    if (val === null) valTd.className = 'loading-cell';
+    setValueCell(valTd, val);
     tr.appendChild(valTd);
 
     table.appendChild(tr);
@@ -498,14 +562,8 @@ function render(counts, period) {
     const countRows = articleSection.rows.filter(r => r.type === 'count');
 
     // Sort count rows by value descending
-    const sortedRows = countRows.slice().sort((a, b) => {
-      const va = getRowValue(a, counts);
-      const vb = getRowValue(b, counts);
-      if (va === null && vb === null) return 0;
-      if (va === null) return 1;
-      if (vb === null) return -1;
-      return vb - va;
-    });
+    const sortedRows = countRows.slice().sort((a, b) =>
+      compareRowValues(getRowValue(a, counts), getRowValue(b, counts)));
 
     const mid = Math.ceil(sortedRows.length / 2);
     const col2Rows = sortedRows.slice(0, mid);
@@ -531,8 +589,7 @@ function render(counts, period) {
         ttr.appendChild(ltd);
         const vtd = document.createElement('td');
         const val = getRowValue(totalRow, counts);
-        vtd.textContent = formatNumber(val);
-        if (val === null) vtd.className = 'loading-cell';
+        setValueCell(vtd, val);
         ttr.appendChild(vtd);
         tbl.appendChild(ttr);
       }
@@ -554,8 +611,7 @@ function render(counts, period) {
 
         const valTd = document.createElement('td');
         const val = getRowValue(row, counts);
-        valTd.textContent = formatNumber(val);
-        if (val === null) valTd.className = 'loading-cell';
+        setValueCell(valTd, val);
         tr.appendChild(valTd);
 
         tbl.appendChild(tr);
@@ -566,8 +622,29 @@ function render(counts, period) {
     });
   }
 
+  // Dead-filter alarm
+  updateDeadBanner(counts);
+
   // References
   renderReferences();
+}
+
+// Surfaces retired filters at the top of the page. Without this the alarm
+// is a single red cell somewhere in a 90-row two-column table.
+function updateDeadBanner(counts) {
+  const el = document.getElementById('deadBanner');
+  if (!el) return;
+  const dead = [];
+  CONFIG.sections.forEach(s => s.rows.forEach(r => {
+    if (r.type === 'count' && counts[r.id] === DEAD) dead.push(r.label);
+  }));
+  if (dead.length === 0) { el.hidden = true; el.innerHTML = ''; return; }
+  el.innerHTML = '<b>&#9888; ' + dead.length + ' filter name' + (dead.length > 1 ? 's are' : ' is') +
+    ' no longer recognised by PubMed:</b> ' + dead.join(', ') +
+    '. These rows show <b>FILTER GONE</b>, not 0 &mdash; the counts are unknown, not zero. ' +
+    'Check the <a href="https://www.nlm.nih.gov/pubs/techbull/" target="_blank">NLM Technical Bulletin</a> ' +
+    'for a rename, then update <code>filters-config.json</code>.';
+  el.hidden = false;
 }
 
 function renderReferences() {
@@ -627,6 +704,13 @@ function hideProgress() {
 }
 
 // ─── CSV EXPORT ───────────────────────────────────────────────────
+// DEAD must survive the round-trip to the CSV and back, or reopening the
+// report launders a dead filter into a blank/zero again.
+function csvValue(val) {
+  if (val === DEAD) return 'DEAD';
+  return val !== null && val !== undefined ? val : 'NaN';
+}
+
 function exportCSV() {
   const cache = getCache();
   if (!cache || !cache.counts || !cache.period) return;
@@ -646,7 +730,7 @@ function exportCSV() {
     lines.push(`"${section.header}",""`);
     for (const row of section.rows) {
       const val = getRowValue(row, counts);
-      lines.push(`"${row.label}",${val !== null ? val : 'NaN'}`);
+      lines.push(`"${row.label}",${csvValue(val)}`);
     }
     lines.push('');
   }
@@ -654,17 +738,12 @@ function exportCSV() {
   // Article type sorted
   const articleSection = CONFIG.sections.find(s => s.sorted);
   if (articleSection) {
-    const sorted = articleSection.rows.slice().sort((a, b) => {
-      const va = getRowValue(a, counts);
-      const vb = getRowValue(b, counts);
-      if (va === null) return 1;
-      if (vb === null) return -1;
-      return vb - va;
-    });
+    const sorted = articleSection.rows.slice().sort((a, b) =>
+      compareRowValues(getRowValue(a, counts), getRowValue(b, counts)));
     lines.push(`"${articleSection.header}",""`);
     for (const row of sorted) {
       const val = getRowValue(row, counts);
-      lines.push(`"${row.label}",${val !== null ? val : 'NaN'}`);
+      lines.push(`"${row.label}",${csvValue(val)}`);
     }
   }
 
@@ -704,8 +783,12 @@ function parseCSVData(csv) {
     const label = cells[0];
     const matchRow = allRows.find(r => r.label === label);
     if (matchRow && matchRow.type === 'count') {
-      const val = parseInt(cells[1]);
-      counts[matchRow.id] = isNaN(val) ? null : val;
+      if (cells[1] === 'DEAD') {
+        counts[matchRow.id] = DEAD;
+      } else {
+        const val = parseInt(cells[1]);
+        counts[matchRow.id] = isNaN(val) ? null : val;
+      }
     }
   }
 

@@ -1,0 +1,18 @@
+# delete-keep.txt -- paths delete.bat must never touch, one per line.
+#
+# Any file whose path CONTAINS one of these fragments is skipped, whatever its
+# name. Matching is case-insensitive plain text: no wildcards, and no = or !
+# characters (batch cannot handle those in a substring test).
+#
+# Lines starting with # are comments. Blank lines are ignored.
+#
+# This is the only file that needs editing when you copy delete.bat into
+# another repo. delete.bat itself is repo-agnostic.
+
+# The summaries as they stood before the September 2026 re-pull -- the only
+# copies of that vintage, and the other half of the before/after comparison.
+# (One exception: the May retraction file in there is already the September
+# version, not the 13 June one.) Nothing in here matches a cleanup pattern
+# today, but a -vUTC- twin or a .tmp landing here would be swept and could not
+# be recovered.
+archive-2026-vintage
