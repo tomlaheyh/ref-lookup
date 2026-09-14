@@ -43,20 +43,28 @@
   .demo-banner strong { font-weight: 700; }
   .demo-banner .wrap { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
   .demo-banner p { margin: 0; max-width: 78ch; }
-  .demo-banner a { color: #0b4f8a; }
+  /* Scoped away from the button. ".demo-banner a" is a class plus an element,
+     which outranks a lone ".install-cta" - so the banner's link colour was
+     winning and painting dark blue text on the blue button. */
+  .demo-banner a:not(.install-cta) { color: #0b4f8a; }
 
-  .install-cta {
+  /* Two classes, so this beats the rule above whatever order they sit in.
+     Colour is stated on hover as well, or the same collision returns there. */
+  .demo-banner .install-cta {
     margin-left: auto;
     flex: 0 0 auto;
-    background: #005a8c;
-    color: #fff;
+    background-color: #005a8c;
+    color: #ffffff;
     text-decoration: none;
     padding: 8px 16px;
     border-radius: 4px;
     font-weight: 600;
     white-space: nowrap;
   }
-  .install-cta:hover { background: #004470; }
+  .demo-banner .install-cta:hover {
+    background-color: #004470;
+    color: #ffffff;
+  }
 
   /* Frozen PubMed results page. Approximates PubMed's layout closely enough to
      be recognisable; the class names are what matter, because the bar finds
