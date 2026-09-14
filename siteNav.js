@@ -13,7 +13,8 @@
     { title: 'PubMed Summary Report', href: '/pubmed-summary/pubmed-summary.html' },
     { title: 'PubMed Filters Report', href: '/filters/filters.html' },
     { title: 'PubMed MeSH Counts',  href: '/mesh/mesh.html' },
-    { title: 'PubMed Journal Ranking 2026', href: '/journal-ranking/journal-ranking.html' }
+    { title: 'PubMed Journal Ranking 2026', href: '/journal-ranking/journal-ranking.html' },
+    { title: 'Citation Bar — Live Demo', href: '/demo/citation-bar/' }
   ];
 
   // ── Inject CSS (only once) ──
