@@ -109,6 +109,36 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
        }
    }
 
+   // Turns <OtherAbstract> type/language pairs into short labels for the popup
+   // note, e.g. "Spanish", "Portuguese". Plain-language summaries are skipped
+   // here because the popup shows their text instead. Duplicates collapse.
+   function describeOtherAbstracts(list) {
+       if (!Array.isArray(list) || list.length === 0) return [];
+       const languageNames = {
+           eng: 'English', spa: 'Spanish', por: 'Portuguese', fre: 'French', fra: 'French',
+           ger: 'German', deu: 'German', ita: 'Italian', chi: 'Chinese', zho: 'Chinese',
+           jpn: 'Japanese', kor: 'Korean', rus: 'Russian', pol: 'Polish', dut: 'Dutch',
+           nld: 'Dutch', tur: 'Turkish', per: 'Persian', fas: 'Persian', ara: 'Arabic'
+       };
+       const labels = [];
+       for (const item of list) {
+           const type = (item.type || '').toLowerCase();
+           const lang = item.language || '';
+           let label;
+           if (type === 'plain-language-summary') {
+               continue;
+           } else if (lang && lang !== 'eng') {
+               label = languageNames[lang] || lang.toUpperCase();
+           } else if (type && type !== 'publisher') {
+               label = `${item.type} abstract`;
+           } else {
+               label = 'Other abstract';
+           }
+           if (!labels.includes(label)) labels.push(label);
+       }
+       return labels;
+   }
+
    // Shared function to fetch abstract on-demand from PubMed
    async function fetchAbstractOnDemand(pmid) {
        try {
@@ -129,27 +159,52 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
            if (abstractStart !== -1 && abstractEnd !== -1) {
                const abstractSection = xmlText.substring(abstractStart, abstractEnd + 11);
                
-               if (abstractSection.includes('Label="')) {
-                   const structuredPattern = /<AbstractText Label="([^"]+)"[^>]*>([\s\S]*?)<\/AbstractText>/g;
-                   let structuredAbstract = [];
-                   let match;
-                   
-                   while ((match = structuredPattern.exec(abstractSection)) !== null) {
-                       const label = match[1];
-                       const content = match[2].replace(/<[^>]*>/g, '').trim();
-                       structuredAbstract.push(`${label}: ${content}`);
+               // Read EVERY <AbstractText> paragraph, labelled or not, in order.
+               // Labelled ones print as "LABEL: text"; unlabelled ones print as-is.
+               const paraPattern = /<AbstractText\b([^>]*)>([\s\S]*?)<\/AbstractText>/g;
+               const paragraphs = [];
+               let match;
+               
+               while ((match = paraPattern.exec(abstractSection)) !== null) {
+                   const labelMatch = match[1].match(/\bLabel="([^"]*)"/);
+                   const label = labelMatch ? labelMatch[1].trim() : '';
+                   const content = match[2].replace(/<[^>]*>/g, '').trim();
+                   if (!content) continue;
+                   paragraphs.push(label ? `${label}: ${content}` : content);
+               }
+               
+               if (paragraphs.length > 0) {
+                   abstract = paragraphs.join('\n\n');
+               }
+           }
+           
+           // --- Other / additional-language abstracts (<OtherAbstract>) ---
+           // Type and language feed the popup note. The text is kept only for a
+           // plain-language summary, which the popup shows under the abstract.
+           const otherAbstracts = [];
+           let plainLanguageSummary = '';
+           const otherPattern = /<OtherAbstract\b([^>]*)>([\s\S]*?)<\/OtherAbstract>/g;
+           let otherMatch;
+           while ((otherMatch = otherPattern.exec(xmlText)) !== null) {
+               const typeMatch = otherMatch[1].match(/\bType="([^"]*)"/);
+               const langMatch = otherMatch[1].match(/\bLanguage="([^"]*)"/);
+               const type = typeMatch ? typeMatch[1] : '';
+               otherAbstracts.push({
+                   type: type,
+                   language: langMatch ? langMatch[1].toLowerCase() : ''
+               });
+               if (!plainLanguageSummary && type.toLowerCase() === 'plain-language-summary') {
+                   const plsParas = [];
+                   const plsPattern = /<AbstractText\b([^>]*)>([\s\S]*?)<\/AbstractText>/g;
+                   let plsMatch;
+                   while ((plsMatch = plsPattern.exec(otherMatch[2])) !== null) {
+                       const labelMatch = plsMatch[1].match(/\bLabel="([^"]*)"/);
+                       const label = labelMatch ? labelMatch[1].trim() : '';
+                       const content = plsMatch[2].replace(/<[^>]*>/g, '').trim();
+                       if (!content) continue;
+                       plsParas.push(label ? `${label}: ${content}` : content);
                    }
-                   
-                   if (structuredAbstract.length > 0) {
-                       abstract = structuredAbstract.join('\n\n');
-                   }
-               } else {
-                   const simplePattern = /<AbstractText[^>]*>([\s\S]*?)<\/AbstractText>/;
-                   const simpleMatch = abstractSection.match(simplePattern);
-                   
-                   if (simpleMatch && simpleMatch[1]) {
-                       abstract = simpleMatch[1].replace(/<[^>]*>/g, '').trim();
-                   }
+                   plainLanguageSummary = plsParas.join('\n\n');
                }
            }
            
@@ -178,6 +233,8 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
            
            return {
                abstract: abstract,
+               otherAbstracts: otherAbstracts,
+               plainLanguageSummary: plainLanguageSummary,
                grants: grants,
                authorCount: authorCount
            };
@@ -185,6 +242,8 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
            console.error('Error fetching abstract:', error);
            return {
                abstract: 'Error loading abstract',
+               otherAbstracts: [],
+               plainLanguageSummary: '',
                grants: [],
                authorCount: 0
            };
@@ -741,8 +800,6 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
        plainText += '\n';
 
        plainText += divider + '\n';
-       plainText += 'Generated by PubMed Citation Bar Extension v3.720\n';
-       plainText += divider + '\n';
 
        // Build HTML version
        const makeLink = (url, text) => `<a href="${url}" target="_blank" class="report-link">${text || url}</a>`;
@@ -856,8 +913,6 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
        if (reportData.links.sjr) html += `<div class="report-row"><span class="report-label">SJR:</span> <span class="report-value">${makeLink(reportData.links.sjr)}</span></div>`;
        if (reportData.links.ranking) html += `<div class="report-row"><span class="report-label">Ranking:</span> <span class="report-value">${makeLink(reportData.links.ranking)}</span></div>`;
        html += '</div>';
-
-       html += '<div class="report-footer">Generated by PubMed Citation Bar Extension v3.720</div>';
 
        return { plainText, html };
    }
@@ -1162,14 +1217,6 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                        border-bottom: 2px solid #0066cc;
                    }
                    
-                   .report-footer {
-                       margin-top: 16px;
-                       padding-top: 12px;
-                       border-top: 1px solid #ddd;
-                       text-align: center;
-                       color: #999;
-                       font-size: 11px;
-                   }
                `;
                document.head.appendChild(styles);
            }
@@ -1558,16 +1605,14 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
            const pmcId = pmcMatch ? pmcMatch[1] : null;
            if (pmcId) {
                const pdfUrl = `https://www.ncbi.nlm.nih.gov/pmc/articles/PMC${pmcId}/pdf/`;
-               pdfHTML = `| <a href="${pdfUrl}" target="_blank" class="pdf-link-active" data-tooltip="View free PMC PDF • More sources coming">PDF</a> `;
+               pdfHTML = `| <a href="${pdfUrl}" target="_blank" class="pdf-link-active" data-tooltip="${tt.pdfFree || ''}">PDF</a> `;
            } else {
-               pdfHTML = `| <span class="pdf-link-disabled" data-tooltip="No direct PDF found • Try Link button for article page with PDF download • More sources coming">PDF</span> `;
+               pdfHTML = `| <span class="pdf-link-disabled" data-tooltip="${tt.pdfNone || ''}">PDF</span> `;
            }
 
-           // Build MeSH link based on MEDLINE status
-           const isMedline = data.medlineCode === 'm' || data.recordStatus === 'PubMed - indexed for MEDLINE';
-           const meshLinkHTML = isMedline 
-               ? `<span class="mesh-link" data-pmid="${pmid}" data-tooltip="${tt.mesh || ''}">MeSH</span>` 
-               : `<span class="mesh-link-disabled" data-tooltip="${tt.mesh || ''}">MeSH</span>`;
+           // MeSH+ link is always active: most records have MeSH or keywords,
+           // and the popup says "No MeSH data" / "No keywords" when they don't
+           const meshLinkHTML = `<span class="mesh-link" data-pmid="${pmid}" data-tooltip="${tt.mesh || ''}">MeSH+</span>`;
 
            // Build retraction warning (bold red, clickable, shown at start of bar)
            const retractionHTML = data.hasRetraction 
@@ -1619,10 +1664,11 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
 
            // DOI link for ref-lookup (always visible, clickable only when DOI exists)
            const doiRefHTML = data.DOI
-               ? `<span class="doi-ref-link" data-doi="${data.DOI}" style="cursor: pointer; color: #0066cc;" data-tooltip="Full DOI lookup at doilookup.com">doi</span>| `
-               : `<span style="color: #999;" data-tooltip="No associated DOI">doi</span>| `;
+               ? `<span class="doi-ref-link" data-doi="${data.DOI}" style="cursor: pointer; color: #0066cc;" data-tooltip="${tt.doiLookup || ''}">doi</span>| `
+               : `<span style="color: #999;" data-tooltip="${tt.doiNone || ''}">doi</span>| `;
 
-           return `<span class="citation-help" data-score="${data.overallScore}" data-tooltip="Click for detailed help">?</span>` +
+           return `<span class="citation-help" data-score="${data.overallScore}" data-tooltip="${tt.help || ''}">?</span>` +
+               `<span class="lang-pick" data-tooltip="${tt.language || ''}">${(states.barLanguage || 'en').toUpperCase()}</span>` +
                `${retractionHTML}${flagsHTML}` +
                `${doiRefHTML}` +
                `${meshLinkHTML}| ` +
@@ -1637,7 +1683,7 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                    (data.Title ? 
                        `<a href="https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=${data.Title}" target="_blank" data-tooltip="${tt.scholar || ''}">G Sch</a>` : 
                        `<span data-tooltip="${tt.scholar || ''}">G Sch</span>`)}| ` +
-               `<span class="cp-link" data-doi="${data.DOI || '0'}" style="cursor: pointer; text-decoration: none; color: #0066cc;">-Con-</span>| ` +
+               `<span class="cp-link" data-doi="${data.DOI || '0'}" style="cursor: pointer; text-decoration: none; color: #0066cc;">Con</span>| ` +
                `<span class="ab-link" data-pmid="${pmid}" data-tooltip="${tt.abstract || ''}">${abText}</span>${fullTextLinkHTML}${pdfHTML}` +
                `<br>` +
                `<span class="pcb-pick" data-pmid="${pmid}" data-tooltip="${tt.pick || ''}">${PICK_CHECK_SVG}</span>` +
@@ -1648,8 +1694,8 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                `<span data-tooltip="${tt.articleCount || ''}">YTD ${formatCount(data.counts)}</span>| ` +
                `<span data-tooltip="${tt.medlinePct || ''}">Medline ${formatPercentage(data.medline_per)}</span>| ` +
                `<span data-tooltip="${tt.freePct || ''}">Free ${formatPercentage(data.free_per)}</span>| ` +
-               `<span class="xout-trigger" style="cursor: pointer; color: #0066cc; text-decoration: none;" data-tooltip="Filter out reviews, retractions, editorials etc. which are 25% of PubMed">Xout</span>| ` +
-               `<span class="pr-menu-trigger" style="cursor: pointer; color: #0066cc; text-decoration: none; position: relative;" data-tooltip="PubMed Reports (key overviews)">pR</span>| ` +
+               `<span class="xout-trigger" style="cursor: pointer; color: #0066cc; text-decoration: none;" data-tooltip="${tt.xout || ''}">Xout</span>| ` +
+               `<span class="pr-menu-trigger" style="cursor: pointer; color: #0066cc; text-decoration: none; position: relative;" data-tooltip="${tt.pubmedReports || ''}">pR</span>| ` +
                `<span class="citation-report-link" data-pmid="${pmid}" style="color: #0066cc; text-decoration: none; cursor: pointer;" data-tooltip="${tt.citationReport || ''}">/Report</span>`;
        }
 
@@ -1675,6 +1721,26 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                color: #0066cc;
                text-decoration: none;
                cursor: pointer;
+           }
+
+           /* Language tag after the ?: styled as a setting, not a data link */
+           .lang-pick {
+               display: inline-block;
+               color: #6B3E26;
+               border: 1px solid #6B3E26;
+               border-radius: 3px;
+               padding: 0 3px;
+               margin: 0 4px 0 3px;
+               font-size: 0.75em;
+               font-weight: 600;
+               letter-spacing: 0.5px;
+               line-height: 1.35;
+               vertical-align: 1px;
+               cursor: pointer;
+           }
+
+           .lang-pick:hover {
+               background-color: #F3E9DC;
            }
            
            .mesh-link-disabled {
@@ -1844,6 +1910,24 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                color: #7a5c12;
                font-size: 12px;
                line-height: 1.45;
+           }
+
+           /* Sits above the footer, quiet enough not to compete with the two
+              download buttons, but present every time the list is opened -
+              the connector route is the only one that brings PDFs, and nobody
+              works that out on their own. */
+           .pcb-export-zotero {
+               padding: 10px 18px;
+               border-top: 1px solid #e0e0e0;
+               background-color: #f7f9fb;
+               color: #44506b;
+               font-size: 12px;
+               line-height: 1.5;
+           }
+
+           .pcb-export-zotero strong {
+               color: #2a3450;
+               font-weight: 600;
            }
 
            .pcb-export-footer {
@@ -2371,6 +2455,10 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
           const meshModalContainer = document.createElement('div');
           meshModalContainer.id = 'mesh-modal';
           meshModalContainer.className = 'mesh-modal';
+          // MeSH terms and keywords are controlled vocabulary: they stay exactly as
+          // PubMed indexes them, never machine-translated by the browser
+          meshModalContainer.setAttribute('translate', 'no');
+          meshModalContainer.classList.add('notranslate');
           meshModalContainer.innerHTML = `
               <div class="mesh-modal-content">
                   <button class="mesh-close">Close</button>
@@ -2422,24 +2510,38 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
           });
       }
 
-      // Create help modal for citation bar help
-      if (!document.getElementById('help-modal')) {
+      // Create help modal for citation bar help, in the bar's language.
+      // Pre-generated help HTML content; title, button and score text come in helpText.
+      const helpLang = states.barLanguage || 'en';
+      const helpTitle = (helpText && helpText.title) || 'Citation Bar Help';
+      const helpClose = (helpText && helpText.close) || 'Close';
+      const helpScore = (helpText && helpText.score) || 'The overall score of this article is';
+      const helpBodyHTML = `${helpContentHTML || '<p>Help content not available.</p>'}
+                      <div class="help-version">Ver 3.830 Sep-2026</div>`;
+      const existingHelpModal = document.getElementById('help-modal');
+      if (existingHelpModal && existingHelpModal.dataset.lang !== helpLang) {
+          // Language changed on the bar: swap the text, keep the modal and its listeners
+          existingHelpModal.dataset.lang = helpLang;
+          existingHelpModal.dataset.scoreText = helpScore;
+          existingHelpModal.querySelector('.help-modal-header h3').textContent = helpTitle;
+          existingHelpModal.querySelector('.help-modal-close').textContent = helpClose;
+          existingHelpModal.querySelector('.help-modal-body').innerHTML = helpBodyHTML;
+      }
+      if (!existingHelpModal) {
           const helpModalContainer = document.createElement('div');
           helpModalContainer.id = 'help-modal';
           helpModalContainer.className = 'help-modal';
-          
-          // Use pre-generated help HTML content
-          const helpContent = helpContentHTML || '<p>Help content not available.</p>';
+          helpModalContainer.dataset.lang = helpLang;
+          helpModalContainer.dataset.scoreText = helpScore;
           
           helpModalContainer.innerHTML = `
               <div class="help-modal-content">
                   <div class="help-modal-header">
-                      <h3>Citation Bar Help</h3>
-                      <button class="help-modal-close">Close</button>
+                      <h3>${helpTitle}</h3>
+                      <button class="help-modal-close">${helpClose}</button>
                   </div>
                   <div class="help-modal-body">
-                      ${helpContent}
-                      <div class="help-version">Ver 3.820 Sep-2026</div>
+                      ${helpBodyHTML}
                   </div>
               </div>
           `;
@@ -2701,6 +2803,12 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                   const citationBar = document.createElement('div');
                   citationBar.className = 'citation-bar special-citation-bar';
                   citationBar.setAttribute('data-pmid', pmid); // Add PMID attribute
+                  // The bar's own text never goes through page translation (Chrome, Edge,
+                  // Google Translate): translated labels wrap it onto 3-4 lines and short
+                  // names like RCR or SJR come out garbled. Hover text follows the bar's
+                  // language tag instead.
+                  citationBar.setAttribute('translate', 'no');
+                  citationBar.classList.add('notranslate');
                   citationBar.innerHTML = buildCitationBarHTML(data, pmid);
                   citationBar.style.backgroundColor = data.hasRetraction ? '#ffe6e6' : (data.overallColor === 'green' ? '#f0fff0' : '#f0f8ff');
                   citationBar.style.color = 'black';
@@ -2764,6 +2872,12 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
          const citationBar = document.createElement('div');
          citationBar.className = 'citation-bar';
          citationBar.setAttribute('data-pmid', pmid); // Add PMID attribute
+         // The bar's own text never goes through page translation (Chrome, Edge,
+         // Google Translate): translated labels wrap it onto 3-4 lines and short
+         // names like RCR or SJR come out garbled. Hover text follows the bar's
+         // language tag instead.
+         citationBar.setAttribute('translate', 'no');
+         citationBar.classList.add('notranslate');
          citationBar.innerHTML = buildCitationBarHTML(data, pmid);
          citationBar.style.backgroundColor = data.hasRetraction ? '#ffe6e6' : (data.overallColor === 'green' ? '#f0fff0' : '#f0f8ff');
          citationBar.style.color = 'black';
@@ -2801,6 +2915,12 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
              const citationBar = document.createElement('div');
              citationBar.className = 'citation-bar';
              citationBar.setAttribute('data-pmid', pmid); // Add PMID attribute
+             // The bar's own text never goes through page translation (Chrome, Edge,
+             // Google Translate): translated labels wrap it onto 3-4 lines and short
+             // names like RCR or SJR come out garbled. Hover text follows the bar's
+             // language tag instead.
+             citationBar.setAttribute('translate', 'no');
+             citationBar.classList.add('notranslate');
              citationBar.innerHTML = buildCitationBarHTML(data, pmid);
              citationBar.style.backgroundColor = data.hasRetraction ? '#ffe6e6' : (data.overallColor === 'green' ? '#f0fff0' : '#f0f8ff');
              citationBar.style.color = 'black';
@@ -2863,6 +2983,17 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                  </div>
                  <div class="pcb-export-body"></div>
                  <div class="pcb-export-note"></div>
+                 <!-- Zotero's connector fetches PDFs as well as records, which a
+                      downloaded file cannot do - it runs in the user's own
+                      session with their journal access. Both requirements are
+                      stated as requirements rather than preferences: without the
+                      desktop app open, Zotero's own dialog says the fallback
+                      saves only "some pages", so it is not a lesser version of
+                      this route, it may simply not work. -->
+                 <div class="pcb-export-zotero">
+                     Using Zotero? <strong>Open in new tab</strong>, then save them all with the Zotero Connector.
+                     You'll need the Zotero Connector browser extension installed and the Zotero desktop app open.
+                 </div>
                  <div class="pcb-export-footer">
                      <button class="pcb-export-btn pcb-export-clear">Clear all</button>
                      <button class="pcb-export-btn pcb-export-open" title="View the selected articles as a PubMed search, in a new tab">Open in new tab</button>
@@ -3095,6 +3226,221 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
      // page loads, not only after something is clicked.
      loadPicks().then(paintPicks).catch(() => {});
 
+     // Abstract translation. Uses Chrome's built-in on-device Translator
+     // (Chrome 138+, free, no quota). When it can't translate (older Chrome,
+     // unsupported language, blocked by policy), it offers the text in Google
+     // Translate in a new tab. The source is taken as English, the language
+     // of PubMed's main abstract. Translations are kept for the page's life.
+     const pcbTranslations = window.__pcbTranslations || (window.__pcbTranslations = new Map());
+     const pcbTranslators = window.__pcbTranslators || (window.__pcbTranslators = new Map());
+     const PCB_RTL = ['ar', 'he', 'fa', 'ur'];
+     // PubMed's own search only understands English terms; shown with every
+     // translation (translated with it) and once per bar language as a notice
+     const PCB_SEARCH_EN = 'PubMed search works only in English. Use English search terms.';
+     const pcbLangName = (code) => {
+         try { return new Intl.DisplayNames([code], { type: 'language' }).of(code) || code; }
+         catch { return code; }
+     };
+
+     // Builds the translate row above the abstract text. segs: [{ text, set }]
+     // "Original (English)" block under a translated abstract: title, abstract
+     // and plain-language summary as PubMed has them. Marked "don't translate",
+     // so it stays English under the browser's page translation too.
+     function appendEnglishOriginal(bodyElem, segs) {
+         bodyElem.querySelector('.abstract-original')?.remove();
+         const original = document.createElement('div');
+         original.className = 'abstract-original notranslate';
+         original.setAttribute('translate', 'no');
+         original.dir = 'ltr';
+         original.style.cssText = 'margin-top:16px; padding-top:10px; border-top:2px solid #ddd; color:#555; text-align:left;';
+         const heading = document.createElement('div');
+         heading.style.cssText = 'font-weight:bold; margin-bottom:6px;';
+         heading.textContent = 'Original (English)';
+         original.appendChild(heading);
+         const searchNoteEn = document.createElement('div');
+         searchNoteEn.style.cssText = 'font-size:12px; color:#777; margin-bottom:8px;';
+         searchNoteEn.textContent = PCB_SEARCH_EN;
+         original.appendChild(searchNoteEn);
+         segs.forEach((seg, i) => {
+             const part = document.createElement('div');
+             part.style.cssText = i === 0 ? 'font-weight:bold; margin-bottom:8px;' : 'margin-bottom:8px;';
+             part.textContent = seg.text;
+             original.appendChild(part);
+         });
+         bodyElem.appendChild(original);
+     }
+
+     function renderAbstractTranslate(modal, pmid, segs) {
+         const titleElem = modal.querySelector('.abstract-title');
+         const bodyElem = modal.querySelector('.abstract-body');
+         let row = modal.querySelector('.abstract-translate');
+         if (!row) {
+             row = document.createElement('div');
+             row.className = 'abstract-translate';
+             row.style.cssText = 'margin:-6px 0 12px 0; font-size:12px; color:#555; display:flex; flex-wrap:wrap; gap:6px; align-items:center;';
+             titleElem.after(row);
+         }
+         row.innerHTML = '';
+         if (segs.length < 2) return; // title only: nothing worth translating
+
+         const btnCss = 'font-size:12px; padding:2px 8px; cursor:pointer; border:1px solid #6B3E26; border-radius:4px; background:#F3E9DC; color:#6B3E26;';
+         const setDir = (rtl) => {
+             titleElem.dir = rtl ? 'rtl' : '';
+             bodyElem.dir = rtl ? 'rtl' : '';
+         };
+         const status = document.createElement('span');
+         const showOriginal = document.createElement('a');
+         showOriginal.href = '#';
+         showOriginal.textContent = 'Show original';
+         showOriginal.style.display = 'none';
+         showOriginal.addEventListener('click', (e) => {
+             e.preventDefault();
+             segs.forEach(seg => seg.set(seg.text));
+             bodyElem.querySelector('.abstract-original')?.remove();
+             bodyElem.querySelector('.abstract-search-note')?.remove();
+             setDir(false);
+             showOriginal.style.display = 'none';
+             status.textContent = '';
+         });
+
+         const fallback = (code, why) => {
+             const text = segs.map(seg => seg.text).join('\n\n');
+             status.textContent = `${why} `;
+             const a = document.createElement('a');
+             a.href = `https://translate.google.com/?sl=en&tl=${encodeURIComponent(code)}&text=${encodeURIComponent(text)}&op=translate`;
+             a.target = '_blank';
+             a.rel = 'noopener';
+             a.textContent = `Open in Google Translate (${pcbLangName(code)}) \u2197`;
+             status.appendChild(a);
+         };
+
+         const translateTo = async (raw, auto = false) => {
+             const code = (raw || '').trim().replace('_', '-');
+             if (!/^[a-zA-Z]{2,3}(-[a-zA-Z]{2,4})?$/.test(code)) {
+                 status.textContent = 'Enter a 2 or 3 letter language code, e.g. fr, de, pt.';
+                 return;
+             }
+             // Chrome's form: zh-Hant (script) or pt-BR (region)
+             const [base, sub] = code.split('-');
+             const lang = sub ? `${base.toLowerCase()}-${sub.length === 4 ? sub[0].toUpperCase() + sub.slice(1).toLowerCase() : sub.toUpperCase()}` : base.toLowerCase();
+             if (lang === 'en') { showOriginal.click(); return; }
+             const name = pcbLangName(lang);
+             const key = `${pmid}|${lang}`;
+             const apply = (texts) => {
+                 if (modal.dataset.pmid !== pmid) return; // another abstract was opened meanwhile
+                 segs.forEach((seg, i) => seg.set(texts[i]));
+                 setDir(PCB_RTL.includes(lang.split('-')[0]));
+                 // Reminder (translated with the abstract) above the translation
+                 bodyElem.querySelector('.abstract-search-note')?.remove();
+                 const searchNote = document.createElement('div');
+                 searchNote.className = 'abstract-search-note';
+                 searchNote.style.cssText = 'font-size:12px; color:#777; margin-bottom:8px;';
+                 searchNote.textContent = texts[segs.length] || PCB_SEARCH_EN;
+                 bodyElem.prepend(searchNote);
+                 // The English original under the translation, for comparison
+                 appendEnglishOriginal(bodyElem, segs);
+                 showOriginal.style.display = '';
+                 status.textContent = `Translated to ${name} by Chrome (on this computer).`;
+             };
+             if (pcbTranslations.has(key)) { apply(pcbTranslations.get(key)); return; }
+
+             if (!('Translator' in self)) {
+                 console.log('[PCB translate] Translator API not available here (needs Chrome 138+, or not exposed to this script)');
+                 fallback(lang, 'Chrome\'s built-in translator is not available.');
+                 return;
+             }
+             try {
+                 status.textContent = 'Checking Chrome\'s translator\u2026';
+                 // Chrome answers at once when it works; no answer in 10s means it won't
+                 const availability = await Promise.race([
+                     Translator.availability({ sourceLanguage: 'en', targetLanguage: lang }),
+                     new Promise(resolve => setTimeout(() => resolve('timeout'), 10000))
+                 ]);
+                 console.log(`[PCB translate] en -> ${lang}: ${availability}`);
+                 if (availability === 'unavailable') {
+                     fallback(lang, `Chrome can't translate to ${name}.`);
+                     return;
+                 }
+                 if (availability === 'timeout') {
+                     fallback(lang, 'Chrome\'s translator did not respond.');
+                     return;
+                 }
+                 // Opening the abstract translates on its own, but Chrome only
+                 // starts a first-time download from a click
+                 if (auto && availability !== 'available' && !pcbTranslators.has(lang) && !navigator.userActivation?.isActive) {
+                     status.textContent = `Click \u2192 ${name} to set up translation (one-time download).`;
+                     return;
+                 }
+                 let translator = pcbTranslators.get(lang);
+                 if (!translator) {
+                     status.textContent = availability === 'available' ? 'Translating\u2026' : `Downloading ${name} for Chrome (first time only)\u2026`;
+                     translator = await Translator.create({
+                         sourceLanguage: 'en',
+                         targetLanguage: lang,
+                         monitor(m) {
+                             m.addEventListener('downloadprogress', (e) => {
+                                 status.textContent = `Downloading ${name} for Chrome (first time only)\u2026 ${Math.round(e.loaded * 100)}%`;
+                             });
+                         }
+                     });
+                     pcbTranslators.set(lang, translator);
+                 }
+                 status.textContent = 'Translating\u2026';
+                 const texts = [];
+                 for (const seg of segs) texts.push(await translator.translate(seg.text));
+                 texts.push(await translator.translate(PCB_SEARCH_EN));
+                 pcbTranslations.set(key, texts);
+                 apply(texts);
+             } catch (error) {
+                 console.log(`[PCB translate] en -> ${lang} failed:`, error);
+                 fallback(lang, `Translation failed (${error.name || 'error'}).`);
+             }
+         };
+
+         row.appendChild(document.createTextNode('Translate:'));
+         const barLang = (states.barLanguage || 'en');
+         if (barLang !== 'en') {
+             const target = barLang;
+             const quick = document.createElement('button');
+             quick.style.cssText = btnCss;
+             quick.textContent = `\u2192 ${pcbLangName(target)}`;
+             quick.addEventListener('click', () => translateTo(target));
+             row.appendChild(quick);
+         }
+         const input = document.createElement('input');
+         input.type = 'text';
+         input.maxLength = 8;
+         input.placeholder = 'language code';
+         input.title = 'Any language code, e.g. de, pt, ru, zh-Hant';
+         input.style.cssText = 'width:110px; font-size:12px; padding:2px 4px; border:1px solid #ccc; border-radius:4px;';
+         input.addEventListener('keydown', (e) => { if (e.key === 'Enter') fromBox(); });
+         const go = document.createElement('button');
+         go.style.cssText = btnCss;
+         go.textContent = 'Go';
+         // An empty box means the bar's language (the same as its button)
+         const fromBox = () => {
+             if (input.value.trim() || barLang === 'en') translateTo(input.value);
+             else translateTo(barLang);
+         };
+         go.addEventListener('click', fromBox);
+         row.appendChild(input);
+         row.appendChild(go);
+         const codeList = document.createElement('a');
+         codeList.href = 'https://developer.chrome.com/docs/ai/translator-api#supported_languages';
+         codeList.target = '_blank';
+         codeList.rel = 'noopener';
+         codeList.textContent = 'Language code list';
+         row.appendChild(codeList);
+         row.appendChild(showOriginal);
+         row.appendChild(status);
+
+         // Open in the bar's language
+         // Not when the browser is translating the whole page (Chrome/Edge page
+         // translation, detected in resultsTranslate.js): it translates this
+         // popup too. The row stays for a manual choice.
+         if (barLang !== 'en' && !window.__pcbBrowserTranslated?.()) translateTo(barLang, true);
+     }
+
      // Add click handlers for all ab-links after all elements are in the DOM
      document.querySelectorAll('.ab-link').forEach(link => {
          if (!bindOnce(link, 'pcbAb')) return;
@@ -3106,6 +3452,10 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
              const modal = document.getElementById('abstract-modal');
              const titleElem = modal.querySelector('.abstract-title');
              const bodyElem = modal.querySelector('.abstract-body');
+             modal.dataset.pmid = pmid;
+             titleElem.dir = '';
+             bodyElem.dir = '';
+             modal.querySelector('.abstract-translate')?.replaceChildren();
              titleElem.textContent = data.Title || `PMID: ${pmid}`;
              
              // Check if abstract is available
@@ -3119,6 +3469,8 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                  const efetchResult = await fetchAbstractOnDemand(pmid);
                  abstractText = efetchResult.abstract;
                  data.Abstract = abstractText; // Cache it
+                 data.OtherAbstracts = efetchResult.otherAbstracts || [];
+                 data.PlainLanguageSummary = efetchResult.plainLanguageSummary || '';
              }
              
              // Decode HTML entities in abstract
@@ -3128,6 +3480,58 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                  abstractText = textarea.value;
              }
              bodyElem.textContent = abstractText;
+             
+             // Plain-language summary, shown under the abstract (or in its place
+             // when the record has no standard abstract)
+             let plsBodyElem = null;
+             if (data.PlainLanguageSummary) {
+                 const plsDecoder = document.createElement('textarea');
+                 plsDecoder.innerHTML = data.PlainLanguageSummary;
+                 const hasMainAbstract = abstractText && abstractText !== 'No abstract' && abstractText !== 'Error loading abstract';
+                 if (!hasMainAbstract) bodyElem.textContent = '';
+                 const plsHeading = document.createElement('div');
+                 plsHeading.style.cssText = (hasMainAbstract ? 'margin-top:14px;padding-top:8px;border-top:1px solid #ddd;' : '') + 'font-weight:bold;';
+                 plsHeading.textContent = 'Plain-language summary';
+                 const plsBody = document.createElement('div');
+                 plsBody.textContent = plsDecoder.value;
+                 plsBodyElem = plsBody;
+                 bodyElem.appendChild(plsHeading);
+                 bodyElem.appendChild(plsBody);
+             }
+             
+             // Other-language abstracts: PubMed lists them above its abstract,
+             // so the link scrolls there (a link cannot pick the language itself)
+             const otherLabels = describeOtherAbstracts(data.OtherAbstracts);
+             if (otherLabels.length > 0) {
+                 const note = document.createElement('div');
+                 note.style.cssText = 'margin-top:12px;padding-top:8px;border-top:1px solid #ddd;font-size:12px;color:#555;white-space:normal;';
+                 note.appendChild(document.createTextNode(`Also available in: ${otherLabels.join(' \u00b7 ')}. On PubMed, choose the language above the abstract \u2014 `));
+                 const link = document.createElement('a');
+                 link.href = `https://pubmed.ncbi.nlm.nih.gov/${pmid}/#abstract`;
+                 link.target = '_blank';
+                 link.rel = 'noopener';
+                 link.textContent = 'open on PubMed';
+                 note.appendChild(link);
+                 bodyElem.appendChild(note);
+             }
+
+             // Translate row: title, abstract and plain-language summary
+             const segs = [{ text: titleElem.textContent, set: t => { titleElem.textContent = t; } }];
+             const hasAbstractText = abstractText && !['No abstract', 'Error loading abstract', 'Error processing abstract'].includes(abstractText);
+             if (hasAbstractText && bodyElem.firstChild && bodyElem.firstChild.nodeType === Node.TEXT_NODE) {
+                 const abstractNode = bodyElem.firstChild;
+                 segs.push({ text: abstractNode.textContent, set: t => { abstractNode.textContent = t; } });
+             }
+             if (plsBodyElem) {
+                 const plsNode = plsBodyElem;
+                 segs.push({ text: plsNode.textContent, set: t => { plsNode.textContent = t; } });
+             }
+             renderAbstractTranslate(modal, pmid, segs);
+             // The browser is translating the page (Chrome/Edge page translation):
+             // it translates this popup, so PubMed's English goes below it
+             if (segs.length > 1 && window.__pcbBrowserTranslated?.()) {
+                 appendEnglishOriginal(modal.querySelector('.abstract-body'), segs);
+             }
              modal.style.display = 'block';
          });
      });
@@ -3144,7 +3548,7 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
              const titleElem = meshModal.querySelector('.mesh-title');
              const bodyElem = meshModal.querySelector('.mesh-body');
              
-             titleElem.textContent = data?.Title ? `MeSH Terms: ${data.Title.substring(0, 60)}${data.Title.length > 60 ? '...' : ''}` : `MeSH Terms: PMID ${pmid}`;
+             titleElem.textContent = data?.Title ? `MeSH / Keywords: ${data.Title.substring(0, 60)}${data.Title.length > 60 ? '...' : ''}` : `MeSH / Keywords: PMID ${pmid}`;
              bodyElem.textContent = '';
              meshModal.style.display = 'block';
              
@@ -3162,19 +3566,6 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                  
                  // Parse MeSH headings
                  const meshHeadings = xmlDoc.querySelectorAll('MeshHeading');
-                 
-                 if (meshHeadings.length === 0) {
-                     // Build content with Type at top even if no MeSH terms
-                     let content = '';
-                     
-                     if (data.pubType && Array.isArray(data.pubType) && data.pubType.length > 0) {
-                         content += `Type: ${data.pubType.join(', ')}\n\n`;
-                     }
-                     
-                     content += 'MeSH Terms\nMeSH terms not yet available';
-                     bodyElem.textContent = content;
-                     return;
-                 }
                  
                  const meshTerms = [];
                  
@@ -3222,7 +3613,36 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                  
                  // Add MeSH Terms header and list
                  content += 'MeSH Terms\n';
-                 content += meshTerms.map(term => `• ${term.text}`).join('\n');
+                 content += meshTerms.length > 0
+                     ? meshTerms.map(term => `• ${term.text}`).join('\n')
+                     : 'No MeSH data';
+                 
+                 // Keywords, grouped by who supplied them (KeywordList Owner):
+                 // NOTNLM = the authors; NLM, KIE, NASA, PIP, HHS = that indexer.
+                 // Each group keeps its given order; duplicates collapse within a group.
+                 const keywordGroups = new Map();
+                 xmlDoc.querySelectorAll('KeywordList').forEach(list => {
+                     const owner = list.getAttribute('Owner') || 'NOTNLM';
+                     if (!keywordGroups.has(owner)) keywordGroups.set(owner, { terms: [], seen: new Set() });
+                     const group = keywordGroups.get(owner);
+                     list.querySelectorAll('Keyword').forEach(kw => {
+                         const text = kw.textContent.replace(/\s+/g, ' ').trim();
+                         if (!text || group.seen.has(text.toLowerCase())) return;
+                         group.seen.add(text.toLowerCase());
+                         group.terms.push(text);
+                     });
+                 });
+                 const filledGroups = [...keywordGroups.entries()]
+                     .filter(([, g]) => g.terms.length > 0)
+                     .sort(([a], [b]) => (a === 'NOTNLM' ? -1 : b === 'NOTNLM' ? 1 : 0));
+                 if (filledGroups.length === 0) {
+                     content += '\n\nKeywords\nNo keywords';
+                 } else {
+                     filledGroups.forEach(([owner, g]) => {
+                         const heading = owner === 'NOTNLM' ? 'Author keywords' : `${owner} keywords (added by indexer)`;
+                         content += `\n\n${heading}\n` + g.terms.map(k => `• ${k}`).join('\n');
+                     });
+                 }
                  
                  bodyElem.textContent = content;
                  
@@ -3236,11 +3656,90 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                      content += `Type: ${data.pubType.join(', ')}\n\n`;
                  }
                  
-                 content += 'MeSH Terms\nError loading MeSH terms';
+                 content += 'MeSH Terms / Keywords\nError loading MeSH terms and keywords';
                  bodyElem.textContent = content;
              }
          });
      });
+
+     // Language tag after the ?: choose the language of the bar's hover text.
+     // The choice is saved as barLanguage and the bars are redrawn from the
+     // data already loaded (injectCitationBarCustom), with no new pull.
+     document.querySelectorAll('.lang-pick').forEach(tag => {
+         if (!bindOnce(tag, 'pcbLang')) return;
+         tag.addEventListener('click', function(e) {
+             e.preventDefault();
+             e.stopPropagation();
+             document.getElementById('pcb-lang-menu')?.remove();
+             const current = states.barLanguage || 'en';
+             const menu = document.createElement('div');
+             menu.id = 'pcb-lang-menu';
+             menu.setAttribute('translate', 'no'); // language names stay in their own language
+             menu.style.cssText = 'position:absolute; z-index:10001; background:#fff; border:1px solid #6B3E26; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.2); padding:4px 0; font-size:13px; min-width:110px;';
+             (states.barLanguages || [['en', 'English']]).forEach(([code, name]) => {
+                 const option = document.createElement('div');
+                 option.textContent = code === current ? `${name} \u2713` : name;
+                 option.style.cssText = 'padding:4px 12px; cursor:pointer; color:#6B3E26;' + (code === current ? ' font-weight:600;' : '');
+                 option.addEventListener('mouseenter', () => { option.style.backgroundColor = '#F3E9DC'; });
+                 option.addEventListener('mouseleave', () => { option.style.backgroundColor = ''; });
+                 option.addEventListener('click', async (ev) => {
+                     ev.stopPropagation();
+                     menu.remove();
+                     if (code === current) return;
+                     // Chrome only starts a first-time language download from a
+                     // click, so the results translator (resultsTranslate.js) is
+                     // created here
+                     window.__pcbStartResultsTranslator?.(code);
+                     await chrome.storage.local.set({ barLanguage: code });
+                     chrome.runtime.sendMessage({ action: 'injectCitationBarCustom' });
+                 });
+                 menu.appendChild(option);
+             });
+             const rect = this.getBoundingClientRect();
+             menu.style.left = `${rect.left + window.scrollX}px`;
+             menu.style.top = `${rect.bottom + window.scrollY + 2}px`;
+             document.body.appendChild(menu);
+             const close = (ev) => {
+                 if (!menu.contains(ev.target)) {
+                     menu.remove();
+                     document.removeEventListener('click', close, true);
+                 }
+             };
+             setTimeout(() => document.addEventListener('click', close, true), 0);
+         });
+     });
+
+     // One-time notice for each non-English bar language: PubMed search
+     // itself needs English terms. Stays until closed with the x.
+     const noticeLang = states.barLanguage || 'en';
+     if (noticeLang !== 'en' && !document.getElementById('pcb-search-notice')) {
+         chrome.storage.local.get('searchNoticeLang').then(({ searchNoticeLang }) => {
+             if (searchNoticeLang === noticeLang || document.getElementById('pcb-search-notice')) return;
+             const notice = document.createElement('div');
+             notice.id = 'pcb-search-notice';
+             notice.style.cssText = 'position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:10002; max-width:520px; background:#fff; border:1px solid #6B3E26; border-radius:6px; box-shadow:0 2px 10px rgba(0,0,0,0.25); padding:10px 36px 10px 14px; font-size:14px; color:#6B3E26;';
+             const main = document.createElement('div');
+             main.textContent = (tooltips && tooltips.searchEnglish) || PCB_SEARCH_EN;
+             if (PCB_RTL.includes(noticeLang)) main.dir = 'rtl';
+             notice.appendChild(main);
+             if (main.textContent !== PCB_SEARCH_EN) {
+                 const english = document.createElement('div');
+                 english.style.cssText = 'font-size:12px; color:#777; margin-top:4px;';
+                 english.textContent = PCB_SEARCH_EN;
+                 notice.appendChild(english);
+             }
+             const close = document.createElement('button');
+             close.textContent = '\u2715';
+             close.title = 'Close';
+             close.style.cssText = 'position:absolute; top:6px; right:8px; border:none; background:none; cursor:pointer; font-size:14px; color:#6B3E26;';
+             close.addEventListener('click', () => {
+                 notice.remove();
+                 chrome.storage.local.set({ searchNoticeLang: noticeLang });
+             });
+             notice.appendChild(close);
+             document.body.appendChild(notice);
+         }).catch(() => {});
+     }
 
      // Add click handlers for retraction links
      document.querySelectorAll('.retraction-link').forEach(link => {
@@ -3294,7 +3793,7 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                      const scoreDisplay = document.createElement('div');
                      scoreDisplay.className = 'article-score-display';
                      scoreDisplay.style.cssText = 'text-align: center; font-size: 18px; font-weight: bold; padding: 15px; background-color: #e8f4f8; margin-bottom: 15px; border-radius: 6px; border: 2px solid #0066cc;';
-                     scoreDisplay.innerHTML = `The overall score of this article is <span style="font-size: 24px; color: #0066cc;">${articleScore}</span>`;
+                     scoreDisplay.innerHTML = `${helpModal.dataset.scoreText || 'The overall score of this article is'} <span style="font-size: 24px; color: #0066cc;">${articleScore}</span>`;
                      modalBody.insertBefore(scoreDisplay, modalBody.firstChild);
                  }
                  
@@ -3708,69 +4207,6 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
              }
          });
      }
-
-     // One-time "What's New" splash after a major update.
-     // The pending flag is cleared the moment the splash is shown (not on
-     // dismiss), so it can never appear a second time.
-     (async () => {
-         try {
-             const { whatsNewPending } = await chrome.storage.local.get('whatsNewPending');
-             if (!whatsNewPending) return;
-             if (document.getElementById('pcb-whatsnew-overlay')) return;
-
-             // Marked as seen the moment it is shown, not on a timer.
-             //
-             // This used to wait 8 seconds, so that the extension's own page
-             // reload ~1s after first injection would not count a brief flash as
-             // "shown". The cost was that anything interrupting those 8 seconds
-             // left the splash armed and it appeared again on the next load.
-             //
-             // Deliberate trade: clearing immediately means a user can, in an
-             // edge case, miss the notes entirely. That is a minor loss - they
-             // are release notes, not something the extension needs them to read.
-             // Being shown the same splash repeatedly is far more damaging.
-             const markShown = async () => {
-                 await chrome.storage.local.set({ whatsNewShownFor: whatsNewPending });
-                 await chrome.storage.local.remove('whatsNewPending');
-             };
-             markShown();
-
-             const overlay = document.createElement('div');
-             overlay.id = 'pcb-whatsnew-overlay';
-             overlay.style.cssText = 'position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:100000; display:flex; justify-content:center; align-items:center;';
-             const card = document.createElement('div');
-             card.style.cssText = 'background:white; border-radius:8px; padding:20px 24px; max-width:430px; box-shadow:0 4px 16px rgba(0,0,0,0.3); font-size:14px; color:#333;';
-             card.innerHTML = `
-                 <h3 style="margin:0 0 10px 0; text-align:center;">PubMed Citation Bar &mdash; What's New (Ver ${whatsNewPending})</h3>
-                 <div style="line-height:1.45; margin-bottom:14px;">
-                     <div style="margin-bottom:7px;"><strong>Send articles to Zotero or EndNote</strong> &mdash; tick the green check at the start of the second row to collect articles as you search, then download the set as .nbib or .ris, or open it as a PubMed search. Your picks hold as you page through results.</div>
-                     <div style="margin-bottom:7px;"><strong>Journal figures</strong> &mdash; Medline % is working again, and the bar now also shows the journal's YTD article count and Free full-text %.</div>
-                     <div style="margin-bottom:7px;"><strong>Numbered results</strong> &mdash; OpenAlex and ClinicalTrials results are numbered, so you can see where you are in the list.</div>
-                     <div style="margin-bottom:7px;"><strong>Expand asks first</strong> &mdash; it lists the tabs it will open and remembers which ones you want, while fetching in the background.</div>
-                     <div style="margin-bottom:7px;"><strong>Low memory warning</strong> &mdash; the Memory line in the popup turns red when free memory runs low, with advice on hover.</div>
-                     <div style="margin-bottom:7px;"><strong>Reset Extension</strong> &mdash; now gives you a clean tab as well as a clean extension and cache, keeping your current search.</div>
-                     <div><strong>Tab resets</strong> &mdash; after the citation bar runs six times, your tab reopens on the same page, clearing the memory it had built up. Your place is kept; the tab's Back history is not.</div>
-                 </div>
-                 <div style="font-style:italic; color:#555; margin-bottom:14px;">
-                     <a href="https://tomlaheyh.github.io/citation-bar/support.html" target="_blank" style="color:#0066cc;">Feedback</a> is always welcome. &mdash; Tom
-                 </div>
-                 <div style="text-align:center;"><button id="pcb-whatsnew-close">Got it</button></div>
-             `;
-             overlay.appendChild(card);
-             document.body.appendChild(overlay);
-             const dismiss = () => {
-                 markShown();
-                 overlay.style.transition = 'opacity 0.4s';
-                 overlay.style.opacity = '0';
-                 setTimeout(() => overlay.remove(), 400);
-             };
-             card.querySelector('#pcb-whatsnew-close').addEventListener('click', dismiss);
-             overlay.addEventListener('click', (e) => { if (e.target === overlay) dismiss(); });
-             setTimeout(dismiss, 20000);   // never force a click: auto-dismiss after 20s
-         } catch (e) {
-             // Never let the splash interfere with the citation bars
-         }
-     })();
 
      return { injectedCount };
  } catch (error) {

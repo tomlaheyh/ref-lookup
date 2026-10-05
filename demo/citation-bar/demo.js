@@ -10,9 +10,15 @@
 //      with the MEDLINE records means ticking an article never hits the network.
 
 import { injectCitationBars } from './citationBarContentScript.js';
-import { helpText, helpStyles, generateHelpHTML, tooltips } from './helpContent.js';
+import { helpStyles, generateHelpHTML, getHelpText, loadTooltips,
+         resolveBarLanguage, BAR_LANGUAGES } from './helpContent.js';
 
 const DATA_URL = './data/demo-data.json';
+
+// Version of the bar code copied into this folder (citationBarContentScript.js,
+// helpContent.js, resultsTranslate.js, _locales). Shown in the banner; update it
+// whenever those copies are refreshed. The data can be older than the bar.
+const BAR_VERSION = '3.830';
 
 // ---------------------------------------------------------------------------
 // chrome.* shim
@@ -28,6 +34,10 @@ function installChromeShim(medlineRecords) {
         citationBarState: true,
         filterState: false
     };
+
+    // resultsTranslate.js listens for a language change through onChanged,
+    // exactly as it does in the extension, so set() reports what it changed.
+    const changeListeners = [];
 
     const pick = (keys) => {
         if (keys == null) return { ...store };
@@ -46,7 +56,10 @@ function installChromeShim(medlineRecords) {
                     return Promise.resolve(result);
                 },
                 set: (obj, cb) => {
+                    const changes = {};
+                    Object.keys(obj).forEach(k => { changes[k] = { oldValue: store[k], newValue: obj[k] }; });
                     Object.assign(store, obj);
+                    changeListeners.forEach(fn => { try { fn(changes, 'local'); } catch (e) { console.log(e); } });
                     if (cb) { cb(); return; }
                     return Promise.resolve();
                 },
@@ -56,11 +69,21 @@ function installChromeShim(medlineRecords) {
                     return Promise.resolve();
                 },
                 getBytesInUse: () => Promise.resolve(0)
-            }
+            },
+            onChanged: { addListener: (fn) => { changeListeners.push(fn); } }
         },
+        // The bar language follows the browser's until the visitor picks one,
+        // the same rule the extension applies with Chrome's language.
+        i18n: { getUILanguage: () => navigator.language || 'en' },
         runtime: {
-            // The Connections tooltip image lives at the site root.
-            getURL: (path) => '/' + String(path).replace(/^\/+/, ''),
+            // The language files (_locales) sit beside this page; the
+            // Connections tooltip image lives at the site root.
+            getURL: (path) => {
+                const clean = String(path).replace(/^\/+/, '');
+                return clean.startsWith('_locales/')
+                    ? new URL('./' + clean, import.meta.url).href
+                    : '/' + clean;
+            },
             sendMessage: (message) => handleRuntimeMessage(message),
             getManifest: () => ({ version: 'demo' }),
             lastError: null
@@ -107,6 +130,13 @@ function handleRuntimeMessage(message) {
     // same shape a failed lookup returns leaves the bar's own handling intact.
     if (action === 'getAltmetricScore') {
         return Promise.resolve({ score: null });
+    }
+
+    // Choosing a language on the bar saves barLanguage and asks the worker to
+    // redraw the bars from the data already loaded. Same here, with no fetch
+    // beyond the language file.
+    if (action === 'injectCitationBarCustom') {
+        return injectBars().then(() => ({ message: 'ok' }));
     }
 
     return Promise.resolve({ success: false, demo: true });
@@ -222,11 +252,32 @@ function meshXmlFromMedline(medline) {
         headings.push(xml + '</MeshHeading>');
     });
 
-    // One document carries both, exactly as a real efetch response does, so the
-    // same synthesized XML answers the MeSH modal and the Author modal.
+    // Keywords (the "+" in MeSH+) are in the record too, as an OTO line naming
+    // who supplied them (NOTNLM = the authors) followed by its OT lines:
+    //
+    //   OTO - NOTNLM
+    //   OT  - Bicuspid aortic valve
+    //
+    // Each OTO starts a KeywordList with that Owner, as efetch returns them.
+    const keywordLists = [];
+    medlineFields(medline).forEach(field => {
+        if (field.tag === 'OTO') {
+            keywordLists.push({ owner: field.value || 'NOTNLM', terms: [] });
+        } else if (field.tag === 'OT') {
+            if (!keywordLists.length) keywordLists.push({ owner: 'NOTNLM', terms: [] });
+            keywordLists[keywordLists.length - 1].terms.push(field.value);
+        }
+    });
+    const keywordXml = keywordLists.map(list =>
+        `<KeywordList Owner="${escapeXml(list.owner)}">` +
+        list.terms.map(t => `<Keyword MajorTopicYN="N">${escapeXml(t)}</Keyword>`).join('') +
+        '</KeywordList>').join('');
+
+    // One document carries all of it, exactly as a real efetch response does, so
+    // the same synthesized XML answers the MeSH+ modal and the Author modal.
     return `<?xml version="1.0"?><PubmedArticleSet><PubmedArticle><MedlineCitation>` +
            `<Article><AuthorList CompleteYN="Y">${authorXmlFromMedline(medline)}</AuthorList></Article>` +
-           `<MeshHeadingList>${headings.join('')}</MeshHeadingList>` +
+           `<MeshHeadingList>${headings.join('')}</MeshHeadingList>` + keywordXml +
            `</MedlineCitation></PubmedArticle></PubmedArticleSet>`;
 }
 
@@ -423,20 +474,41 @@ function escapeHtml(value) {
         document.getElementById('snapshot-date').textContent =
             captured.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
     }
-    if (payload.extensionVersion) {
-        document.getElementById('snapshot-version').textContent = payload.extensionVersion;
-    }
+    document.getElementById('snapshot-version').textContent = BAR_VERSION;
+
+    demoDataSet = fullDataSet;
+
+    // The results translator (titles into the bar language) is the extension's
+    // own content script. It reads chrome.* when it loads, so it is added only
+    // now that the shim is in place.
+    const translator = document.createElement('script');
+    translator.src = new URL('./resultsTranslate.js', import.meta.url).href;
+    document.head.appendChild(translator);
+
+    await injectBars();
+})();
+
+// ---------------------------------------------------------------------------
+// Draw (or redraw) the bars in the current bar language, the way the
+// extension's insertCitationBar does: help text, help panel and hover text are
+// all built for that language before the bar is injected.
+let demoDataSet = [];
+
+async function injectBars() {
+    const { barLanguage } = await chrome.storage.local.get('barLanguage');
+    const lang = resolveBarLanguage(barLanguage);
+    const tooltips = await loadTooltips(lang);
 
     // handlers is a dead parameter in the bar - declared but never read, since
     // functions cannot survive executeScript serialisation. Passed empty.
     injectCitationBars(
-        fullDataSet,
-        { citationBarEnabled: true, filterEnabled: false },
-        helpText,
+        demoDataSet,
+        { citationBarEnabled: true, filterEnabled: false, barLanguage: lang, barLanguages: BAR_LANGUAGES },
+        getHelpText(lang),
         helpStyles,
-        generateHelpHTML(),
+        generateHelpHTML(lang),
         tooltips,
         {},
         'demo'
     );
-})();
+}

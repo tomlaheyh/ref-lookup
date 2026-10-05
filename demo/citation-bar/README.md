@@ -23,9 +23,16 @@ network:
   record for every article on the page. The export list checks its cache before
   fetching, so ticking an article never touches the network, and the `.nbib` and
   `.ris` downloads produce genuine files.
-- **Offline MeSH** — the MeSH modal parses efetch XML. `demo.js` rebuilds that
-  XML from the `MH` lines already present in the cached MEDLINE records, so the
-  terms shown are real, including major-topic asterisks and subheadings.
+- **Offline MeSH+** — the MeSH+ modal parses efetch XML. `demo.js` rebuilds that
+  XML from the `MH` lines (MeSH terms, including major-topic asterisks and
+  subheadings) and the `OTO`/`OT` lines (keywords, grouped by who supplied them)
+  already present in the cached MEDLINE records, so everything shown is real.
+- **Languages** — the shim's `chrome.i18n.getUILanguage` returns the browser's
+  language and `runtime.getURL` serves the `_locales` files beside this page, so
+  the EN tag works as in the extension: picking a language redraws the bars with
+  translated hover text and help. `resultsTranslate.js` is loaded after the shim
+  and translates the result titles with Chrome's on-device Translator (Chrome
+  138+); in other browsers titles simply stay in English.
 - **Fetch interception** — anything addressed to NCBI is answered locally.
   Nothing reaches an API.
 
@@ -65,8 +72,10 @@ no abstract or MeSH terms in the demo.
 
 ## Keeping it current
 
-`citationBarContentScript.js` and `helpContent.js` here are **copies** taken from
-the extension. They do not update themselves. When the bar changes in a way a
-visitor would notice, copy both files again and recapture the data.
+`citationBarContentScript.js`, `helpContent.js`, `resultsTranslate.js` and the
+`_locales` folder here are **copies** taken from the extension. They do not
+update themselves. When the bar changes in a way a visitor would notice, copy
+all of them again and set `BAR_VERSION` at the top of `demo.js` to match.
+Recapture the data only if the bar needs fields the old data lacks.
 
-Snapshot source: PubMed Citation Bar **v3.820**.
+Bar code: PubMed Citation Bar **v3.830**. Data captured with **v3.820**.
