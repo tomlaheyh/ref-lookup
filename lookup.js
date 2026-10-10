@@ -1039,6 +1039,9 @@ function showDOIModal(result, linksHtml) {
   } else {
     authorBlockTop('Last Author', null, null, null, null, null, null);
   }
+  if (firstMetrics || lastMetrics) {
+    html += '<div style="color: #888880; font-size: 12px; font-weight: 300; margin-top: 4px; font-style: italic;">Author indexes are from OpenAlex. When one ORCID has several OpenAlex profiles (duplicates), the profile with the most works is used.</div>';
+  }
   html += '</div>';
 
   // Publisher + Country (from ISSN portal)
@@ -1678,13 +1681,18 @@ async function checkAllDOILinks(doi, result) {
   if (!isValidOrcid(lastOrcid)  && isValidOrcid(oaLastOrcidLinks))  lastOrcid  = oaLastOrcidLinks;
 
   // Fetch OpenAlex author metrics for each author independently
-  // Test: https://api.openalex.org/authors/orcid:0000-0001-5485-7727
+  // One ORCID can match several OpenAlex profiles (a real one plus small
+  // leftovers, often h-index 0). /authors/orcid:X returns just one of them, so
+  // list them all and keep the profile with the most works.
+  // Test: https://api.openalex.org/authors?filter=orcid:0000-0002-6906-2643
   const fetchOpenAlexAuthorMetrics = async (orcidId) => {
     if (!orcidId || orcidId === 'N/A') return null;
     try {
-      const response = await fetch(`https://api.openalex.org/authors/orcid:${orcidId}`);
+      const response = await fetch(`https://api.openalex.org/authors?filter=orcid:${orcidId}&select=works_count,summary_stats`);
       if (!response.ok) { return null; }
-      const data = await response.json();
+      const records = (await response.json()).results || [];
+      const data = records.reduce((best, r) => (!best || (r.works_count || 0) > (best.works_count || 0)) ? r : best, null);
+      if (!data) { return null; }
       return {
         hIndex:     data.summary_stats?.h_index     ?? null,
         i10Index:   data.summary_stats?.i10_index   ?? null,
