@@ -2,7 +2,9 @@
 //
 // The bar's code here is an unmodified copy of the extension's. Everything it
 // normally gets from Chrome or from the network is supplied by the shim below,
-// so the demo makes no API calls at all and works with no extension installed.
+// so the demo works with no extension installed. The one live call is the AI
+// pack's full text, fetched from Europe PMC (and PubMed Central for NIH
+// manuscripts) only when a visitor builds a pack.
 //
 // Two things make this possible without touching the bar's own code:
 //   1. injectCitationBars() takes all its dependencies as arguments.
@@ -16,9 +18,10 @@ import { helpStyles, generateHelpHTML, getHelpText, loadTooltips,
 const DATA_URL = './data/demo-data.json';
 
 // Version of the bar code copied into this folder (citationBarContentScript.js,
-// helpContent.js, resultsTranslate.js, _locales). Shown in the banner; update it
-// whenever those copies are refreshed. The data can be older than the bar.
-const BAR_VERSION = '3.830';
+// helpContent.js, resultsTranslate.js, _locales, pdfConvert.js, lib/). Shown in
+// the banner and written into the AI pack's README; update it whenever those
+// copies are refreshed. The data can be older than the bar.
+const BAR_VERSION = '3.840';
 
 // ---------------------------------------------------------------------------
 // chrome.* shim
@@ -85,7 +88,7 @@ function installChromeShim(medlineRecords) {
                     : '/' + clean;
             },
             sendMessage: (message) => handleRuntimeMessage(message),
-            getManifest: () => ({ version: 'demo' }),
+            getManifest: () => ({ version: BAR_VERSION }),
             lastError: null
         }
     };
@@ -139,7 +142,32 @@ function handleRuntimeMessage(message) {
         return injectBars().then(() => ({ message: 'ok' }));
     }
 
+    // AI pack "Convert PDF": the worker injects pdf.js, pdf-lib and the
+    // converter into the tab on first use. Here they are added as plain
+    // scripts from this folder, in the same order, and the answer has the
+    // same shape. The PDF is read in the visitor's browser; nothing is sent.
+    if (action === 'pcbLoadPdfTools') {
+        return loadPdfTools().then(() => ({ ok: true }), error => ({ error: error.message }));
+    }
+
     return Promise.resolve({ success: false, demo: true });
+}
+
+const PDF_TOOLS = ['lib/pdf.min.js', 'lib/pdf.worker.min.js', 'lib/pdf-lib.min.js', 'pdfConvert.js'];
+let pdfToolsLoading = null;
+
+function loadPdfTools() {
+    if (!pdfToolsLoading) {
+        pdfToolsLoading = PDF_TOOLS.reduce((ready, file) => ready.then(() => new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = new URL('./' + file, import.meta.url).href;
+            script.onload = resolve;
+            script.onerror = () => reject(new Error('could not load ' + file));
+            document.head.appendChild(script);
+        })), Promise.resolve());
+        pdfToolsLoading.catch(() => { pdfToolsLoading = null; });
+    }
+    return pdfToolsLoading;
 }
 
 // ---------------------------------------------------------------------------
@@ -309,8 +337,9 @@ function escapeXml(value) {
         .replace(/"/g, '&quot;');
 }
 
-// Anything aimed at NCBI is answered locally. Every other fetch is left alone,
-// so the demo never reaches an API even if a path is added to the bar later.
+// Anything aimed at NCBI's PubMed records is answered locally. Every other
+// fetch is left alone; of the bar's own calls, only the AI pack's full text
+// (Europe PMC, and PubMed Central for NIH manuscripts) goes out.
 function installFetchShim(medlineRecords, iciteSearchIds) {
     const realFetch = window.fetch.bind(window);
     window.fetch = (input, init) => {
@@ -340,6 +369,13 @@ function installFetchShim(medlineRecords, iciteSearchIds) {
             return Promise.resolve(new Response('{}', { status: 503 }));
         }
 
+        // The AI pack fetches an NIH author manuscript's full text from PMC
+        // when Europe PMC has none. That is the pack's live path, not a PubMed
+        // record, so it goes to NCBI as it does in the extension.
+        if (url.includes('eutils.ncbi.nlm.nih.gov') && url.includes('db=pmc')) {
+            return realFetch(input, init);
+        }
+
         if (url.includes('eutils.ncbi.nlm.nih.gov')) {
             const pmid = (url.match(/[?&]id=(\d+)/) || [])[1];
             const record = medlineRecords[pmid];
@@ -351,9 +387,10 @@ function installFetchShim(medlineRecords, iciteSearchIds) {
                 headers: { 'Content-Type': 'text/plain' }
             }));
         }
-        // OpenAlex is only reached for authors who have an ORCID, to add h-index
-        // and i10-index. Refused here so the demo stays wholly offline; the
-        // modal already handles absent metrics and simply omits that line.
+        // Author ORCIDs and indexes were captured from OpenAlex with the demo
+        // data (authorsCapturedUTC) and travel in the dataset, as they do in the
+        // extension. OpenAlex is refused here, so the Author box shows exactly
+        // that capture; an author without one shows the usual "requires ORCID".
         if (url.includes('icite.od.nih.gov') ||
             url.includes('api.crossref.org') ||
             url.includes('api.openalex.org')) {
@@ -475,6 +512,10 @@ function escapeHtml(value) {
             captured.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
     }
     document.getElementById('snapshot-version').textContent = BAR_VERSION;
+    if (payload.authorsCapturedUTC) {
+        document.getElementById('authors-date').textContent = new Date(payload.authorsCapturedUTC)
+            .toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    }
 
     demoDataSet = fullDataSet;
 

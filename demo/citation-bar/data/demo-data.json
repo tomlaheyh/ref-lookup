@@ -1,5 +1,6 @@
 {
  "capturedUTC": "2026-09-13T22:39:00.450Z",
+ "authorsCapturedUTC": "2026-10-11T23:33:15.835Z",
  "extensionVersion": "3.820",
  "query": "2024 [crdt] heart disease",
  "fullDataSet": [
@@ -75,7 +76,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/596e369457b051733d5a93e8eaea85c264d3b5b9",
    "sortpubdate": "2024/02/20 00:00",
    "trendingCode": "",
-   "volume": "149"
+   "volume": "149",
+   "firstAuthorOrcid": "0000-0002-7021-7622",
+   "firstAuthorHIndex": 76,
+   "firstAuthorI10Index": 256,
+   "firstAuthor2yrCites": 45.12264150943396,
+   "lastAuthorOrcid": "0000-0002-1245-665X",
+   "lastAuthorHIndex": 66,
+   "lastAuthorI10Index": 169,
+   "lastAuthor2yrCites": 34.471014492753625
   },
   {
    "Abstract": "No abstract",
@@ -149,7 +158,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/f087c26547ac6a61d50f2cbaeb7dfd8172b31a6c",
    "sortpubdate": "2024/04/02 00:00",
    "trendingCode": "",
-   "volume": "149"
+   "volume": "149",
+   "firstAuthorOrcid": "0000-0001-5006-1547",
+   "firstAuthorHIndex": 39,
+   "firstAuthorI10Index": 92,
+   "firstAuthor2yrCites": 20.37142857142857,
+   "lastAuthorOrcid": "0000-0002-6862-0658",
+   "lastAuthorHIndex": 24,
+   "lastAuthorI10Index": 51,
+   "lastAuthor2yrCites": 6.966666666666667
   },
   {
    "Abstract": "No abstract",
@@ -223,7 +240,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/74cd2fab51605579b4c17bf2e2bf225e0e2d38a3",
    "sortpubdate": "2024/08/06 00:00",
    "trendingCode": "",
-   "volume": "150"
+   "volume": "150",
+   "firstAuthorOrcid": "0000-0002-0645-9141",
+   "firstAuthorHIndex": 21,
+   "firstAuthorI10Index": 29,
+   "firstAuthor2yrCites": 24.142857142857142,
+   "lastAuthorOrcid": "0000-0003-1871-6915",
+   "lastAuthorHIndex": 25,
+   "lastAuthorI10Index": 31,
+   "lastAuthor2yrCites": 5.346153846153846
   },
   {
    "Abstract": "No abstract",
@@ -298,7 +323,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/ea96adf9643f3e9fe88d4c075f7395fadb150641",
    "sortpubdate": "2025/04/08 00:00",
    "trendingCode": "",
-   "volume": "120"
+   "volume": "120",
+   "firstAuthorOrcid": "0000-0002-0415-1135",
+   "firstAuthorHIndex": 24,
+   "firstAuthorI10Index": 34,
+   "firstAuthor2yrCites": 23.846153846153847,
+   "lastAuthorOrcid": "0000-0002-9069-2594",
+   "lastAuthorHIndex": 54,
+   "lastAuthorI10Index": 97,
+   "lastAuthor2yrCites": 19.738095238095237
   },
   {
    "Abstract": "No abstract",
@@ -371,7 +404,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/1356fd3eb9f0269621fc28d889a50b50f81702e3",
    "sortpubdate": "2024/03/01 00:00",
    "trendingCode": "",
-   "volume": "43"
+   "volume": "43",
+   "firstAuthorOrcid": "0000-0003-2958-5965",
+   "firstAuthorHIndex": 11,
+   "firstAuthorI10Index": 12,
+   "firstAuthor2yrCites": 14.235294117647058,
+   "lastAuthorOrcid": "0000-0002-4842-4852",
+   "lastAuthorHIndex": 28,
+   "lastAuthorI10Index": 66,
+   "lastAuthor2yrCites": 8.59375
   },
   {
    "Abstract": "No abstract",
@@ -445,7 +486,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/cda6528bed6a0944ab507edd75b0dfc64382aba5",
    "sortpubdate": "2025/03/01 00:00",
    "trendingCode": "",
-   "volume": "18"
+   "volume": "18",
+   "firstAuthorOrcid": "0000-0003-3005-9954",
+   "firstAuthorHIndex": 76,
+   "firstAuthorI10Index": 193,
+   "firstAuthor2yrCites": 22.113636363636363,
+   "lastAuthorOrcid": "0000-0002-0575-1888",
+   "lastAuthorHIndex": 69,
+   "lastAuthorI10Index": 208,
+   "lastAuthor2yrCites": 8.693181818181818
   },
   {
    "Abstract": "No abstract",
@@ -519,7 +568,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/9fca2cd6044534bad0b406944e52892ffa750f18",
    "sortpubdate": "2024/05/01 00:00",
    "trendingCode": "",
-   "volume": "15"
+   "volume": "15",
+   "firstAuthorOrcid": "0009-0008-2450-2394",
+   "firstAuthorHIndex": 9,
+   "firstAuthorI10Index": 9,
+   "firstAuthor2yrCites": 9.083333333333334,
+   "lastAuthorOrcid": "0000-0001-7470-018X",
+   "lastAuthorHIndex": 21,
+   "lastAuthorI10Index": 29,
+   "lastAuthor2yrCites": 10.6
   },
   {
    "Abstract": "No abstract",
@@ -594,7 +651,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/d610648b408f48da02cbc743b74c20a3f4295334",
    "sortpubdate": "2024/08/15 00:00",
    "trendingCode": "",
-   "volume": "14"
+   "volume": "14",
+   "firstAuthorOrcid": "0000-0002-7496-5564",
+   "firstAuthorHIndex": 35,
+   "firstAuthorI10Index": 114,
+   "firstAuthor2yrCites": 5.9361702127659575,
+   "lastAuthorOrcid": null,
+   "lastAuthorHIndex": null,
+   "lastAuthorI10Index": null,
+   "lastAuthor2yrCites": null
   },
   {
    "Abstract": "No abstract",
@@ -668,7 +733,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/c8e1d7369f5f786cffae97273611dbe6ca1f8a9e",
    "sortpubdate": "2024/12/01 00:00",
    "trendingCode": "",
-   "volume": "11"
+   "volume": "11",
+   "firstAuthorOrcid": "0000-0002-3057-6655",
+   "firstAuthorHIndex": 5,
+   "firstAuthorI10Index": 2,
+   "firstAuthor2yrCites": 24.5,
+   "lastAuthorOrcid": "0009-0007-6564-3495",
+   "lastAuthorHIndex": 4,
+   "lastAuthorI10Index": 3,
+   "lastAuthor2yrCites": 14.5
   },
   {
    "Abstract": "No abstract",
@@ -742,7 +815,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/a4c3861cea48785217a50b2044185797b6de0efb",
    "sortpubdate": "2024/08/01 00:00",
    "trendingCode": "",
-   "volume": "12"
+   "volume": "12",
+   "firstAuthorOrcid": "0000-0003-2038-7786",
+   "firstAuthorHIndex": 12,
+   "firstAuthorI10Index": 15,
+   "firstAuthor2yrCites": 2.768292682926829,
+   "lastAuthorOrcid": "0000-0001-6451-2118",
+   "lastAuthorHIndex": 25,
+   "lastAuthorI10Index": 49,
+   "lastAuthor2yrCites": 3.586206896551724
   },
   {
    "Abstract": "No abstract",
@@ -816,7 +897,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/feba2a0a729c7200a225c64621a8f90636bf2830",
    "sortpubdate": "2024/05/01 00:00",
    "trendingCode": "",
-   "volume": "70"
+   "volume": "70",
+   "firstAuthorOrcid": "0000-0002-8814-2577",
+   "firstAuthorHIndex": 126,
+   "firstAuthorI10Index": 618,
+   "firstAuthor2yrCites": 4.017857142857143,
+   "lastAuthorOrcid": "0000-0002-0195-9753",
+   "lastAuthorHIndex": 125,
+   "lastAuthorI10Index": 476,
+   "lastAuthor2yrCites": 9.535211267605634
   },
   {
    "Abstract": "No abstract",
@@ -890,7 +979,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/3842f23991f6628ba7c58cf18e6f663f60252d56",
    "sortpubdate": "2024/05/01 00:00",
    "trendingCode": "",
-   "volume": "60"
+   "volume": "60",
+   "firstAuthorOrcid": "0009-0000-0909-9658",
+   "firstAuthorHIndex": 12,
+   "firstAuthorI10Index": 13,
+   "firstAuthor2yrCites": 10.5,
+   "lastAuthorOrcid": "0000-0001-6960-3713",
+   "lastAuthorHIndex": 55,
+   "lastAuthorI10Index": 109,
+   "lastAuthor2yrCites": 3.1666666666666665
   },
   {
    "Abstract": "No abstract",
@@ -964,7 +1061,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/afbc8c221afe892b0726ec28307a0c30e40b35aa",
    "sortpubdate": "2024/08/01 00:00",
    "trendingCode": "",
-   "volume": "42"
+   "volume": "42",
+   "firstAuthorOrcid": null,
+   "firstAuthorHIndex": null,
+   "firstAuthorI10Index": null,
+   "firstAuthor2yrCites": null,
+   "lastAuthorOrcid": "0000-0003-0639-7443",
+   "lastAuthorHIndex": 47,
+   "lastAuthorI10Index": 92,
+   "lastAuthor2yrCites": 5
   },
   {
    "Abstract": "No abstract",
@@ -1038,7 +1143,15 @@
    "s2Url": "",
    "sortpubdate": "2024/01/01 00:00",
    "trendingCode": "",
-   "volume": "1441"
+   "volume": "1441",
+   "firstAuthorOrcid": "0000-0002-1979-044X",
+   "firstAuthorHIndex": 39,
+   "firstAuthorI10Index": 60,
+   "firstAuthor2yrCites": 9.619047619047619,
+   "lastAuthorOrcid": "0000-0001-8637-4465",
+   "lastAuthorHIndex": 105,
+   "lastAuthorI10Index": 250,
+   "lastAuthor2yrCites": 6.117647058823529
   },
   {
    "Abstract": "No abstract",
@@ -1112,7 +1225,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/ed6fdfc640046866e147f9d8e02716156c043978",
    "sortpubdate": "2024/09/18 00:00",
    "trendingCode": "",
-   "volume": "24"
+   "volume": "24",
+   "firstAuthorOrcid": "0000-0002-1688-6163",
+   "firstAuthorHIndex": 21,
+   "firstAuthorI10Index": 36,
+   "firstAuthor2yrCites": 30.714285714285715,
+   "lastAuthorOrcid": "0000-0001-8061-5096",
+   "lastAuthorHIndex": 22,
+   "lastAuthorI10Index": 44,
+   "lastAuthor2yrCites": 25.6
   },
   {
    "Abstract": "No abstract",
@@ -1187,7 +1308,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/3e871e66b7bbe7ff4a3cc10a6d24cb411d2672a6",
    "sortpubdate": "2024/12/18 00:00",
    "trendingCode": "",
-   "volume": "22"
+   "volume": "22",
+   "firstAuthorOrcid": "0000-0003-2018-7004",
+   "firstAuthorHIndex": 38,
+   "firstAuthorI10Index": 154,
+   "firstAuthor2yrCites": 7.402135231316726,
+   "lastAuthorOrcid": "0000-0002-7166-0482",
+   "lastAuthorHIndex": 53,
+   "lastAuthorI10Index": 256,
+   "lastAuthor2yrCites": 7.063291139240507
   },
   {
    "Abstract": "No abstract",
@@ -1261,7 +1390,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/e53050aa37f1bbae468a87846882a97206e44b64",
    "sortpubdate": "2024/03/01 00:00",
    "trendingCode": "",
-   "volume": "51"
+   "volume": "51",
+   "firstAuthorOrcid": "0000-0002-4254-0641",
+   "firstAuthorHIndex": 4,
+   "firstAuthorI10Index": 2,
+   "firstAuthor2yrCites": 0.18181818181818182,
+   "lastAuthorOrcid": null,
+   "lastAuthorHIndex": null,
+   "lastAuthorI10Index": null,
+   "lastAuthor2yrCites": null
   },
   {
    "Abstract": "No abstract",
@@ -1335,7 +1472,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/4cbd82da0e62f30b3746e4a284c2ce8ac0c77579",
    "sortpubdate": "2024/12/02 00:00",
    "trendingCode": "",
-   "volume": "54"
+   "volume": "54",
+   "firstAuthorOrcid": null,
+   "firstAuthorHIndex": null,
+   "firstAuthorI10Index": null,
+   "firstAuthor2yrCites": null,
+   "lastAuthorOrcid": null,
+   "lastAuthorHIndex": null,
+   "lastAuthorI10Index": null,
+   "lastAuthor2yrCites": null
   },
   {
    "Abstract": "No abstract",
@@ -1409,7 +1554,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/2e50c2560f87fdcf40b8da8f9343eb07774f1bcd",
    "sortpubdate": "2024/01/01 00:00",
    "trendingCode": "",
-   "volume": "20"
+   "volume": "20",
+   "firstAuthorOrcid": "0000-0002-0963-948X",
+   "firstAuthorHIndex": 12,
+   "firstAuthorI10Index": 13,
+   "firstAuthor2yrCites": 0.3333333333333333,
+   "lastAuthorOrcid": null,
+   "lastAuthorHIndex": null,
+   "lastAuthorI10Index": null,
+   "lastAuthor2yrCites": null
   },
   {
    "Abstract": "No abstract",
@@ -1483,7 +1636,15 @@
    "s2Url": "https://www.semanticscholar.org/paper/159e0a028d53f600c0ab63ce7096e6317a9bbcef",
    "sortpubdate": "2024/08/01 00:00",
    "trendingCode": "",
-   "volume": "102"
+   "volume": "102",
+   "firstAuthorOrcid": "0000-0001-5067-8803",
+   "firstAuthorHIndex": 18,
+   "firstAuthorI10Index": 26,
+   "firstAuthor2yrCites": 4.190476190476191,
+   "lastAuthorOrcid": "0000-0002-9617-5803",
+   "lastAuthorHIndex": 56,
+   "lastAuthorI10Index": 123,
+   "lastAuthor2yrCites": 4.8125
   }
  ],
  "medlineRecords": {

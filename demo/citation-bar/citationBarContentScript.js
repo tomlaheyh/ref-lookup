@@ -85,20 +85,25 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
        }
 
        try {
-           const url = `https://api.openalex.org/authors/orcid:${orcid}`;
+           // One ORCID can match several OpenAlex profiles (a real one plus
+           // small leftovers with h-index 0). /authors/orcid:X returns just one,
+           // often a leftover, so list them all and keep the one with most works.
+           const id = String(orcid).replace('https://orcid.org/', '');
+           const url = `https://api.openalex.org/authors?filter=orcid:${id}&select=works_count,summary_stats`;
            const response = await fetch(url);
            
            if (!response.ok) {
                throw new Error(`HTTP error! status: ${response.status}`);
            }
            
-           const data = await response.json();
+           const records = (await response.json()).results || [];
+           const data = records.reduce((best, r) => (!best || (r.works_count || 0) > (best.works_count || 0)) ? r : best, null);
            
-           if (data.summary_stats) {
+           if (data && data.summary_stats) {
                return {
-                   hIndex: data.summary_stats.h_index || null,
-                   i10Index: data.summary_stats.i10_index || null,
-                   twoYrCites: data.summary_stats['2yr_mean_citedness'] || null
+                   hIndex: data.summary_stats.h_index ?? null,
+                   i10Index: data.summary_stats.i10_index ?? null,
+                   twoYrCites: data.summary_stats['2yr_mean_citedness'] ?? null
                };
            }
            
@@ -251,7 +256,7 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
    }
 
    // Author data functions
-   async function getAuthorData(pmid) {
+   async function getAuthorData(pmid, data) {
        try {
            const url = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmid}&retmode=xml`;
            const response = await fetch(url);
@@ -284,11 +289,24 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
            const lastAuthor = authors[authors.length - 1];
            const isSingleAuthor = authors.length === 1;
            
-           // Fetch OpenAlex metrics for authors with ORCID
-           if (firstAuthor.orcid) {
+           // Use the ORCID and metrics the data load already pulled from OpenAlex
+           if (data) {
+               applyStoredAuthor(firstAuthor, data.firstAuthorOrcid, data.firstAuthorHIndex, data.firstAuthorI10Index, data.firstAuthor2yrCites);
+               if (!isSingleAuthor) {
+                   applyStoredAuthor(lastAuthor, data.lastAuthorOrcid, data.lastAuthorHIndex, data.lastAuthorI10Index, data.lastAuthor2yrCites);
+               }
+           }
+
+           // PubMed often has no ORCID; fill first/last from OpenAlex when the surname matches
+           if (!firstAuthor.orcid || (!lastAuthor.orcid && !isSingleAuthor)) {
+               await fillOrcidFromOpenAlex(pmid, firstAuthor, isSingleAuthor ? null : lastAuthor);
+           }
+           
+           // Fetch OpenAlex metrics for authors with ORCID, unless already stored
+           if (firstAuthor.orcid && !firstAuthor.openAlexMetrics) {
                firstAuthor.openAlexMetrics = await getOpenAlexMetrics(firstAuthor.orcid);
            }
-           if (lastAuthor.orcid && !isSingleAuthor) {
+           if (lastAuthor.orcid && !isSingleAuthor && !lastAuthor.openAlexMetrics) {
                lastAuthor.openAlexMetrics = await getOpenAlexMetrics(lastAuthor.orcid);
            }
            
@@ -296,7 +314,8 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                firstAuthor: firstAuthor,
                lastAuthor: isSingleAuthor ? null : lastAuthor,
                isSingleAuthor: isSingleAuthor,
-               totalAuthors: authors.length
+               // Count every <Author>, incl. group authors, to match the Report's Total Authors
+               totalAuthors: (xmlText.match(/<Author /g) || []).length
            };
            
        } catch (error) {
@@ -308,6 +327,43 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                totalAuthors: 0,
                error: error.message
            };
+       }
+   }
+
+   // Copies the stored (data load) OpenAlex ORCID and metrics onto a PubMed
+   // author. A PubMed ORCID always wins: stored metrics are used with it only
+   // when they belong to the same ORCID. A stored ORCID is only used if the
+   // OpenAlex surname check passed when the dataset was built.
+   function applyStoredAuthor(author, orcid, hIndex, i10Index, twoYrCites) {
+       if (!author || !orcid) return;
+       const bare = s => String(s || '').replace('https://orcid.org/', '');
+       if (author.orcid && bare(author.orcid) !== bare(orcid)) return;
+       if (!author.orcid) author.orcid = bare(orcid);
+       if (hIndex !== null && hIndex !== undefined) {
+           author.openAlexMetrics = { hIndex, i10Index: i10Index ?? null, twoYrCites: twoYrCites ?? null };
+       }
+   }
+
+   // Looks the article up in OpenAlex by PMID and copies the first/last author's
+   // ORCID onto the PubMed author, only if that author has none and the OpenAlex
+   // name contains the PubMed surname. Failures leave the authors unchanged.
+   async function fillOrcidFromOpenAlex(pmid, firstAuthor, lastAuthor) {
+       const norm = s => ' ' + (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+           .toLowerCase().replace(/[^a-z]+/g, ' ').trim() + ' ';
+       const fill = (author, oa) => {
+           if (!author || author.orcid || !oa || !oa.orcid) return;
+           if (!norm(oa.display_name).includes(norm(author.lastName))) return;
+           author.orcid = oa.orcid.replace('https://orcid.org/', '');
+       };
+       try {
+           const response = await fetch(`https://api.openalex.org/works/pmid:${pmid}?select=authorships`);
+           if (!response.ok) return;
+           const authorships = (await response.json()).authorships || [];
+           if (authorships.length === 0) return;
+           fill(firstAuthor, authorships[0].author);
+           fill(lastAuthor, authorships[authorships.length - 1].author);
+       } catch (error) {
+           console.error('Error getting ORCID from OpenAlex:', error);
        }
    }
 
@@ -634,7 +690,7 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
        const altmetricScore = await getAltmetricScore(data.DOI);
 
        // Get author information
-       const authorData = await getAuthorData(pmid);
+       const authorData = await getAuthorData(pmid, data);
 
        // Get Registration Agency for DOI (Citation Bar separate code)
        const registrationAgency = await getRegistrationAgency(data.DOI);
@@ -920,7 +976,7 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
    // Function to show the report in a modal and handle copying
    async function showAuthorInfo(data, pmid) {
        // Fetch author data
-       const authorData = await getAuthorData(pmid);
+       const authorData = await getAuthorData(pmid, data);
        
        // Create modal if it doesn't exist
        let modal = document.getElementById('author-info-modal');
@@ -1279,11 +1335,11 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
            // Switching the bar off discards the export list. The ticks live on
            // the bar, so leaving the list behind would mean a selection the
            // user can no longer see, review, or clear.
-           chrome.storage.local.remove(['pcbExportPMIDs', 'pcbExportRecords']);
+           chrome.storage.local.remove(['pcbExportPMIDs', 'pcbExportRecords', 'pcbExportBars']);
            if (window.__pcbExport) {
                window.__pcbExport.ids = [];
                window.__pcbExport.records = {};
-               window.__pcbExport.loaded = true;
+               window.__pcbExport.bars = {};
            }
            return { injectedCount };
        }
@@ -1332,6 +1388,9 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
 
        const PICK_IDS_KEY = 'pcbExportPMIDs';
        const PICK_RECORDS_KEY = 'pcbExportRecords';
+       // Bar data per ticked article, kept for the AI pack: an article ticked
+       // on an earlier page is not in this page's dataset.
+       const PICK_BARS_KEY = 'pcbExportBars';
 
        // Ceiling on "Open in new tab" only - the downloads have no limit.
        // The PubMed URL carries every PMID in the query string at about nine
@@ -1348,13 +1407,15 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
            window.__pcbExport = {
                ids: [],
                records: {},
+               bars: {},
                pending: new Set(),
-               loaded: false,
+               saves: 0,
                chain: Promise.resolve(),
                lastAt: 0
            };
        }
        const pickState = window.__pcbExport;
+       if (!pickState.bars) pickState.bars = {};
 
        // One request per second, enforced between requests rather than between
        // clicks. A delay attached to each click lets a fast run down the page
@@ -1375,19 +1436,45 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
            return result;
        }
 
+       // Read from storage every time, not once per page. The selection is
+       // shared by every PubMed page, so a page that read it once goes stale
+       // as soon as another one changes it: a tab left open, or a search
+       // returned to with Back, kept showing articles that had been cleared
+       // elsewhere, and its next tick saved them all back.
        async function loadPicks() {
-           if (pickState.loaded) return;
-           const stored = await chrome.storage.local.get([PICK_IDS_KEY, PICK_RECORDS_KEY]);
+           const saves = pickState.saves || 0;
+           const stored = await chrome.storage.local.get([PICK_IDS_KEY, PICK_RECORDS_KEY, PICK_BARS_KEY]);
+           // This page saved while the read was out: its copy is the newer one.
+           if ((pickState.saves || 0) !== saves) return;
            pickState.ids = Array.isArray(stored[PICK_IDS_KEY]) ? stored[PICK_IDS_KEY] : [];
            pickState.records = stored[PICK_RECORDS_KEY] || {};
-           pickState.loaded = true;
+           pickState.bars = stored[PICK_BARS_KEY] || {};
        }
 
        async function savePicks() {
+           pickState.saves = (pickState.saves || 0) + 1;
            await chrome.storage.local.set({
                [PICK_IDS_KEY]: pickState.ids,
-               [PICK_RECORDS_KEY]: pickState.records
+               [PICK_RECORDS_KEY]: pickState.records,
+               [PICK_BARS_KEY]: pickState.bars
            });
+       }
+
+       // The bar's measures for one article, as the Excel export has them.
+       const SNAPSHOT_KEYS = ['Title', 'Journal', 'PublishYear', 'DOI', 'firstAuthor', 'lastAuthor',
+           'firstAuthorOrcid', 'firstAuthorHIndex', 'firstAuthorI10Index', 'firstAuthor2yrCites',
+           'lastAuthorOrcid', 'lastAuthorHIndex', 'lastAuthorI10Index', 'lastAuthor2yrCites',
+           'Citations', 'RelativeCitationRatio', 'influentialCitations', 'overallScore', 'medlineCode',
+           'PublishCurrent', 'isTrending', 'isPreprint', 'hasCorrection', 'hasRetraction', 'TopJournal',
+           'SJR', 'medline_per'];
+       function snapshotBar(item) {
+           const snapshot = {};
+           SNAPSHOT_KEYS.forEach(key => { if (item[key] !== undefined) snapshot[key] = item[key]; });
+           return snapshot;
+       }
+       function rememberBar(pmid) {
+           const item = fullDataSet.find(entry => entry.PMID === pmid);
+           if (item) pickState.bars[pmid] = Object.assign(snapshotBar(item), { capturedAt: new Date().toISOString() });
        }
 
        // Every bar carries its own copy of the count, so a change to one has
@@ -1856,6 +1943,22 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
            .pcb-export-header h3 {
                margin: 0;
                font-size: 16px;
+           }
+
+           .pcb-export-help {
+               display: inline-block;
+               width: 16px;
+               height: 16px;
+               margin-left: 4px;
+               background-color: #0066cc;
+               color: white;
+               border-radius: 50%;
+               text-align: center;
+               line-height: 16px;
+               font-size: 12px;
+               font-weight: bold;
+               cursor: pointer;
+               vertical-align: middle;
            }
 
            .pcb-export-body {
@@ -2517,7 +2620,7 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
       const helpClose = (helpText && helpText.close) || 'Close';
       const helpScore = (helpText && helpText.score) || 'The overall score of this article is';
       const helpBodyHTML = `${helpContentHTML || '<p>Help content not available.</p>'}
-                      <div class="help-version">Ver 3.830 Sep-2026</div>`;
+                      <div class="help-version">Ver 3.840 Oct-2026</div>`;
       const existingHelpModal = document.getElementById('help-modal');
       if (existingHelpModal && existingHelpModal.dataset.lang !== helpLang) {
           // Language changed on the bar: swap the text, keep the modal and its listeners
@@ -2971,14 +3074,25 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
 
      // ---------------------------------------------------------------
      // Export list: modal, handlers, initial paint
+     //
+     // A list left on the page by an earlier extension context (a reload, or an
+     // auto-update) still shows and its buttons still redraw it, but they belong
+     // to a dead context and cannot save - so Clear all looked done and then came
+     // back on refresh. Replace it, and the AI pack panel with it. Same reason
+     // bindOnce is keyed on the token.
+     ['pcb-export-modal', 'pcb-pack-modal'].forEach(id => {
+         const stale = document.getElementById(id);
+         if (stale && stale.dataset.pcbToken !== injectToken) stale.remove();
+     });
      if (!document.getElementById('pcb-export-modal')) {
          const exportModalContainer = document.createElement('div');
          exportModalContainer.id = 'pcb-export-modal';
+         exportModalContainer.dataset.pcbToken = injectToken;
          exportModalContainer.className = 'pcb-export-modal';
          exportModalContainer.innerHTML = `
              <div class="pcb-export-content">
                  <div class="pcb-export-header">
-                     <h3>Export list <span class="pcb-export-total"></span></h3>
+                     <h3>Export list <span class="pcb-export-total"></span> <span class="pcb-export-help" title="Help: AI pack">?</span></h3>
                      <button class="pcb-export-btn pcb-export-close">Close</button>
                  </div>
                  <div class="pcb-export-body"></div>
@@ -2997,6 +3111,7 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                  <div class="pcb-export-footer">
                      <button class="pcb-export-btn pcb-export-clear">Clear all</button>
                      <button class="pcb-export-btn pcb-export-open" title="View the selected articles as a PubMed search, in a new tab">Open in new tab</button>
+                     <button class="pcb-export-btn pcb-export-btn-primary pcb-export-pack" title="A .zip for an AI tool: full text where it is free to fetch, abstracts otherwise, plus the bar's data (up to 40 articles)">AI pack (.zip)</button>
                      <button class="pcb-export-btn pcb-export-btn-primary pcb-export-download-ris" title="RIS - EndNote, Mendeley, RefWorks, Papers, Zotero">Download .ris</button>
                      <button class="pcb-export-btn pcb-export-btn-primary pcb-export-download" title="MEDLINE/nbib - PubMed's own format; Zotero and EndNote">Download .nbib</button>
                  </div>
@@ -3010,6 +3125,42 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
              exportModal.style.display = 'none';
          });
 
+         // ? shows only the AI pack part of the bar's help, in the bar's
+         // language, taken from the help itself so the text exists once.
+         exportModal.querySelector('.pcb-export-help').addEventListener('click', () => {
+             const helpModal = document.getElementById('help-modal');
+             const block = helpModal && helpModal.querySelector('.help-ai-pack');
+             if (!block) return;
+             const copy = block.cloneNode(true);
+             const heading = copy.querySelector('strong');
+             const title = heading ? heading.textContent : 'AI pack (.zip)';
+             if (heading) heading.remove();
+             const old = document.getElementById('pcb-aipack-help');
+             if (old) old.remove();
+             const popup = document.createElement('div');
+             popup.id = 'pcb-aipack-help';
+             popup.className = 'help-modal';
+             popup.innerHTML = `
+                 <div class="help-modal-content">
+                     <div class="help-modal-header">
+                         <h3></h3>
+                         <button class="pcb-aipack-help-close"></button>
+                     </div>
+                     <div class="help-modal-body"><div class="help-item-description"></div></div>
+                 </div>`;
+             popup.querySelector('h3').textContent = title;
+             const closeText = helpModal.querySelector('.help-modal-close');
+             popup.querySelector('.pcb-aipack-help-close').textContent = closeText ? closeText.textContent : 'Close';
+             const body = popup.querySelector('.help-item-description');
+             // The help text marks paragraphs with blank lines.
+             body.innerHTML = copy.innerHTML.trim().replace(/\n\n/g, '<br><br>');
+             if (helpModal.dataset.lang === 'ar') body.dir = 'rtl';
+             popup.querySelector('.pcb-aipack-help-close').addEventListener('click', () => popup.remove());
+             popup.addEventListener('click', (event) => { if (event.target === popup) popup.remove(); });
+             document.body.appendChild(popup);
+             popup.style.display = 'block';
+         });
+
          window.addEventListener('click', (event) => {
              if (event.target === exportModal) exportModal.style.display = 'none';
          });
@@ -3017,6 +3168,7 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
          exportModal.querySelector('.pcb-export-clear').addEventListener('click', async () => {
              pickState.ids = [];
              pickState.records = {};
+             pickState.bars = {};
              await savePicks();
              paintPicks();
              renderExportList();
@@ -3066,6 +3218,11 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
              downloadPicks('nbib', null);
          });
 
+         exportModal.querySelector('.pcb-export-pack').addEventListener('click', () => {
+             exportModal.style.display = 'none';
+             openPackPanel();
+         });
+
          exportModal.querySelector('.pcb-export-download-ris').addEventListener('click', () => {
              downloadPicks('ris', medlineToRis);
          });
@@ -3101,6 +3258,7 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
          const total = exportModal.querySelector('.pcb-export-total');
          const downloadBtn = exportModal.querySelector('.pcb-export-download');
          const downloadRisBtn = exportModal.querySelector('.pcb-export-download-ris');
+         const packBtn = exportModal.querySelector('.pcb-export-pack');
          const clearBtn = exportModal.querySelector('.pcb-export-clear');
          const openBtn = exportModal.querySelector('.pcb-export-open');
          const note = exportModal.querySelector('.pcb-export-note');
@@ -3109,6 +3267,7 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
          total.textContent = isEmpty ? '' : `(${pickState.ids.length})`;
          downloadBtn.disabled = isEmpty;
          downloadRisBtn.disabled = isEmpty;
+         if (packBtn) packBtn.disabled = isEmpty;
          clearBtn.disabled = isEmpty;
          openBtn.disabled = isEmpty;
 
@@ -3185,6 +3344,7 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
 
              if (pickState.records[pmid]) {
                  pickState.ids.push(pmid);
+                 rememberBar(pmid);
                  await savePicks();
                  paintPicks();
                  renderExportList();
@@ -3198,6 +3358,7 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
                  const text = await pickQueued(() => fetchMedlineRecord(pmid));
                  pickState.records[pmid] = text;
                  if (!pickState.ids.includes(pmid)) pickState.ids.push(pmid);
+                 rememberBar(pmid);
                  await savePicks();
              } catch (error) {
                  console.warn(`Export list: could not fetch PMID ${pmid} -`, error.message);
@@ -3221,6 +3382,1008 @@ export function injectCitationBars(fullDataSet, states, helpText, helpStyles, he
              if (exportModal) exportModal.style.display = 'block';
          });
      });
+
+     // ---------------------------------------------------------------
+     // AI reading pack: the export list as one .zip for an AI tool.
+     //
+     // Per article, the best text we are allowed to fetch: open-access full
+     // text from Europe PMC (JATS XML converted to Markdown), else the abstract
+     // from the cached MEDLINE record, plus a PDF if the user attaches one.
+     // _README.md explains the measures and methods, _index.md says what was
+     // saved for each paper, _data.tsv has the bar's measures.
+     //
+     // Free-in-PMC but not open access: neither Europe PMC nor PMC hands out
+     // the XML (Europe PMC answers HTTP 500, PMC returns front matter only),
+     // and PMC's terms forbid automated download of those PDFs. So those, and
+     // paywalled papers, get an Open button and an Add PDF button - the user
+     // saves the PDF themselves.
+     //
+     // A saved PDF can go in two ways. Add PDF puts the file in as it is.
+     // Convert PDF (pdfConvert.js) puts in its text as Markdown plus a small
+     // PDF of its table pages only, for the 30-40 MB files an AI tool cannot
+     // take. One or the other per article, never both: the original beside
+     // the conversion would bring the size straight back.
+     //
+     // One zip built in the page: no downloads permission, one download, so no
+     // "allow multiple downloads" prompt. Stored without compression, which
+     // keeps the writer small; PDFs are compressed already.
+     const PACK_LIMIT = 40;
+     // Fewer body words than this: treated as partial, not full text.
+     const PACK_MIN_WORDS = 250;
+     // Size warnings in the panel. Page count is known before download (from
+     // PubMed's pagination); a PDF's size only once it is attached.
+     const PACK_LARGE_PAGES = 100;
+     const PACK_LARGE_MB = 25;
+
+     // "e347-e913" -> 567, "1137-46" -> 10 (PubMed shortens the end page).
+     // null when there is no page range, e.g. an article number only.
+     function packPageCount(pg) {
+         const match = String(pg || '').match(/^[A-Za-z]*(\d+)\s*-\s*[A-Za-z]*(\d+)/);
+         if (!match) return null;
+         const start = match[1];
+         let end = match[2];
+         if (end.length < start.length) end = start.slice(0, start.length - end.length) + end;
+         const count = parseInt(end, 10) - parseInt(start, 10) + 1;
+         return count > 0 && count < 5000 ? count : null;
+     }
+
+     function packMB(bytes) {
+         return (bytes / 1048576).toFixed(bytes < 10485760 ? 1 : 0);
+     }
+     const PACK_EPMC = 'https://www.ebi.ac.uk/europepmc/webservices/rest';
+     if (!window.__pcbPack) window.__pcbPack = { oa: {}, fulltext: {}, pdfs: {}, busy: false };
+     const packState = window.__pcbPack;
+     if (!packState.converted) packState.converted = {};
+     if (!packState.converting) packState.converting = {};
+
+     async function packFetch(url, ms) {
+         const controller = new AbortController();
+         const timer = setTimeout(() => controller.abort(), ms);
+         try {
+             return await fetch(url, { signal: controller.signal });
+         } finally {
+             clearTimeout(timer);
+         }
+     }
+
+     function packStamp() {
+         const now = new Date();
+         const pad = n => String(n).padStart(2, '0');
+         const h = now.getHours();
+         return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` +
+             `-${h % 12 === 0 ? 12 : h % 12}-${pad(now.getMinutes())}${h < 12 ? 'am' : 'pm'}`;
+     }
+
+     function packSlug(title) {
+         const words = String(title || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+             .toLowerCase().replace(/<[^>]+>/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim().split(' ')
+             .filter(w => w && !['a', 'an', 'the', 'of', 'and', 'in', 'on', 'for', 'to', 'with'].includes(w));
+         return words.slice(0, 6).join('-').slice(0, 60) || 'article';
+     }
+
+     // Title, abstract, authors etc. from the MEDLINE record cached when the
+     // article was ticked - no request needed.
+     function packMedline(pmid) {
+         const fields = parseMedlineRecord(pickState.records[pmid] || '');
+         const authors = medlineValues(fields, 'FAU');
+         const doiEntry = medlineValues(fields, 'AID').concat(medlineValues(fields, 'LID'))
+             .find(v => /\[doi\]$/i.test(v));
+         return {
+             title: medlineFirst(fields, 'TI'),
+             abstract: medlineValues(fields, 'AB').join('\n\n'),
+             authors,
+             journal: medlineFirst(fields, 'JT') || medlineFirst(fields, 'TA'),
+             year: (medlineFirst(fields, 'DP').match(/\d{4}/) || [''])[0],
+             doi: doiEntry ? doiEntry.replace(/\s*\[doi\]$/i, '').trim() : '',
+             pmcid: medlineFirst(fields, 'PMC'),
+             // NIH author manuscript: PMC gives out its full text for text
+             // mining even though it is not open access.
+             manuscript: medlineValues(fields, 'MID').some(v => /^NIHMS/i.test(v)),
+             pages: packPageCount(medlineFirst(fields, 'PG')),
+             pubTypes: medlineValues(fields, 'PT')
+         };
+     }
+
+     // Bar data: this page's dataset if the article is on it, else the
+     // snapshot taken when it was ticked, else nothing.
+     function packBar(pmid) {
+         const current = fullDataSet.find(item => item.PMID === pmid);
+         if (current) return Object.assign(snapshotBar(current), { capturedAt: new Date().toISOString() });
+         return (pickState.bars && pickState.bars[pmid]) || null;
+     }
+
+     // Same blank rules as the Excel export: blank is no data, never 0.
+     function packNum(value) {
+         if (value === null || value === undefined || value === '') return null;
+         if (value === '-' || value === '-9' || value === -9 || value === 'N/A') return null;
+         const n = Number(value);
+         return Number.isFinite(n) ? n : null;
+     }
+
+     // One row of measures per article. Mirrors the Excel export's columns
+     // (excelData.js) - this code is injected into the page and cannot import.
+     function packMeasures(bar) {
+         const b = bar || {};
+         const yes = v => (bar ? (v ? 'Yes' : 'No') : null);
+         return [
+             ['First Author h-index', packNum(b.firstAuthorHIndex)],
+             ['First Author i10', packNum(b.firstAuthorI10Index)],
+             ['Last Author h-index', packNum(b.lastAuthorHIndex)],
+             ['Last Author i10', packNum(b.lastAuthorI10Index)],
+             ['Cited', packNum(b.Citations)],
+             ['RCR', packNum(b.RelativeCitationRatio)],
+             ['IC', packNum(b.influentialCitations)],
+             ['Score', packNum(b.overallScore)],
+             ['MEDLINE', yes(b.medlineCode === 'm')],
+             ['New', yes(b.PublishCurrent === 'n')],
+             ['Trending', yes(b.isTrending)],
+             ['Preprint', yes(b.isPreprint)],
+             ['Erratum', yes(b.hasCorrection)],
+             ['Retracted', yes(b.hasRetraction)],
+             ['Top-J', bar ? (b.TopJournal === 'Yes' ? 'Yes' : 'No') : null],
+             ['SJR', packNum(b.SJR)],
+             ['Medline %', b.medline_per === '' || b.medline_per === undefined || b.medline_per === null
+                 ? null : Math.round(parseFloat(b.medline_per) * 100)],
+             ['First Author ORCID', b.firstAuthorOrcid || null],
+             ['Last Author ORCID', b.lastAuthorOrcid || null]
+         ];
+     }
+
+     // ---- JATS XML -> Markdown -------------------------------------------
+     const PACK_BLOCK = new Set(['table-wrap', 'table-wrap-group', 'fig', 'fig-group', 'list',
+         'disp-formula', 'boxed-text', 'disp-quote', 'def-list', 'supplementary-material']);
+
+     function packClean(s) {
+         return String(s || '').replace(/\s+/g, ' ').replace(/\s+([,.;:)\]])/g, '$1').trim();
+     }
+
+     function packEmphasis(mark, text) {
+         const t = text.trim();
+         if (!t) return text;
+         const lead = text.match(/^\s*/)[0];
+         const trail = text.match(/\s*$/)[0];
+         return `${lead}${mark}${t}${mark}${trail}`;
+     }
+
+     // Inline content of a paragraph or caption; block children are skipped
+     // here and emitted after the paragraph.
+     function packInline(node) {
+         let out = '';
+         node.childNodes.forEach(child => {
+             if (child.nodeType === 3) { out += child.nodeValue; return; }
+             if (child.nodeType !== 1) return;
+             const name = child.localName;
+             if (PACK_BLOCK.has(name)) return;
+             if (name === 'italic') out += packEmphasis('*', packInline(child));
+             else if (name === 'bold') out += packEmphasis('**', packInline(child));
+             else if (name === 'xref' && child.getAttribute('ref-type') === 'bibr') {
+                 const t = packClean(packInline(child));
+                 out += /^\[.*\]$/.test(t) ? t : `[${t}]`;
+             } else if (name === 'sup') {
+                 const hasRef = child.querySelector('xref');
+                 out += hasRef ? packInline(child) : `^${packInline(child)}`;
+             } else if (name === 'ext-link' || name === 'uri') {
+                 const href = child.getAttribute('xlink:href') || child.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '';
+                 const t = packClean(packInline(child));
+                 out += href && /^https?:/i.test(href) ? `[${t || href}](${href})` : t;
+             } else if (name === 'break') out += ' ';
+             else if (name === 'inline-graphic' || name === 'fn') { /* skip */ }
+             else out += packInline(child);
+         });
+         return out;
+     }
+
+     function packChild(node, name) {
+         return Array.from(node.children).find(c => c.localName === name) || null;
+     }
+
+     function packCaption(node, kind) {
+         const label = packChild(node, 'label');
+         const caption = packChild(node, 'caption');
+         const parts = [];
+         if (label) parts.push(packClean(packInline(label)));
+         if (caption) {
+             const title = packChild(caption, 'title');
+             if (title) parts.push(packClean(packInline(title)));
+             Array.from(caption.children).filter(c => c.localName === 'p')
+                 .forEach(p => parts.push(packClean(packInline(p))));
+         }
+         return parts.filter(Boolean).join(' ') || kind;
+     }
+
+     function packTable(wrap) {
+         const out = [`**${packCaption(wrap, 'Table')}**`];
+         const table = wrap.querySelector('table');
+         if (!table) {
+             out.push('_(This table is an image in the original article and is not included.)_');
+         } else {
+             const rows = Array.from(table.querySelectorAll('tr')).map(tr =>
+                 Array.from(tr.children).filter(c => c.localName === 'th' || c.localName === 'td')
+                     .map(c => packClean(packInline(c)).replace(/\|/g, '\\|')));
+             const width = Math.max(0, ...rows.map(r => r.length));
+             if (width > 0) {
+                 const pad = r => r.concat(Array(width - r.length).fill(''));
+                 out.push('| ' + pad(rows[0]).join(' | ') + ' |');
+                 out.push('|' + ' --- |'.repeat(width));
+                 rows.slice(1).forEach(r => out.push('| ' + pad(r).join(' | ') + ' |'));
+             }
+         }
+         const foot = packChild(wrap, 'table-wrap-foot');
+         if (foot) {
+             const text = packClean(packInline(foot) || foot.textContent);
+             if (text) out.push(`_${text}_`);
+         }
+         return out.join('\n');
+     }
+
+     function packList(list) {
+         const ordered = list.getAttribute('list-type') === 'order';
+         return Array.from(list.children).filter(c => c.localName === 'list-item').map((item, i) => {
+             const text = Array.from(item.children).map(c => packClean(packInline(c))).filter(Boolean).join(' ')
+                 || packClean(packInline(item));
+             return `${ordered ? `${i + 1}.` : '-'} ${text}`;
+         }).join('\n');
+     }
+
+     function packBlocks(node, level, out) {
+         Array.from(node.children).forEach(child => {
+             const name = child.localName;
+             if (name === 'sec' || name === 'app' || name === 'boxed-text' || name === 'ack') {
+                 const title = packChild(child, 'title');
+                 const heading = title ? packClean(packInline(title)) : (name === 'ack' ? 'Acknowledgements' : '');
+                 if (heading) out.push(`${'#'.repeat(Math.min(level, 6))} ${heading}`);
+                 packBlocks(child, level + 1, out);
+             } else if (name === 'title' || name === 'label' || name === 'sec-meta') {
+                 // titles are handled by the parent; labels by captions
+             } else if (name === 'p') {
+                 const text = packClean(packInline(child));
+                 if (text) out.push(text);
+                 Array.from(child.children).filter(c => PACK_BLOCK.has(c.localName))
+                     .forEach(c => packBlocks({ children: [c] }, level, out));
+             } else if (name === 'table-wrap') {
+                 out.push(packTable(child));
+             } else if (name === 'fig') {
+                 out.push(`_Figure: ${packCaption(child, 'Figure')}_`);
+             } else if (name === 'list') {
+                 out.push(packList(child));
+             } else if (name === 'disp-formula') {
+                 const text = packClean(child.textContent);
+                 if (text) out.push('`' + text + '`');
+             } else if (name === 'disp-quote') {
+                 out.push('> ' + packClean(packInline(child) || child.textContent));
+             } else if (name === 'supplementary-material') {
+                 out.push(`_Supplementary material: ${packCaption(child, 'see the original article')}_`);
+             } else if (name === 'ref-list' || name === 'fn-group' || name === 'glossary') {
+                 // references are written separately; notes and glossaries skipped
+             } else {
+                 packBlocks(child, level, out);
+             }
+         });
+     }
+
+     // Text of a citation with spaces between its elements, so
+     // <surname>Smith</surname><given-names>J</given-names> reads "Smith J".
+     // element-citation carries no punctuation of its own, so separators are
+     // added after names, titles and the year; mixed-citation already has them.
+     const PACK_CITE_SEP = { name: ',', 'string-name': ',', collab: ',', 'person-group': '.',
+         'article-title': '.', 'chapter-title': '.', source: '.', year: ';' };
+     function packSpacedText(node) {
+         const structured = node.localName === 'element-citation';
+         const parts = [];
+         (function walk(n) {
+             n.childNodes.forEach(c => {
+                 if (c.nodeType === 3) parts.push(c.nodeValue);
+                 else if (c.nodeType === 1) {
+                     parts.push(' ');
+                     walk(c);
+                     parts.push(structured && PACK_CITE_SEP[c.localName] ? PACK_CITE_SEP[c.localName] + ' ' : ' ');
+                 }
+             });
+         })(node);
+         return packClean(parts.join('')).replace(/,\s*\./g, '.').replace(/([.;,])\s*\1/g, '$1').replace(/[;,]\s*$/, '');
+     }
+
+     function jatsToMarkdown(xmlText) {
+         const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+         const article = doc.querySelector('article');
+         const body = article && article.querySelector('body');
+         if (!body) return null;
+         const meta = article.querySelector('front article-meta');
+
+         const sections = [];
+         if (meta) {
+             const abstract = Array.from(meta.children).find(c => c.localName === 'abstract' && !c.getAttribute('abstract-type'))
+                 || Array.from(meta.children).find(c => c.localName === 'abstract');
+             if (abstract) {
+                 const parts = [];
+                 packBlocks(abstract, 3, parts);
+                 if (parts.length) sections.push('## Abstract', ...parts);
+             }
+         }
+
+         const bodyParts = [];
+         packBlocks(body, 2, bodyParts);
+         sections.push(...bodyParts);
+
+         // Many articles keep tables and figures in a floats-group after the
+         // body rather than inside it.
+         const floats = Array.from(article.children).find(c => c.localName === 'floats-group');
+         if (floats) {
+             const floatParts = [];
+             packBlocks(floats, 2, floatParts);
+             if (floatParts.length) sections.push('## Tables and figures', ...floatParts);
+         }
+
+         const back = article.querySelector('back');
+         if (back) {
+             const backParts = [];
+             packBlocks(back, 2, backParts);
+             sections.push(...backParts);
+         }
+
+         // References can sit in the back matter or inside a body section.
+         // Returned separately: the pack puts them in their own file, since
+         // they can outweigh the article (4,003 in one AHA report).
+         const refs = Array.from(article.querySelectorAll('ref-list ref'));
+         const refLines = refs.map((ref, i) => {
+             const label = packChild(ref, 'label');
+             const cite = ref.querySelector('mixed-citation, element-citation, citation');
+             const text = packSpacedText(cite || ref).replace(/^\[?\d+\]?\.?\s+/, '');
+             return `${label ? packClean(label.textContent).replace(/[.\[\]]/g, '') : i + 1}. ${text}`;
+         });
+
+         let license = '';
+         const lic = meta && meta.querySelector('permissions license');
+         if (lic) {
+             license = lic.getAttribute('xlink:href') || lic.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '';
+             const licText = packSpacedText(lic);
+             if (licText) license = license ? `${license} (${licText.slice(0, 200)})` : licText.slice(0, 200);
+         }
+
+         const markdown = sections.join('\n\n');
+         const words = packClean(bodyParts.join(' ')).split(' ').filter(Boolean).length;
+         // Some articles carry only tables, figures and references in the XML,
+         // with the text itself in supplementary files (the AHA Statistical
+         // Update: 38 words of body). Marked partial, so nobody - the user or
+         // the AI - takes it for the article.
+         return {
+             markdown, words, license,
+             references: refs.length,
+             referencesMarkdown: refLines.join('\n\n'),
+             partial: words < PACK_MIN_WORDS
+         };
+     }
+
+     // ---- Fetching ---------------------------------------------------------
+     // PMID -> PMCID and the open-access flag for every article, one request.
+     async function packLookup(pmids) {
+         const todo = pmids.filter(p => !packState.oa[p]);
+         if (todo.length === 0) return;
+         try {
+             const query = encodeURIComponent('(' + todo.map(p => `EXT_ID:${p}`).join(' OR ') + ') AND SRC:MED');
+             const response = await packFetch(`${PACK_EPMC}/search?query=${query}&resultType=lite&format=json&pageSize=100`, 15000);
+             if (!response.ok) throw new Error(`Europe PMC ${response.status}`);
+             const results = ((await response.json()).resultList || {}).result || [];
+             const byPmid = {};
+             results.forEach(r => { if (r.pmid) byPmid[r.pmid] = r; });
+             todo.forEach(p => {
+                 const r = byPmid[p];
+                 packState.oa[p] = {
+                     pmcid: (r && r.pmcid) || packMedline(p).pmcid || '',
+                     isOA: !!(r && r.isOpenAccess === 'Y' && r.pmcid)
+                 };
+             });
+         } catch (error) {
+             console.warn('AI pack: Europe PMC lookup failed -', error.message);
+             // Unknown open-access status: offer every article as Open / Add PDF
+             todo.forEach(p => { packState.oa[p] = { pmcid: packMedline(p).pmcid || '', isOA: false, lookupFailed: true }; });
+         }
+     }
+
+     // Which articles can have full text fetched: open access, or an NIH
+     // author manuscript (Europe PMC refuses those, PMC returns them).
+     function packEligible(pmid) {
+         const { pmcid, isOA } = packState.oa[pmid] || {};
+         return !!pmcid && (isOA || packMedline(pmid).manuscript);
+     }
+
+     // Open access: Europe PMC first - it is fast and does not share NCBI's
+     // 3 requests/sec - then PMC. Author manuscripts: PMC only, through the
+     // export list's NCBI queue.
+     async function packFullText(pmid) {
+         if (packState.fulltext[pmid]) return;
+         const { pmcid, isOA } = packState.oa[pmid] || {};
+         if (!packEligible(pmid)) { packState.fulltext[pmid] = { none: true }; return; }
+         if (isOA) try {
+             const response = await packFetch(`${PACK_EPMC}/${pmcid}/fullTextXML`, 20000);
+             if (response.ok) {
+                 const converted = jatsToMarkdown(await response.text());
+                 if (converted && converted.words > 0) {
+                     packState.fulltext[pmid] = Object.assign(converted, { source: 'Europe PMC' });
+                     return;
+                 }
+             }
+         } catch (error) {
+             console.warn(`AI pack: Europe PMC full text failed for ${pmcid} -`, error.message);
+         }
+         try {
+             const xml = await pickQueued(async () => {
+                 const r = await packFetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=${pmcid}`, 20000);
+                 return r.ok ? r.text() : '';
+             });
+             const converted = xml && !/does not allow downloading/i.test(xml) ? jatsToMarkdown(xml) : null;
+             packState.fulltext[pmid] = converted && converted.words > 0
+                 ? Object.assign(converted, { source: isOA ? 'PubMed Central' : 'PubMed Central (NIH author manuscript)' })
+                 : { none: true };
+         } catch (error) {
+             packState.fulltext[pmid] = { none: true };
+         }
+     }
+
+     // ---- Convert PDF --------------------------------------------------------
+     // pdf.js, pdf-lib and the converter are about 2 MB together, so the
+     // background script loads them into this tab the first time they are
+     // needed, not with every citation bar.
+     async function packConvert(pmid, file) {
+         if (!globalThis.pcbPdfConvert) {
+             const loaded = await chrome.runtime.sendMessage({ action: 'pcbLoadPdfTools' });
+             if (!globalThis.pcbPdfConvert) throw new Error((loaded && loaded.error) || 'the PDF converter did not load');
+         }
+         // Same name buildPack gives the article's files.
+         const bar = packBar(pmid);
+         const tablesName = `${pmid}-${packSlug(packMedline(pmid).title || (bar && bar.Title) || `PMID ${pmid}`)}-tables.pdf`;
+         const result = await globalThis.pcbPdfConvert(file, tablesName);
+         // A scan has no text to extract. Refused, so an empty file never
+         // stands in for an article.
+         if ((result.allWords || result.words) < Math.max(100, 30 * result.pages)) {
+             throw new Error('no text could be read from it - it may be a scan. Use Add PDF instead');
+         }
+         return Object.assign(result, { name: file.name, size: file.size, tablesName });
+     }
+
+     // ---- Zip (stored, no compression) -------------------------------------
+     function packCrc32(bytes) {
+         if (!packState.crcTable) {
+             const table = new Uint32Array(256);
+             for (let n = 0; n < 256; n++) {
+                 let c = n;
+                 for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+                 table[n] = c >>> 0;
+             }
+             packState.crcTable = table;
+         }
+         const table = packState.crcTable;
+         let crc = 0xFFFFFFFF;
+         for (let i = 0; i < bytes.length; i++) crc = table[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+         return (crc ^ 0xFFFFFFFF) >>> 0;
+     }
+
+     function packZip(files) {
+         const encoder = new TextEncoder();
+         const now = new Date();
+         const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2);
+         const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+         const parts = [];
+         const central = [];
+         let offset = 0;
+         files.forEach(file => {
+             const name = encoder.encode(file.name);
+             const data = file.bytes;
+             const crc = packCrc32(data);
+             const local = new DataView(new ArrayBuffer(30));
+             local.setUint32(0, 0x04034b50, true);
+             local.setUint16(4, 20, true);
+             local.setUint16(6, 0x0800, true);      // UTF-8 file names
+             local.setUint16(8, 0, true);           // stored
+             local.setUint16(10, dosTime, true);
+             local.setUint16(12, dosDate, true);
+             local.setUint32(14, crc, true);
+             local.setUint32(18, data.length, true);
+             local.setUint32(22, data.length, true);
+             local.setUint16(26, name.length, true);
+             local.setUint16(28, 0, true);
+             parts.push(new Uint8Array(local.buffer), name, data);
+
+             const entry = new DataView(new ArrayBuffer(46));
+             entry.setUint32(0, 0x02014b50, true);
+             entry.setUint16(4, 20, true);
+             entry.setUint16(6, 20, true);
+             entry.setUint16(8, 0x0800, true);
+             entry.setUint16(10, 0, true);
+             entry.setUint16(12, dosTime, true);
+             entry.setUint16(14, dosDate, true);
+             entry.setUint32(16, crc, true);
+             entry.setUint32(20, data.length, true);
+             entry.setUint32(24, data.length, true);
+             entry.setUint16(28, name.length, true);
+             entry.setUint32(42, offset, true);
+             central.push(new Uint8Array(entry.buffer), name);
+             offset += 30 + name.length + data.length;
+         });
+         const centralSize = central.reduce((sum, part) => sum + part.length, 0);
+         const end = new DataView(new ArrayBuffer(22));
+         end.setUint32(0, 0x06054b50, true);
+         end.setUint16(8, files.length, true);
+         end.setUint16(10, files.length, true);
+         end.setUint32(12, centralSize, true);
+         end.setUint32(16, offset, true);
+         return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: 'application/zip' });
+     }
+
+     // ---- Pack contents ------------------------------------------------------
+     function packYaml(value) {
+         if (value === null || value === undefined || value === '') return 'null';
+         if (typeof value === 'number') return String(value);
+         return JSON.stringify(String(value));
+     }
+
+     function packArticleFile(pmid, entry) {
+         const { info, bar, ft, pdfName, conv, content } = entry;
+         const authors = info.authors;
+         const meta = [
+             ['pmid', pmid], ['doi', info.doi || (bar && bar.DOI !== '0' ? bar.DOI : '')],
+             ['pmcid', (packState.oa[pmid] || {}).pmcid || info.pmcid],
+             ['title', entry.title], ['journal', info.journal || (bar && bar.Journal)], ['year', info.year],
+             ['first_author', authors[0] || ''], ['last_author', authors.length > 1 ? authors[authors.length - 1] : ''],
+             ['author_count', authors.length || null],
+             ['publication_types', info.pubTypes.join('; ')],
+             ['content', content],
+             ['full_text_source', ft && ft.markdown ? ft.source : ''],
+             ['full_text_license', ft && ft.markdown ? ft.license : ''],
+             ['references_file', entry.refsFile || ''],
+             ['attached_pdf', pdfName || ''],
+             ['tables_pdf', entry.tablesName || '']
+         ].concat(packMeasures(bar).map(([k, v]) => [k.toLowerCase().replace('%', 'pct').replace(/[^a-z0-9]+/g, '_').replace(/_$/, ''), v]))
+          .concat([['bar_data_captured', bar ? bar.capturedAt : '']]);
+         const lines = ['---', ...meta.map(([k, v]) => `${k}: ${packYaml(v)}`), '---', '', `# ${entry.title}`, ''];
+         if (authors.length) {
+             lines.push(`**Authors:** ${authors.length > 12 ? authors.slice(0, 10).join('; ') + `; ... ${authors[authors.length - 1]} (${authors.length} authors)` : authors.join('; ')}`, '');
+         }
+         if (entry.refsFile) {
+             lines.push(`_References${entry.refsCount ? ` (${entry.refsCount.toLocaleString()})` : ''} are in \`${entry.refsFile}\`._`, '');
+         }
+         if (conv) {
+             lines.push(`> CONVERTED FROM PDF: this text was extracted automatically from the article's PDF (${conv.pages} pages), not taken from a clean source. ` +
+                 'The running text is generally reliable, but expect stray page headers and footers, footnotes and figure captions in the middle of paragraphs, ' +
+                 'words wrongly joined or split at line ends, and equations as plain text. Figures are not included. ' +
+                 (entry.refsFile ? `Reference lists are not in this file: they are in \`${entry.refsFile}\`. ` : '') +
+                 'TABLES WERE NOT CONVERTED: wherever a table is marked below, the text after the marker is raw and may be scrambled, with values under the wrong column. ' +
+                 (entry.tablesName
+                     ? `Read each table from \`${entry.tablesName}\` in this folder, which holds the original table pages. If you cannot read that PDF, say so - do not take table values from the scrambled text.`
+                     : (conv.tablePages.length
+                         ? 'The table pages could not be copied into this pack, so do not rely on any table value from this file.'
+                         : 'No table captions were found in this PDF. If you see table-like runs of numbers, do not rely on them.')), '');
+             lines.push(conv.markdown);
+             if (ft && ft.markdown) {
+                 lines.push('', "## From the article's XML", '', '_The abstract, tables and figure captions below come from the article\'s XML, not the PDF. These tables are reliable._', '', ft.markdown);
+             }
+         } else if (ft && ft.markdown) {
+             if (ft.partial) {
+                 lines.push('> PARTIAL: the article text is not in this pack - the source XML holds only the abstract, ' +
+                     'tables, figure captions and references; the text itself is in supplementary files. ' +
+                     (pdfName ? `The full article is in the PDF \`${pdfName}\` in this folder.` :
+                         "Do not draw conclusions about the article's methods or findings beyond the abstract and tables."), '');
+             }
+             lines.push(ft.markdown);
+         } else {
+             if (pdfName) {
+                 lines.push(`> The full article is in the PDF \`${pdfName}\` in this folder. This file holds the abstract only.`, '');
+             } else {
+                 lines.push('> ABSTRACT ONLY: the full text is not in this pack. Do not draw conclusions about this ' +
+                     "article's methods, results or quality beyond what the abstract states.", '');
+             }
+             lines.push('## Abstract', '', info.abstract || '_No abstract in PubMed for this article._');
+         }
+         return lines.join('\n') + '\n';
+     }
+
+     function packTsvCell(value) {
+         if (value === null || value === undefined) return '';
+         return String(value).replace(/[\t\r\n]+/g, ' ').trim();
+     }
+
+     function packReadme(entries, counts, stamp) {
+         let version = '';
+         try { version = chrome.runtime.getManifest().version; } catch (e) { /* not available */ }
+         let term = '';
+         try { term = new URL(location.href).searchParams.get('term') || ''; } catch (e) { /* not a search page */ }
+         const built = new Date();
+         // The Score section must match calculateScore() in fullDataSet.js.
+         return [
+             '# PubMed AI reading pack - read this first',
+             '',
+             `Built by the PubMed Citation Bar (Chrome extension${version ? `, version ${version}` : ''}) on ${built.toLocaleString()} (${built.toISOString()} UTC).`,
+             `It holds ${entries.length} articles from the user's export list. The user chose these articles: they are not a systematic or random sample.`,
+             term ? `Search on the PubMed page when the pack was built: "${term}". Articles may also have been added from earlier searches.` : '',
+             '',
+             '## Files',
+             '- `_README.md` - this file: what is here and how the data was made.',
+             '- `_index.md` - one row per article: what was saved and which file to read.',
+             '- `_data.tsv` - tab-separated table of the citation bar\'s measures, one row per article.',
+             '- `<PMID>-<short-title>.md` - one per article: a metadata block (between `---` lines), then the text.',
+             '- `<PMID>-<short-title>-references.md` - the article\'s reference list, kept out of the main file so it does not crowd your context. Open it only when you need the references.',
+             '- `<PMID>-<short-title>.pdf` - a PDF the user added themselves, for some articles only.',
+             '- `<PMID>-<short-title>-tables.pdf` - for an article converted from a PDF: the pages of that PDF that hold tables, copied unchanged.',
+             '',
+             '## How much of each article you have',
+             'Each article file says so in its `content:` line.',
+             '- **full text** - the complete article, converted from its XML to Markdown: open-access articles from Europe PMC or PubMed Central, and NIH author manuscripts (the authors\' accepted version, which PubMed Central provides for text mining) from PubMed Central. `full_text_source` says which. Tables are Markdown tables; figures are not included, only their captions; equations may appear as plain text.',
+             '- **partial** - the source XML held only the abstract, tables, figure captions and references; the article text itself is in supplementary files and is NOT here. Use the tables, but do not draw conclusions about the text. **partial + user PDF** means the full article is in the PDF with the same name.',
+             '- **abstract + user PDF** - the Markdown file holds the abstract; the full article is in the PDF with the same name.',
+             '- **converted from PDF** - the user saved the article\'s PDF and the extension extracted its text to Markdown automatically. The running text is generally reliable but not clean: expect stray page headers and footers, footnotes and figure captions in the middle of paragraphs, words wrongly joined or split at line ends, and equations as plain text. Tables were NOT converted. Each table is marked in the text, and the text after a marker is raw and may be scrambled, with values under the wrong column: read the table from the `-tables.pdf` file with the same name, on the page the marker gives. If you cannot read that PDF, say so and do not take table values from the scrambled text. `tables_pdf` is empty when no table pages could be included. Reference lists are moved out of the text into the `-references.md` file - the XML\'s list when the article has one, otherwise the lists extracted from the PDF.',
+             '- **abstract only** - you have NOT read the article. Do not draw conclusions about its methods, results or quality beyond what the abstract states, and say so when it matters.',
+             '',
+             `In this pack: ${counts.full} full text, ${counts.partial} partial, ${counts.pdf} with a user PDF, ${counts.converted} converted from PDF, ${counts.abstract} abstract only.`,
+             '',
+             '## The measures (citation bar data)',
+             'Blank in `_data.tsv`, or `null` in an article\'s metadata block, means no data - never zero.',
+             '`bar_data_captured` (the "Bar data captured" column) is when the bar\'s data for that article was read. Citation counts grow over time.',
+             '- **Cited** - citation count from iCite (NIH), occasionally Europe PMC when iCite is unavailable. Other sources (Google Scholar, Scopus, OpenAlex) give different counts.',
+             '- **RCR** - Relative Citation Ratio from iCite: citations per year, normalised to NIH-funded papers in the same field and year. 1.0 is the field average.',
+             '- **IC** - Influential Citations from Semantic Scholar: citations its model judges to build substantially on the article.',
+             '- **Score** - the citation bar\'s own overall score. Points:',
+             '  - Indexed for MEDLINE: +2.25',
+             '  - Articles under 2 years old: citations >30 +2.25, >15 +1.75, >5 +1, >2 +0.25; RCR >2 +1.25',
+             '  - Older articles: citations >=200 +3.5, >=50 +2.75, >=10 +1.5; RCR >10 +1.25, >5 +0.75',
+             '  - Journal SJR >3: +1.25',
+             '  - Trending in PubMed: +1',
+             '  - At least one influential citation (Semantic Scholar): +0.5',
+             '  - Maximum 9.75 (older) or 8.5 (under 2 years). Articles at or above the user\'s threshold (default 5) are shown as high impact. The score measures attention and uptake, not whether a study is sound.',
+             '- **MEDLINE** - indexed for MEDLINE.',
+             '- **New** - first entered in PubMed less than 2 years ago.',
+             '- **Trending** - in PubMed\'s trending list (top 1,000 articles).',
+             '- **Preprint**, **Erratum**, **Retracted** - flags from PubMed. Treat the findings of a retracted article as unreliable.',
+             '- **Top-J** - the extension author\'s own small, curated list of top medical journals, matched by ISSN.',
+             '- **SJR** - SCImago Journal Rank of the journal. A journal-level measure, not about this article.',
+             '- **Medline %** - share of the journal\'s recent articles indexed for MEDLINE, from the extension\'s journal ranking data.',
+             '- **Author h-index, i10 and ORCID** - first and last author, from OpenAlex. The ORCID is PubMed\'s when present, otherwise OpenAlex\'s, used only when the OpenAlex surname matches PubMed\'s. When one ORCID has several OpenAlex profiles (duplicates), the profile with the most works is used. These describe the author\'s career, not this article.',
+             '',
+             '## Limits',
+             '- These measures compare attention and citation. They do not show whether a study is right.',
+             '- Text converted from XML may contain small formatting errors.',
+             '- A PDF of hundreds of pages, or tens of MB, may be more than an AI tool accepts at once. Summarise or split it first if needed.',
+             ''
+         ].filter(line => line !== null).join('\n');
+     }
+
+     async function buildPack() {
+         const ids = pickState.ids.slice(0, PACK_LIMIT);
+         const stamp = packStamp();
+         const folder = `pubmed-ai-pack-${stamp}`;
+         const encoder = new TextEncoder();
+         const files = [];
+         const entries = [];
+         const counts = { full: 0, partial: 0, pdf: 0, converted: 0, abstract: 0 };
+
+         for (const pmid of ids) {
+             const info = packMedline(pmid);
+             const bar = packBar(pmid);
+             const title = info.title || (bar && bar.Title) || `PMID ${pmid}`;
+             const base = `${pmid}-${packSlug(title)}`;
+             const ft = packState.fulltext[pmid];
+             const pdf = packState.pdfs[pmid];
+             let content = 'abstract only';
+             let pdfName = '';
+             const hasText = ft && ft.markdown && !ft.partial;
+             const conv = hasText ? null : packState.converted[pmid];
+             let tablesName = '';
+             if (conv && conv.tablesPdf) {
+                 tablesName = `${base}-tables.pdf`;
+                 files.push({ name: `${folder}/${tablesName}`, bytes: conv.tablesPdf });
+             }
+             if (!hasText && !conv && pdf) {
+                 pdfName = `${base}.pdf`;
+                 files.push({ name: `${folder}/${pdfName}`, bytes: new Uint8Array(await pdf.arrayBuffer()) });
+             }
+             if (hasText) {
+                 content = 'full text';
+                 counts.full++;
+             } else if (conv) {
+                 content = 'converted from PDF';
+                 counts.converted++;
+             } else if (ft && ft.markdown) {
+                 content = pdf ? 'partial + user PDF' : 'partial (tables and references, no article text)';
+                 counts[pdf ? 'pdf' : 'partial']++;
+             } else if (pdf) {
+                 content = 'abstract + user PDF';
+                 counts.pdf++;
+             } else {
+                 counts.abstract++;
+             }
+             // References: the XML's list when there is one - clean and
+             // complete - else the lists the PDF converter took out of the text.
+             // Never both: they are the same references twice.
+             const xmlRefs = ft && ft.referencesMarkdown;
+             const pdfRefs = !xmlRefs && conv && conv.referencesMarkdown;
+             const refsFile = xmlRefs || pdfRefs ? `${base}-references.md` : '';
+             const refsCount = xmlRefs ? ft.references : 0;
+             const entry = { pmid, info, bar, ft, pdfName, conv, tablesName, content, title, file: `${base}.md`, refsFile, refsCount };
+             entries.push(entry);
+             files.push({ name: `${folder}/${entry.file}`, bytes: encoder.encode(packArticleFile(pmid, entry)) });
+             if (refsFile) {
+                 files.push({ name: `${folder}/${refsFile}`, bytes: encoder.encode(xmlRefs
+                     ? `# References: ${title}\n\nPMID ${pmid}. ${ft.references.toLocaleString()} references, as listed in the article.\n\n${ft.referencesMarkdown}\n`
+                     : `# References: ${title}\n\nPMID ${pmid}. Extracted automatically from the article's PDF: expect occasional errors ` +
+                       `such as an entry split in two or joined to the next.\n\n${conv.referencesMarkdown}\n`) });
+             }
+         }
+
+         const index = [
+             '# Index',
+             '',
+             'One row per article. Content: full text, partial, abstract + user PDF, converted from PDF, or abstract only (see `_README.md`). References are in a separate file where the article has them.',
+             '',
+             '| # | File | Content | PMID | Year | First author | Title |',
+             '| --- | --- | --- | --- | --- | --- | --- |',
+             ...entries.map((e, i) => `| ${i + 1} | ${e.file}${e.pdfName ? ` + ${e.pdfName}` : ''}${e.tablesName ? ` + ${e.tablesName}` : ''}${e.refsFile ? ` (+ references file)` : ''} | ${e.content} | ${e.pmid} | ${e.info.year} | ` +
+                 `${(e.info.authors[0] || '').replace(/\|/g, '/')} | ${packClean(e.title).replace(/\|/g, '/')} |`)
+         ].join('\n') + '\n';
+
+         const measureNames = packMeasures(null).map(([k]) => k);
+         const tsv = [['PMID', 'File', 'Content', 'Title', 'Journal', 'Year', 'First Author', 'Last Author', 'DOI',
+             ...measureNames, 'Bar data captured', 'PubMed URL'].join('\t')];
+         entries.forEach(e => {
+             tsv.push([e.pmid, e.file, e.content, e.title, e.info.journal || (e.bar && e.bar.Journal), e.info.year,
+                 e.info.authors[0] || '', e.info.authors.length > 1 ? e.info.authors[e.info.authors.length - 1] : '',
+                 e.info.doi, ...packMeasures(e.bar).map(([, v]) => v), e.bar ? e.bar.capturedAt : '',
+                 `https://pubmed.ncbi.nlm.nih.gov/${e.pmid}/`].map(packTsvCell).join('\t'));
+         });
+
+         files.unshift(
+             { name: `${folder}/_README.md`, bytes: encoder.encode(packReadme(entries, counts, stamp)) },
+             { name: `${folder}/_index.md`, bytes: encoder.encode(index) },
+             { name: `${folder}/_data.tsv`, bytes: encoder.encode(tsv.join('\n') + '\n') }
+         );
+
+         const url = URL.createObjectURL(packZip(files));
+         const anchor = document.createElement('a');
+         anchor.href = url;
+         anchor.download = `${folder}.zip`;
+         document.body.appendChild(anchor);
+         anchor.click();
+         document.body.removeChild(anchor);
+         setTimeout(() => URL.revokeObjectURL(url), 5000);
+         return counts;
+     }
+
+     // ---- Panel --------------------------------------------------------------
+     function packOpenUrl(pmid) {
+         const oa = packState.oa[pmid] || {};
+         if (oa.pmcid) return `https://www.ncbi.nlm.nih.gov/pmc/articles/${oa.pmcid}/pdf/`;
+         const doi = packMedline(pmid).doi;
+         if (doi) return `https://doi.org/${doi}`;
+         return `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`;
+     }
+
+     function ensurePackModal() {
+         let modal = document.getElementById('pcb-pack-modal');
+         if (modal) return modal;
+         modal = document.createElement('div');
+         modal.id = 'pcb-pack-modal';
+         modal.className = 'pcb-export-modal';
+         modal.dataset.pcbToken = injectToken;
+         modal.innerHTML = `
+             <div class="pcb-export-content">
+                 <div class="pcb-export-header">
+                     <h3>AI reading pack <span class="pcb-pack-total"></span></h3>
+                     <button class="pcb-export-btn pcb-pack-close">Close</button>
+                 </div>
+                 <div class="pcb-export-note pcb-pack-status" style="display: block;"></div>
+                 <div class="pcb-export-body pcb-pack-body"></div>
+                 <div class="pcb-export-note pcb-pack-summary" style="display: block;"></div>
+                 <div class="pcb-export-footer">
+                     <button class="pcb-export-btn pcb-export-btn-primary pcb-pack-build" disabled>Build zip</button>
+                 </div>
+             </div>`;
+         document.body.appendChild(modal);
+         modal.querySelector('.pcb-pack-close').addEventListener('click', () => { modal.style.display = 'none'; });
+         window.addEventListener('click', event => { if (event.target === modal) modal.style.display = 'none'; });
+         modal.querySelector('.pcb-pack-build').addEventListener('click', async () => {
+             const button = modal.querySelector('.pcb-pack-build');
+             button.disabled = true;
+             try {
+                 const counts = await buildPack();
+                 modal.querySelector('.pcb-pack-status').textContent =
+                     `Pack downloaded: ${counts.full} full text, ${counts.partial} partial, ${counts.pdf} with your PDF, ${counts.converted} converted from PDF, ${counts.abstract} abstract only. ` +
+                     'Unzip it and point your AI tool at the folder (or give it the zip).';
+             } catch (error) {
+                 console.error('AI pack: build failed -', error);
+                 modal.querySelector('.pcb-pack-status').textContent = `Could not build the pack: ${error.message}`;
+             } finally {
+                 button.disabled = false;
+             }
+         });
+         return modal;
+     }
+
+     function renderPackRows() {
+         const modal = ensurePackModal();
+         const body = modal.querySelector('.pcb-pack-body');
+         const ids = pickState.ids.slice(0, PACK_LIMIT);
+         body.innerHTML = ids.map(pmid => {
+             const info = packMedline(pmid);
+             const bar = fullDataSet.find(item => item.PMID === pmid);
+             const title = info.title || (bar && bar.Title) || `PMID ${pmid}`;
+             const ft = packState.fulltext[pmid];
+             const pdf = packState.pdfs[pmid];
+             const conv = packState.converted[pmid];
+             let state;
+             let actions = '';
+             if (!ft) {
+                 state = '<span style="color: #888;">Checking...</span>';
+             } else if (ft.markdown && !ft.partial) {
+                 state = `<span style="color: #2e7d32; font-weight: bold;">&#10003; Full text</span> <span style="color: #888;">(${ft.words.toLocaleString()} words)</span>`;
+             } else if (packState.converting[pmid]) {
+                 state = '<span style="color: #888;">Converting PDF...</span>';
+             } else {
+                 const mb = pdf ? packMB(pdf.size) : '';
+                 const bigPdf = pdf && pdf.size > PACK_LARGE_MB * 1048576;
+                 // What the conversion produced, so a poor one shows before the
+                 // pack is built and the user can switch to Add PDF.
+                 const tableNote = !conv ? '' : (conv.tablesPdf
+                     ? `${conv.tablePages.length} table page${conv.tablePages.length === 1 ? '' : 's'} kept as PDF (${conv.tablesPdf.length < 1048576 ? `${Math.max(1, Math.round(conv.tablesPdf.length / 1024))} KB` : `${packMB(conv.tablesPdf.length)} MB`})`
+                     : (conv.tablePages.length
+                         ? `<span style="color: #c62828; font-weight: bold;">table pages could not be copied (${escapePickHTML(conv.tablesError)}) - use Add PDF if the tables matter</span>`
+                         : 'no tables found'));
+                 state = conv
+                     ? `<span style="color: #2e7d32; font-weight: bold;">&#10003; Converted</span> <span style="color: #888;">${conv.words.toLocaleString()} words &middot; ${tableNote} &middot; from ${escapePickHTML(conv.name)}, ${packMB(conv.size)} MB</span>`
+                     : pdf
+                     ? `<span style="color: #2e7d32; font-weight: bold;">&#10003; Your PDF</span> <span style="color: #888;">${escapePickHTML(pdf.name)} &middot; ${mb} MB</span>` +
+                       (bigPdf ? ' <span style="color: #c62828; font-weight: bold;">Large PDF - may be too big for some AI tools in one go</span>' : '')
+                     : (ft.markdown
+                         ? '<span style="color: #8a6d00;">Partial: tables and references only - no article text</span>'
+                         : '<span style="color: #8a6d00;">Abstract only</span>');
+                 actions = `
+                     <a class="pcb-export-btn" href="${escapePickHTML(packOpenUrl(pmid))}" target="_blank" rel="noopener" title="Opens the article so you can save its PDF">Open</a>
+                     <button class="pcb-export-btn pcb-pack-convert" data-pmid="${escapePickHTML(pmid)}" title="Choose the saved PDF: the pack gets its text as Markdown plus a small PDF of its table pages, in place of the PDF itself">Convert PDF</button>
+                     <button class="pcb-export-btn pcb-pack-add" data-pmid="${escapePickHTML(pmid)}" title="Choose the saved PDF: it goes into the pack as it is">${pdf ? 'Replace PDF' : 'Add PDF'}</button>
+                     ${pdf || conv ? `<button class="pcb-export-btn pcb-pack-remove" data-pmid="${escapePickHTML(pmid)}">Remove PDF</button>` : ''}`;
+             }
+             const bits = [info.journal, info.year, `PMID ${pmid}`].filter(Boolean);
+             // Page count shown where the user may download a PDF, so a 500-page
+             // report is visible before they fetch it.
+             if (actions && info.pages) {
+                 bits.push(`${info.pages.toLocaleString()} pages`);
+             }
+             const bigPages = actions && info.pages && info.pages > PACK_LARGE_PAGES;
+             return `
+                 <div class="pcb-export-row">
+                     <div style="flex: 1;">
+                         <div>${escapePickHTML(title)}</div>
+                         <div class="pcb-export-meta">${bits.map(escapePickHTML).join(' &middot; ')}${bigPages ? ' <span style="color: #c62828; font-weight: bold;">&middot; large</span>' : ''}</div>
+                         <div style="margin-top: 4px;">${state} ${actions}</div>
+                     </div>
+                 </div>`;
+         }).join('');
+
+         // Running total, so the size of the pack is visible before it is built.
+         let words = 0, fullCount = 0, partialCount = 0, pdfCount = 0, pdfBytes = 0, abstractCount = 0, convCount = 0, convWords = 0;
+         ids.forEach(pmid => {
+             const ft = packState.fulltext[pmid];
+             const pdf = packState.pdfs[pmid];
+             if (ft && ft.markdown && !ft.partial) { fullCount++; words += ft.words; }
+             else if (packState.converted[pmid]) { convCount++; convWords += packState.converted[pmid].words; }
+             else if (pdf) { pdfCount++; pdfBytes += pdf.size; }
+             else if (ft && ft.markdown) partialCount++;
+             else if (ft) abstractCount++;
+         });
+         const summary = [`${fullCount} full text (about ${words.toLocaleString()} words)`];
+         if (convCount) summary.push(`${convCount} converted from PDF (about ${convWords.toLocaleString()} words)`);
+         if (partialCount) summary.push(`${partialCount} partial`);
+         if (pdfCount) summary.push(`${pdfCount} PDF${pdfCount === 1 ? '' : 's'} (${packMB(pdfBytes)} MB)`);
+         if (abstractCount) summary.push(`${abstractCount} abstract only`);
+         modal.querySelector('.pcb-pack-summary').textContent = `Pack so far: ${summary.join(' \u00b7 ')}`;
+
+         body.querySelectorAll('.pcb-pack-add, .pcb-pack-convert').forEach(btn => {
+             btn.addEventListener('click', () => {
+                 const pmid = btn.getAttribute('data-pmid');
+                 const input = document.createElement('input');
+                 input.type = 'file';
+                 input.accept = 'application/pdf,.pdf';
+                 input.addEventListener('change', async () => {
+                     const file = input.files && input.files[0];
+                     if (!file) return;
+                     const head = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+                     if (String.fromCharCode(...head) !== '%PDF-') {
+                         alert(`Citation Bar: "${file.name}" is not a PDF file.`);
+                         return;
+                     }
+                     if (btn.classList.contains('pcb-pack-convert')) {
+                         packState.converting[pmid] = true;
+                         renderPackRows();
+                         // Let "Converting PDF..." paint: a large PDF holds
+                         // the page while it is read.
+                         await new Promise(resolve => setTimeout(resolve, 50));
+                         try {
+                             packState.converted[pmid] = await packConvert(pmid, file);
+                             delete packState.pdfs[pmid];
+                         } catch (error) {
+                             console.error('AI pack: PDF conversion failed -', error);
+                             alert(`Citation Bar: could not convert "${file.name}": ${error.message}.`);
+                         } finally {
+                             delete packState.converting[pmid];
+                         }
+                     } else {
+                         packState.pdfs[pmid] = file;
+                         delete packState.converted[pmid];
+                     }
+                     renderPackRows();
+                 });
+                 input.click();
+             });
+         });
+         body.querySelectorAll('.pcb-pack-remove').forEach(btn => {
+             btn.addEventListener('click', () => {
+                 delete packState.pdfs[btn.getAttribute('data-pmid')];
+                 delete packState.converted[btn.getAttribute('data-pmid')];
+                 renderPackRows();
+             });
+         });
+     }
+
+     async function openPackPanel() {
+         await loadPicks();
+         const modal = ensurePackModal();
+         const status = modal.querySelector('.pcb-pack-status');
+         const build = modal.querySelector('.pcb-pack-build');
+         const ids = pickState.ids.slice();
+         modal.querySelector('.pcb-pack-total').textContent = ids.length ? `(${ids.length})` : '';
+         modal.style.display = 'block';
+
+         if (ids.length > PACK_LIMIT) {
+             modal.querySelector('.pcb-pack-body').innerHTML = '';
+             status.textContent = `An AI pack holds up to ${PACK_LIMIT} articles, and your export list has ${ids.length}. ` +
+                 'Remove some from the export list, then build the pack again.';
+             build.disabled = true;
+             return;
+         }
+         if (packState.busy) return;
+         packState.busy = true;
+         build.disabled = true;
+         renderPackRows();
+         try {
+             status.textContent = 'Checking which articles have free full text...';
+             await packLookup(ids);
+             const queue = ids.filter(pmid => !packState.fulltext[pmid]);
+             // Only build automatically on a run that fetched something, so
+             // reopening a finished panel does not download the pack again.
+             const fetchedNow = queue.length > 0;
+             let done = 0;
+             const total = queue.filter(packEligible).length;
+             const worker = async () => {
+                 while (queue.length) {
+                     const pmid = queue.shift();
+                     const eligible = packEligible(pmid);
+                     await packFullText(pmid);
+                     if (eligible) done++;
+                     status.textContent = `Fetching full text: ${done} of ${total}...`;
+                     renderPackRows();
+                 }
+             };
+             await Promise.all(Array.from({ length: 5 }, worker));
+             renderPackRows();
+
+             const full = ids.filter(pmid => packState.fulltext[pmid] && packState.fulltext[pmid].markdown && !packState.fulltext[pmid].partial).length;
+             const missing = ids.length - full;
+             if (missing === 0 && fetchedNow) {
+                 status.textContent = `All ${ids.length} articles have full text. Building your pack...`;
+                 const counts = await buildPack();
+                 status.textContent = `Pack downloaded: ${counts.full} full text. Unzip it and point your AI tool at the folder (or give it the zip).`;
+             } else if (missing === 0) {
+                 status.textContent = `All ${ids.length} articles have full text. Click Build zip to download the pack.`;
+             } else {
+                 status.textContent = `${full} of ${ids.length} have full text. For the other ${missing}: click Open, save the PDF, ` +
+                     'then Convert PDF (its text plus its table pages - small) or Add PDF (the file as it is). ' +
+                     'Click Build zip whenever you are done - any without a PDF go in as they are (abstract only, or partial).';
+             }
+         } catch (error) {
+             console.error('AI pack: preparation failed -', error);
+             status.textContent = `Something went wrong while checking full text (${error.message}). You can still build the pack: articles without full text go in as abstract only.`;
+         } finally {
+             packState.busy = false;
+             build.disabled = false;
+         }
+     }
 
      // Initial paint: the ticks have to show the stored selection when the
      // page loads, not only after something is clicked.
