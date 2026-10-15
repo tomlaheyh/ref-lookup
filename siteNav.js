@@ -10,11 +10,15 @@
     { title: 'Clinical Guidelines',    href: '/med/guidelines.html' },
     { title: 'Topic Search',           href: '/search/search.html' },
     { title: 'Nutrition Reference', href: '/nutrition/nutrition.html' },
-    { title: 'PubMed Summary Report', href: '/pubmed-summary/pubmed-summary.html' },
-    { title: 'PubMed Filters Report', href: '/filters/filters.html' },
-    { title: 'PubMed MeSH Counts',  href: '/mesh/mesh.html' },
-    { title: 'PubMed Journal Ranking 2026', href: '/journal-ranking/journal-ranking.html' },
     { title: 'Citation Bar — Live Demo', href: '/demo/citation-bar/' }
+  ];
+
+  // ── External sites (shown as an expandable group at the bottom of the menu) ──
+  var externalGroupTitle = 'External Links';
+  var externalLinks = [
+    { title: 'Citation Bar website', href: 'https://tomlaheyh.github.io/citation-bar/' },
+    { title: 'doilookup.com',        href: 'https://doilookup.com/' },
+    { title: 'demographyinfo.org',   href: 'https://demographyinfo.org/' }
   ];
 
   // ── Inject CSS (only once) ──
@@ -100,7 +104,29 @@
       '  font-weight: 600;',
       '  pointer-events: none;',
       '}',
-      '#site-nav-bar .site-nav-menu a.current::before { content: "\\25B8 "; }'
+      '#site-nav-bar .site-nav-menu a.current::before { content: "\\25B8 "; }',
+      '#site-nav-bar .site-nav-group-toggle {',
+      '  display: block;',
+      '  width: 100%;',
+      '  text-align: center;',
+      '  padding: 10px 16px;',
+      '  font-family: "IBM Plex Mono", monospace;',
+      '  font-size: 13px;',
+      '  color: #005a8c;',
+      '  background: #eef4f8;',
+      '  border: none;',
+      '  border-top: 1px solid #d8d5cc;',
+      '  cursor: pointer;',
+      '  white-space: nowrap;',
+      '}',
+      '#site-nav-bar .site-nav-group-toggle:hover { background: #005a8c; color: #fff; }',
+      '#site-nav-bar .site-nav-group-toggle::after { content: " \\25BE"; font-size: 11px; }',
+      '#site-nav-bar .site-nav-group.open .site-nav-group-toggle::after { content: " \\25B4"; }',
+      '#site-nav-bar .site-nav-group-items { display: none; }',
+      '#site-nav-bar .site-nav-group.open .site-nav-group-items { display: block; }',
+      '#site-nav-bar .site-nav-group-items a { background: #e3eef5; color: #0f3d5c; }',
+      '#site-nav-bar .site-nav-group-items a::after { content: " \\2197"; font-size: 11px; color: #888880; }',
+      '#site-nav-bar .site-nav-group-items a:hover::after { color: #fff; }'
     ].join('\n');
     document.head.appendChild(style);
 
@@ -189,6 +215,33 @@
     menu.appendChild(a);
   }
 
+  // External links group: a toggle row that expands its items in place
+  if (externalLinks.length) {
+    var group = document.createElement('div');
+    group.className = 'site-nav-group';
+    var toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'site-nav-group-toggle';
+    toggle.textContent = externalGroupTitle;
+    toggle.addEventListener('click', function(e) {
+      e.stopPropagation();
+      group.classList.toggle('open');
+    });
+    var items = document.createElement('div');
+    items.className = 'site-nav-group-items';
+    for (var k = 0; k < externalLinks.length; k++) {
+      var ext = document.createElement('a');
+      ext.href = externalLinks[k].href;
+      ext.textContent = externalLinks[k].title;
+      ext.target = '_blank';
+      ext.rel = 'noopener';
+      items.appendChild(ext);
+    }
+    group.appendChild(toggle);
+    group.appendChild(items);
+    menu.appendChild(group);
+  }
+
   inner.appendChild(title);
   inner.appendChild(menu);
   bar.appendChild(inner);
@@ -196,6 +249,8 @@
   // ── Close on outside click ──
   document.addEventListener('click', function() {
     bar.classList.remove('open');
+    var g = bar.querySelector('.site-nav-group.open');
+    if (g) g.classList.remove('open');
   });
 
   // ── Insert at very top of body ──
