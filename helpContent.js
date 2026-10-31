@@ -238,7 +238,7 @@ An ORCID comparison table is shown at the bottom of the summary, displaying auth
       label: 'Author ROR (institution ID)',
       description: `Each author block has a ROR line: the Research Organization Registry ID of the author's institution, linked to ror.org, followed by the institution name as the source gives it.
 
-The ROR is taken from the Registration Agency record (CrossRef or DataCite) when the publisher deposited one, otherwise from OpenAlex. No name matching is done, so when neither source has an ID the line reads "not available". When an author lists several institutions, the first one with a ROR is shown.
+The ROR is taken from the Registration Agency record (CrossRef or DataCite) when the publisher deposited one, otherwise from OpenAlex. No name matching is done, so when neither source has an ID the line reads "not available". When an author lists several institutions, every one with a ROR is shown, separated by commas. They all come from the first source that has any, so one institution is not listed twice under different names. In the CSV export, several RORs are separated by semicolons.
 
 The ROR line is always shown, even when empty, so the field is easy to find.`,
       ref: 'https://ror.org/'

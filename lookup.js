@@ -479,22 +479,25 @@ function showDOIModal(result, linksHtml) {
     return raw || null;
   };
 
-  // Helper to pull the first ROR out of an RA affiliation JSON string
+  // Helper to pull every ROR (in listed order, de-duplicated) out of an RA affiliation JSON string
   // Crossref: [{ name, id: [{ id: "https://ror.org/...", "id-type": "ROR" }] }]
   // DataCite: [{ name, affiliationIdentifier: "https://ror.org/...", affiliationIdentifierScheme: "ROR" }]
-  const extractRor = (raw) => {
-    if (!raw || raw === 'N/A') return null;
+  const extractRors = (raw) => {
+    if (!raw || raw === 'N/A') return [];
     let arr;
-    try { arr = JSON.parse(raw); } catch (e) { return null; }
-    if (!Array.isArray(arr)) return null;
+    try { arr = JSON.parse(raw); } catch (e) { return []; }
+    if (!Array.isArray(arr)) return [];
+    const out = [];
     for (const a of arr) {
       if (!a || typeof a !== 'object') continue;
       const cr = Array.isArray(a.id) ? a.id.find(x => x && x.id && String(x['id-type'] || '').toUpperCase() === 'ROR') : null;
       const url = cr ? cr.id
         : (String(a.affiliationIdentifierScheme || '').toUpperCase() === 'ROR' ? a.affiliationIdentifier : null);
-      if (url) return { id: String(url).replace(/^https?:\/\/ror\.org\//, ''), name: a.name || null };
+      if (!url) continue;
+      const id = String(url).replace(/^https?:\/\/ror\.org\//, '');
+      if (!out.some(r => r.id === id)) out.push({ id, name: a.name || null });
     }
-    return null;
+    return out;
   };
 
   // Helper to render one author block with scores
@@ -538,8 +541,8 @@ function showDOIModal(result, linksHtml) {
     // ROR - always shown so the field is visible even when empty
     html += '<div style="margin-bottom: 2px; margin-left: 15px;">';
     html += '<span style="color: #666;">ROR:</span> ';
-    html += ror
-      ? `<a href="https://ror.org/${encodeURIComponent(ror.id)}" target="_blank" style="color: #005a8c; font-family: monospace;">${escapeHtml(ror.id)}</a>${ror.name ? ` <span style="color: #333;">${escapeHtml(ror.name)}</span>` : ''}`
+    html += (Array.isArray(ror) && ror.length > 0)
+      ? ror.map(r => `<a href="https://ror.org/${encodeURIComponent(r.id)}" target="_blank" style="color: #005a8c; font-family: monospace;">${escapeHtml(r.id)}</a>${r.name ? ` <span style="color: #333;">${escapeHtml(r.name)}</span>` : ''}`).join(', ')
       : '<span style="color: #333;">not available</span>';
     html += '</div>';
 
@@ -572,9 +575,11 @@ function showDOIModal(result, linksHtml) {
   const resolvedFirstAff = parseAffiliation(topFirstAffRaw) ? topFirstAffRaw : (pmAff?.first || pmEfetchFirstAff || null);
   const resolvedLastAff  = parseAffiliation(topLastAffRaw)  ? topLastAffRaw  : (pmAff?.last  || pmEfetchLastAff  || null);
 
-  // Resolve ROR - RA (Crossref/DataCite) first, then OpenAlex. No fuzzy matching.
-  const resolvedFirstRor = extractRor(result.raFirstAuthorAffiliation) || extractRor(result.doiOrgFirstAuthorAffiliation) || result._oaFirstAuthorRor || null;
-  const resolvedLastRor  = extractRor(result.raLastAuthorAffiliation)  || extractRor(result.doiOrgLastAuthorAffiliation)  || result._oaLastAuthorRor  || null;
+  // Resolve RORs - all RORs from the first source that has any: RA (Crossref/DataCite), then OpenAlex.
+  // Sources are not mixed, so one institution is not listed twice under different names. No fuzzy matching.
+  const pickRors = (...lists) => lists.find(l => Array.isArray(l) && l.length > 0) || [];
+  const resolvedFirstRor = pickRors(extractRors(result.raFirstAuthorAffiliation), extractRors(result.doiOrgFirstAuthorAffiliation), result._oaFirstAuthorRor);
+  const resolvedLastRor  = pickRors(extractRors(result.raLastAuthorAffiliation),  extractRors(result.doiOrgLastAuthorAffiliation),  result._oaLastAuthorRor);
 
   // Update source label if PubMed affiliation fallback was used
   const usedPubMedAff = !parseAffiliation(topFirstAffRaw) || !parseAffiliation(topLastAffRaw);
@@ -1432,8 +1437,8 @@ function showDOIModal(result, linksHtml) {
   result._displayFirstAuthorOrcid = topFirstOrcid || null;
   result._displayLastAuthorName   = [topLastGiven,  topLastFamily ].filter(Boolean).join(' ') || null;
   result._displayLastAuthorOrcid  = topLastOrcid  || null;
-  result._displayFirstAuthorRor   = resolvedFirstRor ? resolvedFirstRor.id : null;
-  result._displayLastAuthorRor    = resolvedLastRor  ? resolvedLastRor.id  : null;
+  result._displayFirstAuthorRor   = resolvedFirstRor.length ? resolvedFirstRor.map(r => r.id).join('; ') : null;
+  result._displayLastAuthorRor    = resolvedLastRor.length  ? resolvedLastRor.map(r => r.id).join('; ')  : null;
   result._displayAuthorCount      = authorCountTop || 0;
 
   // Render inline into #results div - append card for each DOI (multi-DOI support)
@@ -2047,14 +2052,19 @@ async function checkOpenAlex(doi, result) {
         result._oaFirstAuthorName  = first?.display_name || null;
         result._oaLastAuthorName   = last?.display_name  || null;
 
-        // First/last author ROR: first listed institution that has one
+        // First/last author RORs: every listed institution that has one (listed order, de-duplicated)
         // Shape: authorships[].institutions[] = { display_name, ror: "https://ror.org/..." }
-        const oaRor = (a) => {
-          const inst = (a?.institutions || []).find(i => i && i.ror);
-          return inst ? { id: inst.ror.replace(/^https?:\/\/ror\.org\//, ''), name: inst.display_name || null } : null;
+        const oaRors = (a) => {
+          const out = [];
+          for (const i of (a?.institutions || [])) {
+            if (!i || !i.ror) continue;
+            const id = i.ror.replace(/^https?:\/\/ror\.org\//, '');
+            if (!out.some(r => r.id === id)) out.push({ id, name: i.display_name || null });
+          }
+          return out;
         };
-        result._oaFirstAuthorRor = oaRor(authorships[0]);
-        result._oaLastAuthorRor  = oaRor(authorships[authorships.length - 1]);
+        result._oaFirstAuthorRor = oaRors(authorships[0]);
+        result._oaLastAuthorRor  = oaRors(authorships[authorships.length - 1]);
       }
 
       // Extract grants from OpenAlex
