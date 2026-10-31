@@ -235,6 +235,15 @@ An ORCID comparison table is shown at the bottom of the summary, displaying auth
       ref: 'https://orcid.org/'
     },
     {
+      label: 'Author ROR (institution ID)',
+      description: `Each author block has a ROR line: the Research Organization Registry ID of the author's institution, linked to ror.org, followed by the institution name as the source gives it.
+
+The ROR is taken from the Registration Agency record (CrossRef or DataCite) when the publisher deposited one, otherwise from OpenAlex. No name matching is done, so when neither source has an ID the line reads "not available". When an author lists several institutions, the first one with a ROR is shown.
+
+The ROR line is always shown, even when empty, so the field is easy to find.`,
+      ref: 'https://ror.org/'
+    },
+    {
       label: 'Author metrics (from OpenAlex)',
       description: `When an ORCID is available, author-level metrics are fetched from OpenAlex:
 
@@ -392,7 +401,7 @@ Blue links are available; greyed-out links mean the service did not have data fo
       label: 'Export CSV',
       description: `After looking up DOIs, click "Export CSV" to download a spreadsheet with one row per DOI. The button shows how many results are currently included. The file is named with the date, e.g. <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">ref-lookup-2026-07-31.csv</code>.
 
-26 columns are written: DOI, title, journal, publisher, year, volume, issue, pages, type and ISSN; first and last author with their ORCIDs; citation counts from CrossRef, OpenAlex, Semantic Scholar and iCite, plus FWCI, RCR and SJR; DOAJ and PubMed status; the free PDF URL; and funders, grant numbers and the grant source.
+28 columns are written: DOI, title, journal, publisher, year, volume, issue, pages, type and ISSN; first and last author with their ORCIDs and ROR IDs; citation counts from CrossRef, OpenAlex, Semantic Scholar and iCite, plus FWCI, RCR and SJR; DOAJ and PubMed status; the free PDF URL; and funders, grant numbers and the grant source.
 
 <strong>Note on the card checkbox:</strong> unticking the checkbox on a result card <em>removes</em> that card — it disappears from the page, from the export, and from the URL. It is not a reversible include/exclude toggle. To get a removed DOI back, look it up again.`,
       ref: null

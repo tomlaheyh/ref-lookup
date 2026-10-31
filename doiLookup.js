@@ -256,7 +256,8 @@ const DOILookup = {
    * Fetch data from DataCite API
    */
   async fetchDataCiteData(doi) {
-    const dataCiteUrl = `https://api.datacite.org/dois/${doi}`;
+    // affiliation=true returns affiliation objects with ROR IDs instead of plain names
+    const dataCiteUrl = `https://api.datacite.org/dois/${doi}?affiliation=true`;
     
     try {
       const response = await this._fetchWithTimeout(dataCiteUrl, {}, 8000);

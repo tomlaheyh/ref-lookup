@@ -276,6 +276,14 @@
         },
         {
           "@type": "Question",
+          "name": "Author ROR (institution ID)",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Each author block has a ROR line: the Research Organization Registry ID of the author's institution, linked to ror.org, followed by the institution name as the source gives it. The ROR is taken from the Registration Agency record (CrossRef or DataCite) when the publisher deposited one, otherwise from OpenAlex. No name matching is done, so when neither source has an ID the line reads \"not available\". When an author lists several institutions, the first one with a ROR is shown. The ROR line is always shown, even when empty, so the field is easy to find."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Author metrics (from OpenAlex)",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -407,7 +415,7 @@
           "name": "Export CSV",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "After looking up DOIs, click \"Export CSV\" to download a spreadsheet with one row per DOI. The button shows how many results are currently included. The file is named with the date, e.g. ref-lookup-2026-07-31.csv. 26 columns are written: DOI, title, journal, publisher, year, volume, issue, pages, type and ISSN; first and last author with their ORCIDs; citation counts from CrossRef, OpenAlex, Semantic Scholar and iCite, plus FWCI, RCR and SJR; DOAJ and PubMed status; the free PDF URL; and funders, grant numbers and the grant source. Note on the card checkbox: unticking the checkbox on a result card removes that card — it disappears from the page, from the export, and from the URL. It is not a reversible include/exclude toggle. To get a removed DOI back, look it up again."
+            "text": "After looking up DOIs, click \"Export CSV\" to download a spreadsheet with one row per DOI. The button shows how many results are currently included. The file is named with the date, e.g. ref-lookup-2026-07-31.csv. 28 columns are written: DOI, title, journal, publisher, year, volume, issue, pages, type and ISSN; first and last author with their ORCIDs and ROR IDs; citation counts from CrossRef, OpenAlex, Semantic Scholar and iCite, plus FWCI, RCR and SJR; DOAJ and PubMed status; the free PDF URL; and funders, grant numbers and the grant source. Note on the card checkbox: unticking the checkbox on a result card removes that card — it disappears from the page, from the export, and from the URL. It is not a reversible include/exclude toggle. To get a removed DOI back, look it up again."
           }
         },
         {
@@ -557,7 +565,11 @@ That collected set is then used as the key for the journal-level lookups further
 
 Author information is merged from up to three sources: the Registration Agency (CrossRef, DataCite, etc.), PubMed, and OpenAlex. The tool picks the source with the most ORCID coverage — RA wins ties. When the chosen source lacks ORCIDs but OpenAlex has them, the OpenAlex ORCIDs are used as a fallback.
 
-An ORCID comparison table is shown at the bottom of the summary, displaying author names and ORCIDs from all three sources for transparency.</div></div><hr style="border:none;border-top:1px solid #eee;margin:10px 0;"><div style="margin-bottom:10px;"><div style="margin-bottom:3px;"><strong style="color:#1a1a18;font-size:14px;">Author metrics (from OpenAlex)</strong> <a href="https://en.wikipedia.org/wiki/Author-level_metrics" target="_blank" style="color:#005a8c;font-size:11px;font-weight:400;text-decoration:none;margin-left:6px;">Ref ↗</a></div><div style="color:#555;font-size:13px;line-height:1.55;font-weight:300;white-space:pre-line;">When an ORCID is available, author-level metrics are fetched from OpenAlex:
+An ORCID comparison table is shown at the bottom of the summary, displaying author names and ORCIDs from all three sources for transparency.</div></div><hr style="border:none;border-top:1px solid #eee;margin:10px 0;"><div style="margin-bottom:10px;"><div style="margin-bottom:3px;"><strong style="color:#1a1a18;font-size:14px;">Author ROR (institution ID)</strong> <a href="https://ror.org/" target="_blank" style="color:#005a8c;font-size:11px;font-weight:400;text-decoration:none;margin-left:6px;">Ref ↗</a></div><div style="color:#555;font-size:13px;line-height:1.55;font-weight:300;white-space:pre-line;">Each author block has a ROR line: the Research Organization Registry ID of the author's institution, linked to ror.org, followed by the institution name as the source gives it.
+
+The ROR is taken from the Registration Agency record (CrossRef or DataCite) when the publisher deposited one, otherwise from OpenAlex. No name matching is done, so when neither source has an ID the line reads "not available". When an author lists several institutions, the first one with a ROR is shown.
+
+The ROR line is always shown, even when empty, so the field is easy to find.</div></div><hr style="border:none;border-top:1px solid #eee;margin:10px 0;"><div style="margin-bottom:10px;"><div style="margin-bottom:3px;"><strong style="color:#1a1a18;font-size:14px;">Author metrics (from OpenAlex)</strong> <a href="https://en.wikipedia.org/wiki/Author-level_metrics" target="_blank" style="color:#005a8c;font-size:11px;font-weight:400;text-decoration:none;margin-left:6px;">Ref ↗</a></div><div style="color:#555;font-size:13px;line-height:1.55;font-weight:300;white-space:pre-line;">When an ORCID is available, author-level metrics are fetched from OpenAlex:
 
 <strong>h-index:</strong> Minimum number of citations across papers. Example: 12 papers all with ≥12 citations = h-index of 12.
 <strong>i10-index:</strong> Number of papers with ≥10 citations.
@@ -613,7 +625,7 @@ CrossRef and DataCite together represent over 95% of all research DOIs.</div></d
 
 Blue links are available; greyed-out links mean the service did not have data for this DOI.</div></div><hr style="border:none;border-top:2px solid #d8d5cc;margin:18px 0;"><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:#005a8c;margin:16px 0 10px;">CSV Export</div><div style="margin-bottom:10px;"><div style="margin-bottom:3px;"><strong style="color:#1a1a18;font-size:14px;">Export CSV</strong></div><div style="color:#555;font-size:13px;line-height:1.55;font-weight:300;white-space:pre-line;">After looking up DOIs, click "Export CSV" to download a spreadsheet with one row per DOI. The button shows how many results are currently included. The file is named with the date, e.g. <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">ref-lookup-2026-07-31.csv</code>.
 
-26 columns are written: DOI, title, journal, publisher, year, volume, issue, pages, type and ISSN; first and last author with their ORCIDs; citation counts from CrossRef, OpenAlex, Semantic Scholar and iCite, plus FWCI, RCR and SJR; DOAJ and PubMed status; the free PDF URL; and funders, grant numbers and the grant source.
+28 columns are written: DOI, title, journal, publisher, year, volume, issue, pages, type and ISSN; first and last author with their ORCIDs and ROR IDs; citation counts from CrossRef, OpenAlex, Semantic Scholar and iCite, plus FWCI, RCR and SJR; DOAJ and PubMed status; the free PDF URL; and funders, grant numbers and the grant source.
 
 <strong>Note on the card checkbox:</strong> unticking the checkbox on a result card <em>removes</em> that card — it disappears from the page, from the export, and from the URL. It is not a reversible include/exclude toggle. To get a removed DOI back, look it up again.</div></div><hr style="border:none;border-top:2px solid #d8d5cc;margin:18px 0;"><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:#005a8c;margin:16px 0 10px;">Cite</div><div style="margin-bottom:10px;"><div style="margin-bottom:3px;"><strong style="color:#1a1a18;font-size:14px;">Citation formatting</strong></div><div style="color:#555;font-size:13px;line-height:1.55;font-weight:300;white-space:pre-line;">Click "Cite" on the DOI line of any result card to open the citation modal. Four styles are available:
 

@@ -768,7 +768,7 @@
 
       const cols = [
         'DOI','Title','Journal','Publisher','Year','Volume','Issue','Pages','Type','ISSN',
-        'First Author','First Author ORCID','Last Author','Last Author ORCID',
+        'First Author','First Author ORCID','First Author ROR','Last Author','Last Author ORCID','Last Author ROR',
         'Citations (CrossRef)','Citations (OpenAlex)','FWCI','Citations (Sem Sch)','RCR','SJR',
         'DOAJ','PubMed','Free PDF URL','Funders','Grant Numbers','Grant Source'
       ];
@@ -793,8 +793,10 @@
         r.doiOrgIssn || r.raIssn || '',
         r._displayFirstAuthorName || '',
         r._displayFirstAuthorOrcid || '',
+        r._displayFirstAuthorRor || '',
         r._displayLastAuthorName || '',
         r._displayLastAuthorOrcid || '',
+        r._displayLastAuthorRor || '',
         r.doiOrgCitationCount ?? r.raCitationCount ?? '',
         r._openAlexCitations ?? '',
         r._openAlexFwci ?? '',

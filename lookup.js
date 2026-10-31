@@ -479,8 +479,26 @@ function showDOIModal(result, linksHtml) {
     return raw || null;
   };
 
+  // Helper to pull the first ROR out of an RA affiliation JSON string
+  // Crossref: [{ name, id: [{ id: "https://ror.org/...", "id-type": "ROR" }] }]
+  // DataCite: [{ name, affiliationIdentifier: "https://ror.org/...", affiliationIdentifierScheme: "ROR" }]
+  const extractRor = (raw) => {
+    if (!raw || raw === 'N/A') return null;
+    let arr;
+    try { arr = JSON.parse(raw); } catch (e) { return null; }
+    if (!Array.isArray(arr)) return null;
+    for (const a of arr) {
+      if (!a || typeof a !== 'object') continue;
+      const cr = Array.isArray(a.id) ? a.id.find(x => x && x.id && String(x['id-type'] || '').toUpperCase() === 'ROR') : null;
+      const url = cr ? cr.id
+        : (String(a.affiliationIdentifierScheme || '').toUpperCase() === 'ROR' ? a.affiliationIdentifier : null);
+      if (url) return { id: String(url).replace(/^https?:\/\/ror\.org\//, ''), name: a.name || null };
+    }
+    return null;
+  };
+
   // Helper to render one author block with scores
-  const authorBlockTop = (label, family, given, orcidId, orcidUrl, affiliation, metrics) => {
+  const authorBlockTop = (label, family, given, orcidId, orcidUrl, affiliation, ror, metrics) => {
     const hasName  = family || given;
     const hasOrcid = isValidTop(orcidId);
 
@@ -517,6 +535,14 @@ function showDOIModal(result, linksHtml) {
       : '<span style="color: #ccc;">No affiliation data available</span>';
     html += '</div>';
 
+    // ROR - always shown so the field is visible even when empty
+    html += '<div style="margin-bottom: 2px; margin-left: 15px;">';
+    html += '<span style="color: #666;">ROR:</span> ';
+    html += ror
+      ? `<a href="https://ror.org/${encodeURIComponent(ror.id)}" target="_blank" style="color: #005a8c; font-family: monospace;">${escapeHtml(ror.id)}</a>${ror.name ? ` <span style="color: #333;">${escapeHtml(ror.name)}</span>` : ''}`
+      : '<span style="color: #333;">not available</span>';
+    html += '</div>';
+
     // PubMed | ORCID | OpenAlex links
     html += '<div style="margin-bottom: 10px; margin-left: 15px;">';
     if (hasOrcid) {
@@ -545,6 +571,10 @@ function showDOIModal(result, linksHtml) {
     ? result.pubmedAuthorLastAffiliations.join('; ') : null;
   const resolvedFirstAff = parseAffiliation(topFirstAffRaw) ? topFirstAffRaw : (pmAff?.first || pmEfetchFirstAff || null);
   const resolvedLastAff  = parseAffiliation(topLastAffRaw)  ? topLastAffRaw  : (pmAff?.last  || pmEfetchLastAff  || null);
+
+  // Resolve ROR - RA (Crossref/DataCite) first, then OpenAlex. No fuzzy matching.
+  const resolvedFirstRor = extractRor(result.raFirstAuthorAffiliation) || extractRor(result.doiOrgFirstAuthorAffiliation) || result._oaFirstAuthorRor || null;
+  const resolvedLastRor  = extractRor(result.raLastAuthorAffiliation)  || extractRor(result.doiOrgLastAuthorAffiliation)  || result._oaLastAuthorRor  || null;
 
   // Update source label if PubMed affiliation fallback was used
   const usedPubMedAff = !parseAffiliation(topFirstAffRaw) || !parseAffiliation(topLastAffRaw);
@@ -1033,11 +1063,11 @@ function showDOIModal(result, linksHtml) {
   html += '<div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid #d8d5cc;">';
   html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 4px;">Number of Authors: ${authorCountTop > 0 ? authorCountTop : 'unknown'} &nbsp;|&nbsp; Source: ${displaySource}</div>`;
   html += '<div style="color: #888880; font-size: 12px; font-weight: 300; margin-bottom: 10px; font-style: italic;">In academic convention, first author typically led the work, last author typically supervised.</div>';
-  authorBlockTop('First Author', topFirstFamily, topFirstGiven, topFirstOrcid, topFirstOrcidUrl, resolvedFirstAff, firstMetrics);
+  authorBlockTop('First Author', topFirstFamily, topFirstGiven, topFirstOrcid, topFirstOrcidUrl, resolvedFirstAff, resolvedFirstRor, firstMetrics);
   if (authorCountTop > 1) {
-    authorBlockTop('Last Author', topLastFamily, topLastGiven, topLastOrcid, topLastOrcidUrl, resolvedLastAff, lastMetrics);
+    authorBlockTop('Last Author', topLastFamily, topLastGiven, topLastOrcid, topLastOrcidUrl, resolvedLastAff, resolvedLastRor, lastMetrics);
   } else {
-    authorBlockTop('Last Author', null, null, null, null, null, null);
+    authorBlockTop('Last Author', null, null, null, null, null, null, null);
   }
   if (firstMetrics || lastMetrics) {
     html += '<div style="color: #888880; font-size: 12px; font-weight: 300; margin-top: 4px; font-style: italic;">Author indexes are from OpenAlex. When one ORCID has several OpenAlex profiles (duplicates), the profile with the most works is used.</div>';
@@ -1402,6 +1432,8 @@ function showDOIModal(result, linksHtml) {
   result._displayFirstAuthorOrcid = topFirstOrcid || null;
   result._displayLastAuthorName   = [topLastGiven,  topLastFamily ].filter(Boolean).join(' ') || null;
   result._displayLastAuthorOrcid  = topLastOrcid  || null;
+  result._displayFirstAuthorRor   = resolvedFirstRor ? resolvedFirstRor.id : null;
+  result._displayLastAuthorRor    = resolvedLastRor  ? resolvedLastRor.id  : null;
   result._displayAuthorCount      = authorCountTop || 0;
 
   // Render inline into #results div - append card for each DOI (multi-DOI support)
@@ -2014,6 +2046,15 @@ async function checkOpenAlex(doi, result) {
         result._oaLastAuthorOrcid  = last?.orcid  ? last.orcid.replace('https://orcid.org/', '')  : null;
         result._oaFirstAuthorName  = first?.display_name || null;
         result._oaLastAuthorName   = last?.display_name  || null;
+
+        // First/last author ROR: first listed institution that has one
+        // Shape: authorships[].institutions[] = { display_name, ror: "https://ror.org/..." }
+        const oaRor = (a) => {
+          const inst = (a?.institutions || []).find(i => i && i.ror);
+          return inst ? { id: inst.ror.replace(/^https?:\/\/ror\.org\//, ''), name: inst.display_name || null } : null;
+        };
+        result._oaFirstAuthorRor = oaRor(authorships[0]);
+        result._oaLastAuthorRor  = oaRor(authorships[authorships.length - 1]);
       }
 
       // Extract grants from OpenAlex
