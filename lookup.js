@@ -614,11 +614,14 @@ function showDOIModal(result, linksHtml) {
   // Retraction / correction banner — shown above title when update-to entries exist
   // Collect ALL distinct update entries (a retraction may appear from both publisher + retraction-watch)
   // We dedupe by DOI+type so duplicates from two sources collapse into one entry showing both sources.
-  const _updateEntries = (() => {
+  // update-to pointing at ANOTHER DOI means this DOI is the notice for that paper (not itself updated);
+  // update-to pointing at its own DOI (in-place retraction) or any updated-by entry means this DOI was updated.
+  const _ownDoi = (result.doiOrgDoi || '').toLowerCase();
+  const _allUpdateEntries = (() => {
     if (result.doiOrgRa !== 'Crossref') return [];
     const UPDATE_TYPES = ['retraction', 'correction', 'expression-of-concern', 'reinstatement', 'withdrawal'];
     const map = new Map();
-    const ingest = (raw) => {
+    const ingest = (raw, fromUpdateTo) => {
       if (!raw) return;
       try {
         const arr = JSON.parse(raw);
@@ -627,7 +630,8 @@ function showDOIModal(result, linksHtml) {
           if (!UPDATE_TYPES.includes(t)) continue;
           const key = `${(u.DOI || '').toLowerCase()}|${t}`;
           if (!map.has(key)) {
-            map.set(key, { type: t, DOI: u.DOI || null, sources: [], recordIds: [], label: u.label || null, date: u.updated?.['date-time'] || null });
+            map.set(key, { type: t, DOI: u.DOI || null, sources: [], recordIds: [], label: u.label || null, date: u.updated?.['date-time'] || null,
+                           isNotice: fromUpdateTo && (u.DOI || '').toLowerCase() !== _ownDoi });
           }
           const entry = map.get(key);
           if (u.source && !entry.sources.includes(u.source)) entry.sources.push(u.source);
@@ -635,10 +639,12 @@ function showDOIModal(result, linksHtml) {
         }
       } catch (e) { /* skip */ }
     };
-    ingest(result.raUpdateTo);
-    ingest(result.raUpdatedBy);
+    ingest(result.raUpdateTo, true);
+    ingest(result.raUpdatedBy, false);
     return [...map.values()];
   })();
+  const _updateEntries = _allUpdateEntries.filter(e => !e.isNotice);
+  const _noticeEntries = _allUpdateEntries.filter(e => e.isNotice);
 
   // Title — strip any existing "RETRACTED: " prefix from the title itself to avoid doubling
   if (summaryTitle) {
@@ -699,6 +705,8 @@ function showDOIModal(result, linksHtml) {
     if (!hasRetraction && has('expression-of-concern')) parts.push('Expression of Concern');
     if (has('withdrawal'))                  parts.push('Withdrawal');
     if (!hasRetraction && has('correction')) parts.push('Correction');
+    const NOTICE_LABELS = { 'retraction': 'Retraction Notice', 'correction': 'Correction Notice', 'expression-of-concern': 'Expression of Concern Notice', 'reinstatement': 'Reinstatement Notice', 'withdrawal': 'Withdrawal Notice' };
+    for (const t of new Set(_noticeEntries.map(e => e.type))) parts.push(NOTICE_LABELS[t]);
 
     // PubMed retraction/correction status
     const pmParts = [];
@@ -706,6 +714,7 @@ function showDOIModal(result, linksHtml) {
     if (result.pubmedHasRetraction && result.pubmedRetractionPMID)   pmParts.push(`Retraction in PMID:${result.pubmedRetractionPMID}`);
     else if (result.pubmedHasRetraction)                             pmParts.push('Retraction in');
     if (result.pubmedPublicationTypes?.includes('Retraction of Publication') || result.pubmedPublicationTypes?.includes('Retraction Notice')) pmParts.push('Retraction Notice');
+    if (result.pubmedPublicationTypes?.includes('Published Erratum')) pmParts.push('Erratum Notice');
     if (result.pubmedHasCorrection && result.pubmedCorrectionPMID)   pmParts.push(`Erratum PMID:${result.pubmedCorrectionPMID}`);
     else if (result.pubmedHasCorrection)                             pmParts.push('Erratum');
 
@@ -1880,16 +1889,16 @@ async function checkAllDOILinks(doi, result) {
   row('Dimensions', dimensions.web, dimensions.data, '(Free Acct Required)');
 
   // Retraction / correction status - parsed from CrossRef update-to and updated-by fields
-  // update-to:   this DOI has been retracted/corrected (a notice DOI is listed)
-  // updated-by:  this DOI IS the notice (retraction/correction) for another article
+  // updated-by:  this DOI has been retracted/corrected (the notice DOI is listed)
+  // update-to:   this DOI IS the notice for the listed DOI, unless the listed DOI is this DOI (in-place retraction)
   // Test DOI (retracted article): 10.1016/S0140-6736(97)11096-0
   // Test DOI (retraction notice): look up the update-to DOI of the above
   {
     const isCrossRef = result.doiOrgRa === 'Crossref';
     const UPDATE_TYPES = ['retraction', 'correction', 'expression-of-concern', 'reinstatement', 'withdrawal'];
 
-    // Parse update-to (this article was updated/retracted)
-    const parseUpdates = (raw, isNotice = false) => {
+    const ownDoi = (result.doiOrgDoi || doi || '').toLowerCase();
+    const parseUpdates = (raw, fromUpdateTo) => {
       if (!raw) return [];
       try {
         const arr = JSON.parse(raw);
@@ -1899,7 +1908,8 @@ async function checkAllDOILinks(doi, result) {
           if (!UPDATE_TYPES.includes(t)) continue;
           const key = `${(u.DOI || '').toLowerCase()}|${t}`;
           if (!map.has(key)) {
-            map.set(key, { type: t, DOI: u.DOI || null, sources: [], recordIds: [], label: u.label || null, isNotice });
+            map.set(key, { type: t, DOI: u.DOI || null, sources: [], recordIds: [], label: u.label || null,
+                           isNotice: fromUpdateTo && (u.DOI || '').toLowerCase() !== ownDoi });
           }
           const entry = map.get(key);
           if (u.source && !entry.sources.includes(u.source)) entry.sources.push(u.source);
@@ -1910,8 +1920,8 @@ async function checkAllDOILinks(doi, result) {
     };
 
     const allUpdates = [
-      ...parseUpdates(result.raUpdateTo,  false),
-      ...parseUpdates(result.raUpdatedBy, true),
+      ...parseUpdates(result.raUpdateTo,  true),
+      ...parseUpdates(result.raUpdatedBy, false),
     ];
 
     html += '<div style="margin-bottom: 4px;">';

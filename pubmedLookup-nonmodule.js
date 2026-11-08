@@ -186,13 +186,9 @@ const PubMedLookup = {
         });
       }
 
-      // Check pubtype for correction/retraction notices
-      if (data.pubmedPublicationTypes.includes('Published Erratum')) {
-        hasCorrection = true;
-      }
-      if (data.pubmedPublicationTypes.includes('Retraction of Publication') || data.pubmedPublicationTypes.includes('Retraction Notice')) {
-        hasRetraction = true;
-      }
+      // Correction and retraction notices ('Published Erratum', 'Retraction Notice') are not
+      // themselves corrected or retracted, so their pubtypes do not set hasCorrection/hasRetraction;
+      // lookup.js reads those pubtypes directly to label the record as a notice.
       // "Retracted Publication" = this article itself has been retracted
       data.pubmedIsRetractedPublication = data.pubmedPublicationTypes.includes('Retracted Publication');
 

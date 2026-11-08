@@ -3,9 +3,11 @@
 // a simple {doi: bool} map. Intentionally duplicated logic (not shared with
 // lookup.js) to keep this module independent and easy to reason about.
 //
-// "Retracted" for our purposes = Crossref `update-to` contains an entry whose
-// `update-type` is 'retraction' OR 'expression-of-concern'. Corrections and
-// other update types do NOT count as retracted.
+// "Retracted" for our purposes = Crossref `updated-by` contains an entry whose
+// type is 'retraction' OR 'expression-of-concern', or `update-to` does AND points
+// at this same DOI (in-place retraction). An `update-to` pointing at ANOTHER DOI
+// means this DOI is the notice, not a retracted paper. Corrections and other
+// update types do NOT count as retracted.
 //
 // Public API:
 //   window.RetractionCheck.checkBatch(doisArray)
@@ -54,18 +56,20 @@
   }
 
   // Decide retraction status from a Crossref work response.
-  // Must check BOTH update-to (this DOI was updated by a notice) AND
-  // updated-by (this DOI has a notice pointing AT it). Older papers' retractions
-  // often only appear in updated-by — matching lookup.js's combined-source logic.
+  // updated-by: a notice points AT this DOI. update-to: this DOI is a notice for
+  // the listed DOI, unless the listed DOI is this DOI (in-place retraction).
+  // Same rule as lookup.js.
   function isRetractedFromCrossref(data) {
     var msg = data && data.message;
     if (!msg) return false;
+    var own = String(msg.DOI || '').toLowerCase();
     var lists = [];
-    if (Array.isArray(msg['update-to'])) lists.push(msg['update-to']);
-    if (Array.isArray(msg['updated-by'])) lists.push(msg['updated-by']);
+    if (Array.isArray(msg['update-to'])) lists.push({ arr: msg['update-to'], fromUpdateTo: true });
+    if (Array.isArray(msg['updated-by'])) lists.push({ arr: msg['updated-by'], fromUpdateTo: false });
     for (var L = 0; L < lists.length; L++) {
-      var arr = lists[L];
+      var arr = lists[L].arr;
       for (var i = 0; i < arr.length; i++) {
+        if (lists[L].fromUpdateTo && String(arr[i].DOI || '').toLowerCase() !== own) continue; // this DOI is the notice
         var t = String(arr[i]['update-type'] || arr[i].type || '').toLowerCase();
         if (BLOCKED_TYPES.indexOf(t) !== -1) return true;
       }
