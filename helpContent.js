@@ -110,7 +110,7 @@ The <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">&nocache</c
     },
     {
       label: 'Title + Abstract',
-      description: 'The article title is shown in bold. If the article has been retracted, "RETRACTED:" is prepended in red. A truncated abstract is shown below (from PubMed when available, otherwise from CrossRef). Click "full abstract" to see the complete text in a popup.',
+      description: 'The article title is shown in bold. If the article has been retracted, "RETRACTED:" is prepended in red. A truncated abstract is shown below (from PubMed when available, otherwise from CrossRef). Click "full abstract" to see the complete text in a popup. Clicking full abstract (or full text, when the abstract is short or missing) also opens a section saying whether a free full text exists. For articles in PubMed Central the text itself follows (from Europe PMC or PMC, which can take a few seconds); otherwise it links to the best free copy Unpaywall found, or says none was found.',
       ref: null
     },
     {

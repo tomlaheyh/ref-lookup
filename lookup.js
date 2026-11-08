@@ -654,8 +654,19 @@ function showDOIModal(result, linksHtml) {
     html += `<div style="font-size: 17px; font-weight: bold; color: #1a1a18; margin-bottom: 10px; line-height: 1.4;">${titlePrefix}${cleanTitle}</div>`;
   }
 
-  // Abstract snippet — PubMed first, fall back to CrossRef, stop if neither
+  // Abstract snippet — PubMed first, fall back to CrossRef, stop if neither.
+  // One button expands it: "full abstract" when the abstract is cut short, otherwise
+  // "full text". It also reveals the full-text section below (fullText.js), which
+  // stays hidden and fetches nothing until that first click.
   {
+    // Unique ids so each card's abstract toggles independently
+    const absId = 'abs-' + Math.random().toString(36).slice(2, 9);
+    const btnStyle = 'font-family:IBM Plex Mono,monospace;font-size:11px;padding:2px 8px;background:#005a8c;color:#fff;border:none;cursor:pointer;vertical-align:middle;margin-left:4px;';
+    // Inline toggle: swap the short/full text in place and show/hide the full-text section, no popup
+    const expandButton = label => {
+      const toggle = `(function(btn){var s=document.getElementById('${absId}-short');var f=document.getElementById('${absId}-full');var ft=document.getElementById('${absId}-ft');var open=btn.getAttribute('data-open')!=='1';btn.setAttribute('data-open',open?'1':'0');if(s&&f){f.style.display=open?'inline':'none';s.style.display=open?'none':'inline';}if(ft){ft.style.display=open?'block':'none';if(open&&window.FullText)window.FullText.open(ft);}btn.textContent=open?'show less':'${label}';})(this)`;
+      return ` <button type="button" onclick="${toggle}" style="${btnStyle}">${label}</button>`;
+    };
     const rawAbstract = result.pubmedAbstract || result.raAbstract || null;
     if (rawAbstract) {
       // Strip HTML tags (CrossRef can include <jats:p> etc.) and normalise whitespace
@@ -673,24 +684,22 @@ function showDOIModal(result, linksHtml) {
       const fullSafe = esc(plain);
 
       if (needsTruncation) {
-        // Unique ids so each card's abstract toggles independently
-        const absId = 'abs-' + Math.random().toString(36).slice(2, 9);
-        const btnStyle = 'font-family:IBM Plex Mono,monospace;font-size:11px;padding:2px 8px;background:#005a8c;color:#fff;border:none;cursor:pointer;vertical-align:middle;margin-left:4px;';
-        // Inline toggle: swap the short/full text in place, no popup, page never dims
-        const toggle = `(function(btn){var s=document.getElementById('${absId}-short');var f=document.getElementById('${absId}-full');var hidden=f.style.display==='none';f.style.display=hidden?'inline':'none';s.style.display=hidden?'none':'inline';btn.textContent=hidden?'show less':'full abstract';})(this)`;
         html += `<div style="font-size: 14px; color: #555; font-weight: 300; margin-bottom: 10px; line-height: 1.5;">` +
                 `<span id="${absId}-short">${truncatedSafe}</span>` +
                 `<span id="${absId}-full" style="display:none;">${fullSafe}</span>` +
-                ` <button type="button" onclick="${toggle}" style="${btnStyle}">full abstract</button>` +
+                expandButton('full abstract') +
                 `</div>`;
       } else {
-        html += `<div style="font-size: 14px; color: #555; font-weight: 300; margin-bottom: 10px; line-height: 1.5;">${truncatedSafe}</div>`;
+        html += `<div style="font-size: 14px; color: #555; font-weight: 300; margin-bottom: 10px; line-height: 1.5;">${truncatedSafe}${expandButton('full text')}</div>`;
       }
     } else {
       // No abstract from any source — show an explicit note rather than blank
       // space, so users know we checked and there simply isn't one.
-      html += `<div style="font-size: 14px; color: #777; font-style: italic; font-weight: 300; margin-bottom: 10px; line-height: 1.5;">No abstract available.</div>`;
+      html += `<div style="font-size: 14px; color: #777; font-style: italic; font-weight: 300; margin-bottom: 10px; line-height: 1.5;">No abstract available.${expandButton('full text')}</div>`;
     }
+
+    // Full-text section, hidden until the button above is clicked
+    html += `<div class="fulltext-slot" id="${absId}-ft" style="display:none;"></div>`;
   }
 
   // BoB line — priority order: Retracted, Reinstated, Expression of Concern, Withdrawal, Correction
@@ -1477,6 +1486,7 @@ function showDOIModal(result, linksHtml) {
     const cardHtml = `<div id="${cardId}" style="background:white; padding:25px; border:1.5px solid #d8d5cc; margin-bottom:16px; transition: opacity 0.2s;">${checkboxHtml}${html}</div>`;
     resultsDiv.insertAdjacentHTML('afterbegin', cardHtml);
     if (window.ConnectionsGraph) window.ConnectionsGraph.attachButton(result, doi);
+    if (window.FullText) window.FullText.attach(document.getElementById(cardId)?.querySelector('.fulltext-slot'), result);
     if (typeof updateCardNumbers === 'function') updateCardNumbers();
   } else {
     // No #results container on the page — nothing to render into.
@@ -2125,6 +2135,13 @@ async function checkUnpaywall(doi, result) {
     const response = await fetch(apiUrl);
     if (!response.ok) return { web: null, data: null };
     const data = await response.json();
+
+    // Best free copy for the full-text section (fullText.js) - kept even when PMC
+    // already supplied the Free PDF link
+    if (data.is_oa && result && data.best_oa_location) {
+      const best = data.best_oa_location;
+      result._oaBest = { url: best.url || best.url_for_pdf || null, version: best.version || null, license: best.license || null };
+    }
 
     // PMC is set before this runs and takes priority - only fill in if not already set
     if (data.is_oa && result && !result._oaFreePdf) {

@@ -378,7 +378,7 @@
     (function () {
       var _nocache = new URLSearchParams(window.location.search).has('nocache');
       var _bust = _nocache ? '?' + Date.now() : '';
-      ['helpContent.js', 'doiLookup.js', 'pubmedLookup-nonmodule.js', 'citationBuilder.js', 'lookup.js', 'retractionCheck.js', 'connectionsGraph.js'].forEach(function (src) {
+      ['helpContent.js', 'doiLookup.js', 'pubmedLookup-nonmodule.js', 'citationBuilder.js', 'lookup.js', 'retractionCheck.js', 'connectionsGraph.js', 'fullText.js'].forEach(function (src) {
         var s = document.createElement('script');
         s.src = src + _bust;
         s.async = false;
