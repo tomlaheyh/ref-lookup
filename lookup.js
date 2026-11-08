@@ -705,7 +705,7 @@ function showDOIModal(result, linksHtml) {
     if (result.pubmedIsRetractedPublication)                         pmParts.push('Retracted Publication');
     if (result.pubmedHasRetraction && result.pubmedRetractionPMID)   pmParts.push(`Retraction in PMID:${result.pubmedRetractionPMID}`);
     else if (result.pubmedHasRetraction)                             pmParts.push('Retraction in');
-    if (result.pubmedPublicationTypes?.includes('Retraction of Publication')) pmParts.push('Retraction Notice');
+    if (result.pubmedPublicationTypes?.includes('Retraction of Publication') || result.pubmedPublicationTypes?.includes('Retraction Notice')) pmParts.push('Retraction Notice');
     if (result.pubmedHasCorrection && result.pubmedCorrectionPMID)   pmParts.push(`Erratum PMID:${result.pubmedCorrectionPMID}`);
     else if (result.pubmedHasCorrection)                             pmParts.push('Erratum');
 

@@ -190,7 +190,7 @@ const PubMedLookup = {
       if (data.pubmedPublicationTypes.includes('Published Erratum')) {
         hasCorrection = true;
       }
-      if (data.pubmedPublicationTypes.includes('Retraction of Publication')) {
+      if (data.pubmedPublicationTypes.includes('Retraction of Publication') || data.pubmedPublicationTypes.includes('Retraction Notice')) {
         hasRetraction = true;
       }
       // "Retracted Publication" = this article itself has been retracted

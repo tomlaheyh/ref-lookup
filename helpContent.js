@@ -119,7 +119,7 @@ The <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">&nocache</c
 
 <strong>CrossRef:</strong> Uses the <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">update-to</code> and <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">updated-by</code> fields. Detects: retraction, correction, expression of concern, reinstatement, and withdrawal. Sources include publishers and Retraction Watch.
 
-<strong>PubMed:</strong> Uses eSummary references (Erratum in, Retraction in, Retraction of) and publication types (Retracted Publication, Published Erratum, Retraction of Publication).
+<strong>PubMed:</strong> Uses eSummary references (Erratum in, Retraction in, Retraction of) and publication types (Retracted Publication, Published Erratum, Retraction Notice; called Retraction of Publication before 2026).
 
 Retractions and Expressions of Concern override the quality badge. When a date is available from CrossRef, it is shown alongside the status (e.g. "Retracted (Oct 29, 2018)"). "None" means the source was checked and nothing was found; "N/A" means the source was not available (e.g. article not in PubMed).`,
       ref: 'https://www.crossref.org/blog/linking-corrections-and-retractions/'
