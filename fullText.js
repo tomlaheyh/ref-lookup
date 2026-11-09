@@ -13,6 +13,14 @@
 
   const PACK_MIN_WORDS = 250;
 
+  // Display mode (the abstract pop-up): italic, bold and superscript are wrapped
+  // in private-use marker characters instead of Markdown, so the article's own
+  // * and # signs are never mistaken for formatting. renderPmcFullText turns
+  // the markers into real <i>, <b> and <sup>. The AI pack keeps Markdown.
+  const PACK_MARKS = { '*': ['\uE000', '\uE001'], '**': ['\uE002', '\uE003'], '^': ['\uE004', '\uE005'] };
+
+  let packDisplay = false;
+
   const PACK_BLOCK = new Set(['table-wrap', 'table-wrap-group', 'fig', 'fig-group', 'list',
       'disp-formula', 'boxed-text', 'disp-quote', 'def-list', 'supplementary-material']);
 
@@ -25,6 +33,7 @@
       if (!t) return text;
       const lead = text.match(/^\s*/)[0];
       const trail = text.match(/\s*$/)[0];
+      if (packDisplay) return `${lead}${PACK_MARKS[mark][0]}${t}${PACK_MARKS[mark][1]}${trail}`;
       return `${lead}${mark}${t}${mark}${trail}`;
   }
 
@@ -42,11 +51,13 @@
               out += /^\[.*\]$/.test(t) ? t : `[${t}]`;
           } else if (name === 'sup') {
               const hasRef = child.querySelector('xref');
-              out += hasRef ? packInline(child) : `^${packInline(child)}`;
+              out += hasRef ? packInline(child)
+                  : packDisplay ? PACK_MARKS['^'][0] + packInline(child) + PACK_MARKS['^'][1]
+                  : `^${packInline(child)}`;
           } else if (name === 'ext-link' || name === 'uri') {
               const href = child.getAttribute('xlink:href') || child.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '';
               const t = packClean(packInline(child));
-              out += href && /^https?:/i.test(href) ? `[${t || href}](${href})` : t;
+              out += href && /^https?:/i.test(href) && !packDisplay ? `[${t || href}](${href})` : t;
           } else if (name === 'break') out += ' ';
           else if (name === 'inline-graphic' || name === 'fn') { /* skip */ }
           else out += packInline(child);
@@ -73,7 +84,7 @@
   }
 
   function packTable(wrap) {
-      const out = [`**${packCaption(wrap, 'Table')}**`];
+      const out = [packEmphasis('**', packCaption(wrap, 'Table'))];
       const table = wrap.querySelector('table');
       if (!table) {
           out.push('_(This table is an image in the original article and is not included.)_');
@@ -161,7 +172,16 @@
       return packClean(parts.join('')).replace(/,\s*\./g, '.').replace(/([.;,])\s*\1/g, '$1').replace(/[;,]\s*$/, '');
   }
 
-  function jatsToMarkdown(xmlText) {
+  function jatsToMarkdown(xmlText, display) {
+      packDisplay = !!display;
+      try {
+          return jatsConvert(xmlText);
+      } finally {
+          packDisplay = false;
+      }
+  }
+
+  function jatsConvert(xmlText) {
       const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
       const article = doc.querySelector('article');
       const body = article && article.querySelector('body');
@@ -232,11 +252,25 @@
       };
   }
 
+  function appendMarked(parent, text) {
+      const open = { '\uE000': 'i', '\uE002': 'b', '\uE004': 'sup' };
+      const stack = [parent];
+      text.split(/([\uE000-\uE005])/).forEach(part => {
+          if (!part) return;
+          if (open[part]) {
+              const el = document.createElement(open[part]);
+              stack[stack.length - 1].appendChild(el);
+              stack.push(el);
+          } else if (/^[\uE001\uE003\uE005]$/.test(part)) {
+              if (stack.length > 1) stack.pop();
+          } else {
+              stack[stack.length - 1].appendChild(document.createTextNode(part));
+          }
+      });
+  }
+
   function renderPmcFullText(container, markdown) {
       const inline = s => s
-          .replace(/\[([^\]]*)\]\((https?:[^)\s]+)\)/g, '$1')
-          .replace(/\*\*(.+?)\*\*/g, '$1')
-          .replace(/(^|[\s(\[])\*(\S(?:.*?\S)?)\*(?=[\s).,;:\]]|$)/g, '$1$2')
           .replace(/`([^`]+)`/g, '$1')
           .replace(/\\\|/g, '|');
       markdown.split(/\n{2,}/).forEach(block => {
@@ -244,7 +278,7 @@
           const heading = block.match(/^(#{1,6}) (.+)$/);
           if (heading) {
               el.style.cssText = `margin:14px 0 6px;font-weight:bold;font-size:${heading[1].length <= 2 ? 15 : 14}px;`;
-              el.textContent = inline(heading[2]);
+              appendMarked(el, inline(heading[2]));
           } else {
               let isTable = false;
               const lines = block.split('\n')
@@ -257,7 +291,7 @@
                       return inline(line.replace(/^_(.+)_$/, '$1').replace(/^> /, ''));
                   });
               el.style.cssText = 'margin:0 0 10px;white-space:pre-line;' + (isTable ? 'font-size:12px;' : '');
-              el.textContent = lines.join('\n');
+              appendMarked(el, lines.join('\n'));
           }
           container.appendChild(el);
       });
@@ -299,7 +333,7 @@
       try {
         var r = await timedFetch(EPMC + '/' + pmcid + '/fullTextXML', 20000);
         if (r.ok) {
-          var c = jatsToMarkdown(await r.text());
+          var c = jatsToMarkdown(await r.text(), true);
           if (c && c.words > 0) return Object.assign(c, { source: 'Europe PMC', label: fullTextLicenceLabel(c.license, true) });
         }
       } catch (e) { /* fall through to PMC */ }
@@ -311,7 +345,7 @@
       xml = await p.text();
     } catch (e) { return { failed: true }; }
     if (/does not allow downloading/i.test(xml)) return { refused: true };
-    var conv = jatsToMarkdown(xml);
+    var conv = jatsToMarkdown(xml, true);
     if (!conv || conv.words === 0) return { refused: true };
     return Object.assign(conv, { source: 'PubMed Central', label: fullTextLicenceLabel(conv.license, isOA) });
   }

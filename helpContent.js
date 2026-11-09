@@ -182,7 +182,7 @@ These are percentile-based classes, not raw counts.`,
     {
       section: 'Journal-Level Data',
       label: 'SJR = SCImago Journal Rank',
-      description: 'A widely respected, free journal ranking. SJR measures journal visibility using an algorithm similar to Google\'s PageRank™, analyzing citation networks across Scopus-indexed journals. The score is looked up from a bundled CSV file matched by ISSN. The link goes to the journal\'s SCImago charts page.',
+      description: 'A widely respected, free journal ranking. SJR measures journal visibility using an algorithm similar to Google\'s PageRank™, analyzing citation networks across Scopus-indexed journals. The score is looked up from a bundled CSV file matched by ISSN. The link goes to the journal\'s SCImago charts page. New rankings are published once a year (usually in April).',
       ref: 'https://www.scimagojr.com/aboutus.php'
     },
     {
