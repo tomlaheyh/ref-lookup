@@ -769,7 +769,7 @@
       const cols = [
         'DOI','Title','Journal','Publisher','Year','Volume','Issue','Pages','Type','ISSN',
         'First Author','First Author ORCID','First Author ROR','Last Author','Last Author ORCID','Last Author ROR',
-        'Citations (CrossRef)','Citations (OpenAlex)','FWCI','Citations (Sem Sch)','RCR','SJR',
+        'Citations (CrossRef)','Citations (OpenAlex)','FWCI','Citations (Sem Sch)','RCR','SJR','SJR Quartile',
         'DOAJ','PubMed','Free PDF URL','Funders','Grant Numbers','Grant Source'
       ];
 
@@ -803,6 +803,7 @@
         r._semSchCitations ?? '',
         r._iciteRcr ?? '',
         r._sjrScore || '',
+        r._sjrQuartile || '',
         r._doajFound === true ? 'Yes' : r._doajFound === false ? 'No' : '',
         r.pubmedFound === true ? 'Yes' : r.pubmedFound === false ? 'No' : '',
         r._oaFreePdf || '',

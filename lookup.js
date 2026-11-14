@@ -30,8 +30,12 @@ async function _loadSJRCache() {
         const issn2    = cols[1].trim();
         const sourceid = cols[2].trim();
         const sjrValue = parseFloat(cols[3].trim().replace(',', '.'));
+        // Column 5 (BestQuartile, Q1-Q4) is optional: blank when SCImago has none
+        // or when the file has only four columns.
+        const quartile = /^Q[1-4]$/.test((cols[4] || '').trim()) ? cols[4].trim() : '';
         const entry = {
           sjr: isNaN(sjrValue) ? null : sjrValue.toFixed(2),
+          quartile,
           sourceid,
           web: `https://www.scimagojr.com/journalsearch.php?q=${sourceid}&tip=sid&clean=0#:~:text=External%20Cites%20per%20Doc`,
         };
@@ -136,6 +140,146 @@ document.addEventListener('click', function(e) {
   _closeAllCiteCharts();
 });
 
+// --- iCite monthly citations (last 12 months) ---
+// Data: icite/iCite_Last12M.csv on this site, pushed by the iCite report run on
+// the PubMed machine (same data the extension reads from citation-bar/icite/).
+// Read once per page load, and only when a result has a PMID; the browser's
+// normal HTTP cache handles repeat visits. Only rows are indexed by PMID here;
+// a row is fully parsed when its result is shown.
+let _icite12Cache = null;        // { months: [{label, year, full}], baseline: {...}, lines: Map<pmid, line> }
+let _icite12Loading = null;      // Promise while loading
+async function _loadIcite12() {
+  if (_icite12Cache) return _icite12Cache;
+  if (_icite12Loading) return _icite12Loading;
+  _icite12Loading = (async () => {
+    try {
+      const resp = await fetch('./icite/iCite_Last12M.csv');
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const lines = (await resp.text()).split(/\r?\n/);
+      const header = _icite12ParseLine(lines[0]);
+      // Columns by name: "Oct 2025 Citations" (baseline), "<Mon YYYY> Gains" x 12
+      const baseCol = header.findIndex(h => / Citations$/.test(h));
+      const gainCols = header.map((h, i) => / Gains$/.test(h) ? i : -1).filter(i => i >= 0);
+      const col = (name) => header.indexOf(name);
+      const idx = { rank: col('Rank'), pmid: col('PMID'), title: col('Title'), pub: col('Pub Date'),
+                    trend: col('High Trend'), note: col('Note'), base: baseCol, gains: gainCols };
+      if (idx.pmid !== 1 || baseCol < 0 || gainCols.length !== 12) throw new Error('unexpected columns');
+      const split = (h) => { const [mon, yr] = h.split(' '); return { label: mon, year: yr, full: `${mon} ${yr}` }; };
+      const map = new Map();
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line) continue;
+        // PMID is the second field; Rank and PMID are plain numbers (no quotes)
+        const c1 = line.indexOf(',');
+        const c2 = line.indexOf(',', c1 + 1);
+        if (c1 > 0 && c2 > c1) map.set(line.substring(c1 + 1, c2), line);
+      }
+      _icite12Cache = { idx, baseline: split(header[baseCol]), months: gainCols.map(i => split(header[i])), lines: map };
+      console.log(`[iCite12] Loaded ${map.size} PMIDs`);
+      return _icite12Cache;
+    } catch (e) {
+      console.warn('[iCite12] Load failed:', e.message);
+      _icite12Loading = null;   // allow a retry on the next lookup
+      return null;
+    }
+  })();
+  return _icite12Loading;
+}
+
+// CSV line with quoted fields and "" escapes
+function _icite12ParseLine(line) {
+  const out = [];
+  let cur = '', q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (q) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') q = false;
+      else cur += ch;
+    } else if (ch === '"') q = true;
+    else if (ch === ',') { out.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+// Result for one PMID: { status: 'ok'|'notPubmed'|'notListed'|'unavailable', rec, months, baseline }
+// A blank count in a row is no data, never zero: such a row is shown as unavailable.
+async function _lookupIcite12(pmid) {
+  if (!pmid) return { status: 'notPubmed' };
+  const data = await _loadIcite12();
+  if (!data) return { status: 'unavailable' };
+  const line = data.lines.get(String(pmid));
+  if (!line) return { status: 'notListed' };
+  const f = _icite12ParseLine(line);
+  const { idx } = data;
+  const num = (s) => (s === undefined || String(s).trim() === '') ? null : Number(s);
+  const base = num(f[idx.base]);
+  const gains = idx.gains.map(i => num(f[i]));
+  if (base === null || isNaN(base) || gains.some(g => g === null || isNaN(g))) return { status: 'unavailable' };
+  const gain12 = gains.reduce((s, g) => s + g, 0);
+  return {
+    status: 'ok', months: data.months, baseline: data.baseline,
+    rec: { rank: num(f[idx.rank]), title: f[idx.title] || '', base, gains, gain12, total: base + gain12,
+           trend: idx.trend >= 0 ? (f[idx.trend] || '') : '', note: idx.note >= 0 ? (f[idx.note] || '') : '' }
+  };
+}
+
+// Stacked bars from zero, as in the extension: the first bar is the baseline
+// count; each month stacks that month's gain on the total before it. A negative
+// gain (an iCite correction) shows the new, lower total with the drop outlined in red.
+function _icite12Svg(rec, months, baseline) {
+  const fmt = (n) => Number(n).toLocaleString();
+  const W = 680, H = 310, L = 58, R = 12, T = 24, B = 50;
+  const bars = [{ label: baseline.label, year: baseline.year, full: baseline.full, prior: rec.base, gain: 0, start: true }];
+  let total = rec.base;
+  months.forEach((m, k) => {
+    const g = rec.gains[k];
+    const first = k === 0 || m.label === 'Jan';
+    bars.push({ label: m.label, year: first ? m.year : '', full: m.full, prior: total, gain: g });
+    total += g;
+  });
+  const top = Math.max(...bars.map(b => Math.max(b.prior, b.prior + b.gain)), 1);
+  const raw = top / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(f => f * mag).find(s => s >= raw);
+  const yMax = Math.ceil(top / step) * step;
+  const plotW = W - L - R, plotH = H - T - B;
+  const slot = plotW / bars.length, bw = Math.min(30, slot * 0.62);
+  const y = (v) => T + plotH - (v / yMax) * plotH;
+  const out = [`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" style="display:block; max-width:${W}px;" font-family="IBM Plex Mono,monospace">`];
+  for (let v = 0; v <= yMax + 1e-9; v += step) {
+    const yy = y(v).toFixed(1);
+    out.push(`<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="${v === 0 ? '#9ca3af' : '#e5e7eb'}" stroke-width="1"/>`);
+    out.push(`<text x="${L - 6}" y="${yy}" dy="0.32em" text-anchor="end" font-size="11" fill="#6b7280">${fmt(v)}</text>`);
+  }
+  bars.forEach((b, i) => {
+    const cx = L + slot * i + slot / 2, x = (cx - bw / 2).toFixed(1);
+    const after = b.prior + b.gain;
+    const tip = b.start ? `${b.full}: ${fmt(b.prior)}`
+      : `${b.full}: ${fmt(b.prior)} ${b.gain < 0 ? '-' : '+'} ${fmt(Math.abs(b.gain))} = ${fmt(after)}`;
+    out.push(`<g><title>${escapeHtml(tip)}</title>`);
+    const base = Math.min(b.prior, after);
+    out.push(`<rect x="${x}" y="${y(base).toFixed(1)}" width="${bw.toFixed(1)}" height="${(y(0) - y(base)).toFixed(1)}" fill="#9fb9d8"/>`);
+    if (b.gain > 0) {
+      out.push(`<rect x="${x}" y="${y(after).toFixed(1)}" width="${bw.toFixed(1)}" height="${(y(b.prior) - y(after)).toFixed(1)}" fill="#eb6834"/>`);
+    } else if (b.gain < 0) {
+      out.push(`<rect x="${x}" y="${y(b.prior).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, y(after) - y(b.prior)).toFixed(1)}" fill="none" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="3 2"/>`);
+    }
+    out.push('</g>');
+    if (!b.start) {
+      const ly = y(Math.max(b.prior, after)) - 5;
+      const txt = b.gain > 0 ? '+' + fmt(b.gain) : b.gain < 0 ? '−' + fmt(-b.gain) : '0';
+      out.push(`<text x="${cx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" font-size="10" fill="${b.gain < 0 ? '#dc2626' : '#374151'}">${txt}</text>`);
+    }
+    out.push(`<text x="${cx.toFixed(1)}" y="${H - B + 16}" text-anchor="middle" font-size="11" fill="#6b7280">${escapeHtml(b.label)}</text>`);
+    if (b.year) out.push(`<text x="${cx.toFixed(1)}" y="${H - B + 30}" text-anchor="middle" font-size="10.5" fill="#9ca3af">${b.year}</text>`);
+  });
+  out.push('</svg>');
+  return out.join('');
+}
+
 function displayError(message) {
   const resultsDiv = document.getElementById('results');
   if (resultsDiv) {
@@ -219,6 +363,10 @@ async function handleDOILookup(doiInput) {
   // Check session cache first — avoids re-fetching on page reload from extension
   const cached = _sessionCacheGet(doi);
   if (cached) {
+    // Results cached before the monthly chart existed have no _icite12
+    if (!cached.data._icite12) {
+      cached.data._icite12 = await _lookupIcite12(cached.data.pubmedPMID).catch(() => ({ status: 'unavailable' }));
+    }
     showDOIModal(cached.data, cached.linksHtml);
     return;
   }
@@ -297,6 +445,9 @@ async function handleDOILookup(doiInput) {
         ? allData.pubmedRCR : null;
     }
     
+    // iCite monthly citations: runs alongside the external checks below
+    const icite12Promise = _lookupIcite12(allData.pubmedPMID).catch(() => ({ status: 'unavailable' }));
+
     console.log('[DOI Lookup] All data fetched, checking external services...');
     if (statusEl) statusEl.innerHTML = `<span class="spinner"></span>Enriching metadata: ${escapeHtml(doi)}`;
     
@@ -308,6 +459,8 @@ async function handleDOILookup(doiInput) {
       console.error('[DOI Lookup] Links check error (non-fatal):', linksError);
     }
     
+    allData._icite12 = await icite12Promise;
+
     console.log('[DOI Lookup] All data ready, displaying modal');
 
     // Cache in session before displaying
@@ -527,6 +680,28 @@ function showDOIModal(result, linksHtml) {
       html += `<span style="color: #333;">h-index: ${metrics.hIndex ?? 'N/A'}, i10-index: ${metrics.i10Index ?? 'N/A'}, 2yr cites: ${metrics.twoYrCites ?? 'N/A'} <span style="color: #999; font-size: 11px;">(OpenAlex via ORCID)</span></span>`;
     } else {
       html += '<span style="color: #333;">h-index: N/A, i10-index: N/A, 2yr cites: N/A</span>';
+    }
+    html += '</div>';
+
+    // Other retracted papers by this author (OpenAlex, by ORCID) - about the author, not this paper
+    html += '<div style="margin-bottom: 2px; margin-left: 15px;">';
+    html += '<span style="color: #666;">Other retracted papers:</span> ';
+    {
+      const r = hasOrcid ? (result._authorRetractions || {})[orcidId] : null;
+      let n = r ? r.count : null;
+      if (n !== null && n !== undefined && result._oaIsRetracted && n > 0) n -= 1;   // leave this article out
+      const why = !hasOrcid ? 'no ORCID' : !r ? 'not checked' : (r.status || 'not checked');
+      const tip = 'About the author, NOT this paper: retracted papers by this ORCID in OpenAlex (retraction notices left out' +
+                  (result._oaIsRetracted ? '; this article is itself retracted and is not counted' : '') + ').';
+      if (n === null || n === undefined) {
+        html += `<span style="color: #333;">- (${escapeHtml(why)})</span>`;
+      } else if (n > 0) {
+        const url = `https://openalex.org/works?filter=authorships.author.orcid:${encodeURIComponent(orcidId)},is_retracted:true,type:!retraction`;
+        html += `<a href="${url}" target="_blank" title="${escapeHtml(tip)}" style="color: #cc0000; font-weight: bold;">${n}</a>`;
+      } else {
+        html += `<span title="${escapeHtml(tip)}" style="color: #333;">0</span>`;
+      }
+      html += ' <span style="color: #999; font-size: 11px;">(OpenAlex via ORCID)</span>';
     }
     html += '</div>';
 
@@ -852,7 +1027,44 @@ function showDOIModal(result, linksHtml) {
       rcrHtml,
     ];
 
-    html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">Citations &mdash; ${chartIcon} ${parts.join(' &nbsp;|&nbsp; ')}</div>`;
+    // iCite monthly chart icon (second icon) - orange when there is a chart, grey when not
+    const ic12 = result._icite12 || { status: result.pubmedPMID ? 'unavailable' : 'notPubmed' };
+    const ic12On = ic12.status === 'ok';
+    const ic12Id = `cite-chart-m-${(summaryDoi || '').replace(/[^a-zA-Z0-9]/g, '-')}`;
+    const ic12Title = ic12On
+      ? `PubMed citations by month, ${ic12.months[0].full} \u2013 ${ic12.months[ic12.months.length - 1].full} (NIH iCite): citations from other PubMed articles only, so usually lower than the CrossRef and OpenAlex counts`
+      : ic12.status === 'notPubmed' ? 'No monthly PubMed citation chart: not a PubMed article'
+      : ic12.status === 'notListed' ? 'No monthly PubMed citation chart for this article. Charts cover only articles added to PubMed in the last 36 months that are among the 40,000 with the most PubMed citations gained in the past 12 months.'
+      : 'No monthly PubMed citation chart: the data could not be loaded';
+    const ic12Color = ic12On ? '#eb6834' : '#ccc';
+    const ic12Attrs = ic12On
+      ? `onclick="_toggleCiteChart('${ic12Id}')" onmouseenter="_citeChartHoverStart('${ic12Id}')" onmouseleave="_citeChartHoverEnd('${ic12Id}')" style="cursor:pointer;`
+      : `style="cursor:default;`;
+    const ic12Icon = `<span ${ic12Attrs} vertical-align:middle; margin-left:2px; display:inline-block;" title="${escapeHtml(ic12Title)}"><svg width="16" height="14" viewBox="0 0 16 14" style="vertical-align:middle;"><rect x="1" y="8" width="3" height="5" fill="${ic12Color}" rx="0.5"/><rect x="6" y="4" width="3" height="9" fill="${ic12Color}" rx="0.5"/><rect x="11" y="1" width="3" height="12" fill="${ic12Color}" rx="0.5"/></svg></span>`;
+
+    html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">Citations &mdash; ${chartIcon} | ${ic12Icon} ${parts.join(' &nbsp;|&nbsp; ')}</div>`;
+
+    // Hidden iCite monthly chart - opened by the second icon
+    if (ic12On) {
+      const r12 = ic12.rec;
+      const fmt = (n) => Number(n).toLocaleString();
+      const lastMonth = ic12.months[ic12.months.length - 1].full;
+      const sw = (c, dashed) => `<span style="display:inline-block; width:10px; height:10px; margin-right:4px; vertical-align:-1px; ${dashed ? `border:1.5px dashed ${c}` : `background:${c}`}"></span>`;
+      const hasDrop = r12.gains.some(g => g < 0);
+      const line = (t, color) => `<div style="font-family:IBM Plex Mono,monospace; font-size:12px; color:${color || '#555'}; margin-top:2px;">${escapeHtml(t)}</div>`;
+      html += `<div id="${ic12Id}" style="display:none; background:#fafaf8; border:1.5px solid #d8d5cc; padding:14px 16px; margin-bottom:10px; position:relative;">
+        <button onclick="_closeCiteChart('${ic12Id}')" style="position:absolute; top:6px; right:10px; background:none; border:none; font-size:18px; font-weight:bold; color:#999; cursor:pointer; line-height:1; padding:0;" onmouseover="this.style.color='#333'" onmouseout="this.style.color='#999'">&times;</button>
+        <div style="font-family:IBM Plex Mono,monospace; font-size:12px; font-weight:600; color:#005a8c; margin-bottom:4px; letter-spacing:0.5px;">PUBMED CITATIONS BY MONTH <span style="font-size:11px; font-weight:normal; color:#999;">(NIH iCite)</span></div>
+        ${line('Counts only citations from other PubMed articles, so it is usually lower than the CrossRef and OpenAlex counts.', '#777')}
+        ${line(`Rank ${r12.rank !== null ? fmt(r12.rank) : '-'} by PubMed citations gained in 12 months \u00b7 +${fmt(r12.gain12)} gained \u00b7 ${fmt(r12.total)} PubMed citations at ${lastMonth}`)}
+        ${r12.trend === 'Yes' ? line('High Trend: citations per day in the last 6 months are at least 1.5 times those in the first 6.') : ''}
+        ${r12.trend === 'New' ? line('New: not yet in iCite at the start of the window, so it starts at 0.') : ''}
+        ${r12.note ? line(`Note: ${r12.note}`, '#b45309') : ''}
+        <div style="font-family:IBM Plex Mono,monospace; font-size:11px; color:#555; margin-top:8px;">${sw('#9fb9d8')}PubMed citations before the month&nbsp;&nbsp;&nbsp;${sw('#eb6834')}Gained that month${hasDrop ? `&nbsp;&nbsp;&nbsp;${sw('#dc2626', true)}iCite correction (count went down)` : ''}</div>
+        <div style="overflow-x:auto; margin-top:6px;">${_icite12Svg(r12, ic12.months, ic12.baseline)}</div>
+        <div style="margin-top:8px;"><a href="https://tomlaheyh.github.io/citation-bar/icite/icite.html" target="_blank" style="font-family:IBM Plex Mono,monospace; font-size:12px; font-weight:600; color:#005a8c; text-decoration:none;">Full list: PubMed iCite Citation Gains report \u2192</a></div>
+      </div>`;
+    }
 
     // Hidden chart container — rendered when icon is clicked
     if (hasChartData) {
@@ -1019,10 +1231,14 @@ function showDOIModal(result, linksHtml) {
   // SJR + DOAJ on one line
   {
     const sjrUrl = result._sjrUrl || null;
+    const q = result._sjrQuartile || '';
+    const qPart = q && sjrScore !== null
+      ? ` &middot; <span title="Best quartile ${q}: the journal's best SJR rank among its subject areas (Q1 = top 25%)">${q}</span>`
+      : '';
     const sjrPart = sjrScore !== null
       ? (sjrUrl
-          ? `SJR: <a href="${sjrUrl}" target="_blank" style="color: #005a8c;">${sjrScore}</a>`
-          : `SJR: ${sjrScore}`)
+          ? `SJR: <a href="${sjrUrl}" target="_blank" style="color: #005a8c;">${sjrScore}</a>${qPart}`
+          : `SJR: ${sjrScore}${qPart}`)
       : `SJR: N/A`;
 
     let doajPart = result._doajFound === true ? `DOAJ: Yes` : `DOAJ: No`;
@@ -1109,6 +1325,19 @@ function showDOIModal(result, linksHtml) {
   {
     const journalLabel = summaryJournal ? escapeHtml(summaryJournal) : 'N/A';
     html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">Journal: <span style="color: #1a1a18;">${journalLabel}</span></div>`;
+  }
+
+  // Journal-level figures from OpenAlex (same sources/issn call as Country) — always show
+  {
+    const j = result._oaJournal || {};
+    const hLabel    = j.hIndex    !== null && j.hIndex    !== undefined ? Number(j.hIndex).toLocaleString() : 'N/A';
+    const meanLabel = j.mean2yr   !== null && j.mean2yr   !== undefined ? Number(j.mean2yr).toFixed(2) : 'N/A';
+    const yearLabel = j.firstYear !== null && j.firstYear !== undefined ? String(j.firstYear) : 'N/A';
+    html += `<div style="color: #555; font-size: 17px; font-weight: bold; margin-bottom: 6px;">`
+      + `<span title="The journal's h-index: h of its articles have at least h citations each (OpenAlex). About the journal, not this article.">Journal h-index: ${hLabel}</span>`
+      + ` &nbsp;|&nbsp; <span title="Average citations per article for the journal's articles from the previous two years (OpenAlex). About the journal, not this article.">2yr mean cites: ${meanLabel}</span>`
+      + ` &nbsp;|&nbsp; <span title="First year the journal published, as recorded by OpenAlex.">First year: ${yearLabel}</span>`
+      + ` <span style="color: #999; font-size: 12px; font-weight: normal;">(OpenAlex)</span></div>`;
   }
 
   // ISSNs with links — always show, label as print/electronic when type data is available
@@ -1616,6 +1845,14 @@ async function checkAllDOILinks(doi, result) {
       const resp = await fetch(`https://api.openalex.org/sources/issn:${firstIssnPre}`);
       if (!resp.ok) { return null; }
       const json = await resp.json();
+      // Journal-level figures from the same record (no extra request).
+      // A missing value stays null and shows as N/A - never 0.
+      const st = json.summary_stats || {};
+      result._oaJournal = {
+        hIndex:    typeof st.h_index === 'number' ? st.h_index : null,
+        mean2yr:   typeof st['2yr_mean_citedness'] === 'number' ? st['2yr_mean_citedness'] : null,
+        firstYear: typeof json.first_publication_year === 'number' ? json.first_publication_year : null,
+      };
       return json.country_code || null;
     }),
     // SJR CSV lookup
@@ -1716,6 +1953,7 @@ async function checkAllDOILinks(doi, result) {
   // Attach SJR score and URL to result for summary header
   result._sjrScore = sjrResult ? sjrResult.sjr : null;
   result._sjrUrl   = sjrResult ? sjrResult.web : null;
+  result._sjrQuartile = sjrResult ? (sjrResult.quartile || '') : '';
   // Attach Semantic Scholar web URL to result for citation link
   result._semSchUrl = semanticscholar.web || null;
   
@@ -1759,10 +1997,46 @@ async function checkAllDOILinks(doi, result) {
     } catch (e) { return null; }
   };
 
-  const [firstAuthorMetrics, lastAuthorMetrics] = await Promise.all([
+  // Retracted papers by the first and last authors: one grouped OpenAlex call
+  // for both ORCIDs (same method as the extension). Retraction notices
+  // (type "retraction") are left out, so the count is retracted papers only.
+  // OpenAlex returns at most 200 groups (the groups also hold co-authors):
+  // when it says there are more, an ORCID it did not return is unknown, not 0.
+  // Result: { [orcid]: { count, status } } - count null means not known.
+  const fetchAuthorRetractions = async (orcidList) => {
+    const ids = [...new Set(orcidList.filter(o => o && o !== 'N/A'))];
+    if (ids.length === 0) return {};
+    const out = {};
+    try {
+      const resp = await fetch(`https://api.openalex.org/works?filter=authorships.author.orcid:${ids.join('|')},is_retracted:true,type:!retraction&group_by=authorships.author.orcid&per_page=200`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const page = await resp.json();
+      const groups = page.group_by || [];
+      const total = page.meta && page.meta.groups_count;
+      const complete = typeof total === 'number' && groups.length >= total;
+      const found = {};
+      groups.forEach(g => { found[String(g.key || '').replace('https://orcid.org/', '')] = g.count; });
+      ids.forEach(o => {
+        out[o] = (o in found) ? { count: found[o], status: '' }
+               : complete ? { count: 0, status: '' } : { count: null, status: 'too many results to count' };
+      });
+    } catch (e) {
+      ids.forEach(o => { out[o] = { count: null, status: 'OpenAlex unavailable' }; });
+    }
+    return out;
+  };
+
+  const [firstAuthorMetrics, lastAuthorMetrics, authorRetractions] = await Promise.all([
     safeCheck(() => fetchOpenAlexAuthorMetrics(firstOrcid), null),
-    safeCheck(() => fetchOpenAlexAuthorMetrics(lastOrcid), null)
+    safeCheck(() => fetchOpenAlexAuthorMetrics(lastOrcid), null),
+    safeCheck(() => fetchAuthorRetractions([
+      // Every first/last ORCID any source gave, so the ORCID shown on the page is always covered
+      firstOrcid, lastOrcid, result._oaFirstAuthorOrcid, result._oaLastAuthorOrcid,
+      result.pubmedAuthorFirstORCID, result.pubmedAuthorLastORCID,
+      result.raFirstAuthorOrcid, result.raLastAuthorOrcid, result.doiOrgFirstAuthorOrcid, result.doiOrgLastAuthorOrcid
+    ].map(o => o ? String(o).replace('https://orcid.org/', '').trim() : o)), null)
   ]);
+  result._authorRetractions = authorRetractions || {};
 
   // Attach metrics to result so showDOIModal can use them
   result._authorMetrics = {
@@ -2000,7 +2274,7 @@ async function checkAllDOILinks(doi, result) {
     : '<span style="color: #ccc;">Web</span>';
   html += ' | ';
   html += sjr.data && sjr.data !== 'N/A'
-    ? `<span style="color: #333;">${sjr.data}</span>`
+    ? `<span style="color: #333;">${sjr.data}${result._sjrQuartile ? ` &middot; <span title="Best quartile ${result._sjrQuartile}: the journal's best SJR rank among its subject areas (Q1 = top 25%)">${result._sjrQuartile}</span>` : ''}</span>`
     : '<span style="color: #ccc;">N/A</span>';
   html += '</div>';
   row('OpenAlex', openalex.web, openalex.data);
@@ -2044,6 +2318,8 @@ async function checkOpenAlex(doi, result) {
     const data = await response.json();
     if (result) {
       result._openAlexCitations = data.cited_by_count ?? null;
+      // This article itself retracted in OpenAlex - its authors' retraction counts include it
+      result._oaIsRetracted = data.is_retracted === true;
       result._openAlexFwci = data.fwci ?? null;
 
       // Store OpenAlex work ID for linking (e.g. "https://openalex.org/W4412479499" → "W4412479499")
