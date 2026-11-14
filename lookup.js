@@ -685,14 +685,14 @@ function showDOIModal(result, linksHtml) {
 
     // Other retracted papers by this author (OpenAlex, by ORCID) - about the author, not this paper
     html += '<div style="margin-bottom: 2px; margin-left: 15px;">';
-    html += '<span style="color: #666;">Other retracted papers:</span> ';
     {
       const r = hasOrcid ? (result._authorRetractions || {})[orcidId] : null;
       let n = r ? r.count : null;
       if (n !== null && n !== undefined && result._oaIsRetracted && n > 0) n -= 1;   // leave this article out
       const why = !hasOrcid ? 'no ORCID' : !r ? 'not checked' : (r.status || 'not checked');
-      const tip = 'About the author, NOT this paper: retracted papers by this ORCID in OpenAlex (retraction notices left out' +
-                  (result._oaIsRetracted ? '; this article is itself retracted and is not counted' : '') + ').';
+      const tip = "Number of this author's other papers that have been retracted, from OpenAlex. It is about the author's record, not about this paper." +
+                  (result._oaIsRetracted ? ' This paper is also retracted; it is not included in the count.' : '');
+      html += `<span title="${escapeHtml(tip)}" style="color: #666;">Other retracted papers:</span> `;
       if (n === null || n === undefined) {
         html += `<span style="color: #333;">- (${escapeHtml(why)})</span>`;
       } else if (n > 0) {
