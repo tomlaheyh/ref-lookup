@@ -9,8 +9,7 @@
     { title: 'Awesome DOI-Ref-Lookup', href: '/' },
     { title: 'Clinical Guidelines',    href: '/med/guidelines.html' },
     { title: 'Topic Search',           href: '/search/search.html' },
-    { title: 'Nutrition Reference', href: '/nutrition/nutrition.html' },
-    { title: 'Citation Bar — Live Demo', href: '/demo/citation-bar/' }
+    { title: 'Nutrition Reference', href: '/nutrition/nutrition.html' }
   ];
 
   // ── External sites (shown as an expandable group at the bottom of the menu) ──
