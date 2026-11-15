@@ -770,8 +770,12 @@
         'DOI','Title','Journal','Publisher','Year','Volume','Issue','Pages','Type','ISSN',
         'First Author','First Author ORCID','First Author ROR','Last Author','Last Author ORCID','Last Author ROR',
         'Citations (CrossRef)','Citations (OpenAlex)','FWCI','Citations (Sem Sch)','RCR','SJR','SJR Quartile',
-        'DOAJ','PubMed','Free PDF URL','Funders','Grant Numbers','Grant Source'
+        'DOAJ','PubMed','Free PDF URL','Funders','Grant Numbers','Grant Source',
+        'Retracted','Expression of Concern','Correction','PMID','PMCID','Publication Types',
+        'OA Status','Preprint','MEDLINE'
       ];
+
+      const yn = v => v === true ? 'Yes' : v === false ? 'No' : '';
 
       const escape = v => {
         if (v === null || v === undefined) return '';
@@ -812,6 +816,15 @@
         // Grant Numbers
         (() => { const g = r._resolvedGrants || []; if (!g.length) return ''; return g.map(x => x.grantId).filter(Boolean).join('; '); })(),
         r._resolvedGrantsSource || '',
+        yn(r._isRetracted),
+        yn(r._hasEOC),
+        yn(r.pubmedHasCorrection),
+        r.pubmedPMID || '',
+        r.pubmedPMCID || '',
+        (r.pubmedPublicationTypes || []).join('; '),
+        r._oaLabel || '',
+        yn(r.pubmedIsPreprint),
+        yn(r.pubmedIsMedline),
       ].map(escape).join(','));
 
       const csv = [cols.join(','), ...rows].join('\n');
