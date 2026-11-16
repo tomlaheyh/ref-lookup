@@ -526,8 +526,8 @@ const CitationBuilder = {
 
     // Actions row: RIS + ZBib
     bodyHtml += `<div style="margin-top:16px; padding-top:14px; border-top:1px solid #eee; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-      <button id="cite-ris-btn" style="font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; padding:8px 18px; background:#005a8c; color:#fff; border:none; cursor:pointer; letter-spacing:0.5px;">Download RIS</button>
-      <a href="https://zbib.org/?q=${encodeURIComponent(data.doi ? 'https://doi.org/' + data.doi : '')}" target="_blank" style="font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; color:#005a8c; text-decoration:none; padding:8px 0;">ZoteroBib (more styles) \u2192</a>
+      <a href="https://zbib.org/?q=${encodeURIComponent(data.doi ? 'https://doi.org/' + data.doi : '')}" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; padding:8px 18px; background:#005a8c; color:#fff; border:none; cursor:pointer; letter-spacing:0.5px; text-decoration:none; display:inline-block;">Open ZoteroBib (more styles)</a>
+      <button id="cite-ris-btn" style="font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; color:#005a8c; background:none; border:none; cursor:pointer; padding:8px 0;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">Download RIS</button>
       <span style="font-size:11px; color:#999; margin-left:auto;">Import RIS into Zotero, Mendeley, EndNote</span>
     </div>`;
 
