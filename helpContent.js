@@ -83,7 +83,7 @@ The <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">&nocache</c
       label: 'Page controls',
       description: `The row beneath the input box holds:
 
-<strong>?</strong> — this help panel.
+<strong>?</strong> — this help panel. Close it with the ×, the Escape key, or by clicking anywhere outside it.
 <strong>Export CSV</strong> — appears once you have results (see CSV Export below).
 <strong>Clear list</strong> — removes every result card except the newest one at the top, and clears any error cards. It does not clear the whole page; to start completely fresh, reload without a <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">?doi=</code> parameter.
 <strong>Advanced Retraction Search</strong> — opens the Retraction Watch Database directly, for searching retractions by author, journal, subject or reason rather than by DOI.`,
@@ -96,7 +96,7 @@ The <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">&nocache</c
     },
     {
       label: 'Chrome extension',
-      description: 'A companion Chrome extension adds a small "Ref" link next to DOIs it finds on any web page — journal tables of contents, PubMed results, reference lists — which opens that DOI here. It can be toggled on and off per site. The link to install it sits at the right-hand end of the button row.',
+      description: 'A companion Chrome extension, <a href="https://chromewebstore.google.com/detail/doi-ref-lookup/eeefkdjjcilinphodokjljocffkkgkfa?utm_source=ext_app_menu" target="_blank" style="color:#005a8c;">DOI-Ref-Lookup</a>, adds a small "Ref" link next to DOIs it finds on any web page — journal tables of contents, PubMed results, reference lists — which opens that DOI here. It can be toggled on and off per site. The link to install it sits at the right-hand end of the button row.',
       ref: 'https://chromewebstore.google.com/detail/doi-ref-lookup/eeefkdjjcilinphodokjljocffkkgkfa'
     },
     // =====================
@@ -107,6 +107,11 @@ The <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">&nocache</c
       label: 'DOI + Free PDF link + Cite',
       description: 'The DOI is shown at the top with a link to <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">doi.org</code>. If a free full-text version is available (from PMC via PubMed, or from Unpaywall), a green "Free PDF" or "Free Manuscript" link appears next to it. A "Cite this paper" link opens a citation formatting modal (see the Cite section below).',
       ref: 'https://unpaywall.org/'
+    },
+    {
+      label: 'Text version',
+      description: 'Click <strong>[Text version]</strong> next to the Summary heading to read the card\'s main measures as one or two plain-language paragraphs, in a box over the page. It is meant for readers who do not know every measure. Warnings come first (retraction, expression of concern, correction, preprint), then the journal and its SJR quartile, citations, FWCI and RCR, then free access, PubMed indexing, funders, and the first and last authors. The text is written by fixed rules from the figures already on the card, not by AI, so the same paper always gives the same text. Measures with no data are left out, not guessed, and small grey tags show where each figure comes from. Close it with the Close button, the Escape key, or by clicking outside the box.',
+      ref: null
     },
     {
       label: 'Title + Abstract',
@@ -563,7 +568,7 @@ All API calls are made directly from your browser. There is no backend server, n
     `;
     closeBtn.onmouseover = () => { closeBtn.style.color = '#1a1a18'; closeBtn.style.background = '#e8e6e0'; };
     closeBtn.onmouseout  = () => { closeBtn.style.color = '#888880'; closeBtn.style.background = 'none'; };
-    closeBtn.onclick = () => overlay.remove();
+    closeBtn.onclick = () => closeHelp();
     header.appendChild(closeBtn);
 
     // Body
@@ -590,14 +595,17 @@ All API calls are made directly from your browser. There is no backend server, n
     modal.appendChild(body);
     overlay.appendChild(modal);
 
-    // Escape key to close
-    const escHandler = (e) => {
-      if (e.key === 'Escape') {
-        overlay.remove();
-        document.removeEventListener('keydown', escHandler);
-      }
-    };
+    // Close with the ×, the Escape key, or a click anywhere outside the panel
+    const escHandler = (e) => { if (e.key === 'Escape') closeHelp(); };
+    const outsideHandler = (e) => { if (!overlay.contains(e.target)) closeHelp(); };
+    function closeHelp() {
+      overlay.remove();
+      document.removeEventListener('keydown', escHandler);
+      document.removeEventListener('click', outsideHandler);
+    }
     document.addEventListener('keydown', escHandler);
+    // Added after the opening click has finished, so that click does not close it
+    setTimeout(() => document.addEventListener('click', outsideHandler), 0);
 
     // Insert inline at the top of the results area (no overlay, page never dims)
     const resultsDiv = document.getElementById('results');
