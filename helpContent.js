@@ -148,7 +148,7 @@ Note: SJR measures journal-level visibility, not individual article quality. It 
 
 <strong>CrossRef:</strong> Publisher-deposited citation links. Broadest coverage.
 <strong>OpenAlex:</strong> Open bibliometric database built from multiple sources including CrossRef and MAG.
-<strong>OpenAlex-FWCI:</strong> Field-Weighted Citation Impact — the ratio of citations received to citations expected for the publication year, document type, and subfield. An FWCI of 1.0 means average for its field; above 1.0 means more cited than expected.
+<strong>OpenAlex-FWCI:</strong> Field-Weighted Citation Impact — the ratio of citations received to citations expected for the publication year, document type, and subfield. An FWCI of 1.0 means average for its field; above 1.0 means more cited than expected. Not reported for papers under 1 year old, shown as "&lt;1 Year" (too few citations for a meaningful comparison). After the number, a tag shows where the paper ranks against those same papers: Top 1%, Top 10% or Not top 10%.
 <strong>Semantic Scholar:</strong> AI-powered academic search. Also reports "influential citations" — citations where the citing paper meaningfully builds on this work, detected via machine learning.
 <strong>iCite:</strong> NIH's citation analysis tool. Only available for articles with a PubMed ID (PMID).
 
@@ -401,7 +401,7 @@ Blue links are available; greyed-out links mean the service did not have data fo
       label: 'Export CSV',
       description: `After looking up DOIs, click "Export CSV" to download a spreadsheet with one row per DOI. The button shows how many results are currently included. The file is named with the date, e.g. <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">ref-lookup-2026-07-31.csv</code>.
 
-28 columns are written: DOI, title, journal, publisher, year, volume, issue, pages, type and ISSN; first and last author with their ORCIDs and ROR IDs; citation counts from CrossRef, OpenAlex, Semantic Scholar and iCite, plus FWCI, RCR and SJR; DOAJ and PubMed status; the free PDF URL; and funders, grant numbers and the grant source.
+39 columns are written: DOI, title, journal, publisher, year, volume, issue, pages, type and ISSN; first and last author with their ORCIDs and ROR IDs; citation counts from CrossRef, OpenAlex, Semantic Scholar and iCite, plus FWCI, RCR and SJR; the FWCI Top % tag (Top 1%, Top 10% or Not top 10%); DOAJ and PubMed status; the free PDF URL; and funders, grant numbers and the grant source.
 
 <strong>Note on the card checkbox:</strong> unticking the checkbox on a result card <em>removes</em> that card — it disappears from the page, from the export, and from the URL. It is not a reversible include/exclude toggle. To get a removed DOI back, look it up again.`,
       ref: null

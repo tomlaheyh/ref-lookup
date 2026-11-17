@@ -772,7 +772,7 @@
         'Citations (CrossRef)','Citations (OpenAlex)','FWCI','Citations (Sem Sch)','RCR','SJR','SJR Quartile',
         'DOAJ','PubMed','Free PDF URL','Funders','Grant Numbers','Grant Source',
         'Retracted','Expression of Concern','Correction','PMID','PMCID','Publication Types',
-        'OA Status','Preprint','MEDLINE'
+        'OA Status','Preprint','MEDLINE','FWCI Top %'
       ];
 
       const yn = v => v === true ? 'Yes' : v === false ? 'No' : '';
@@ -803,7 +803,7 @@
         r._displayLastAuthorRor || '',
         r.doiOrgCitationCount ?? r.raCitationCount ?? '',
         r._openAlexCitations ?? '',
-        r._openAlexFwci ?? '',
+        r._openAlexUnder1Yr ? '<1 Year' : (r._openAlexFwci ?? ''),
         r._semSchCitations ?? '',
         r._iciteRcr ?? '',
         r._sjrScore || '',
@@ -825,6 +825,9 @@
         r._oaLabel || '',
         yn(r.pubmedIsPreprint),
         yn(r.pubmedIsMedline),
+        // FWCI Top % - same rule as the citations line
+        r._openAlexUnder1Yr ? '<1 Year' : r._openAlexFwci == null ? ''
+          : r._openAlexTop1 ? 'Top 1%' : r._openAlexTop10 ? 'Top 10%' : r._openAlexTop10 === false ? 'Not top 10%' : '',
       ].map(escape).join(','));
 
       const csv = [cols.join(','), ...rows].join('\n');
@@ -962,7 +965,8 @@
         // Citations
         citationsCrossref:  r.doiOrgCitationCount ?? r.raCitationCount ?? null,
         citationsOpenAlex:  r._openAlexCitations ?? null,
-        fwci:               r._openAlexFwci ?? null,
+        fwci:               r._openAlexUnder1Yr ? null : (r._openAlexFwci ?? null),
+        fwciUnder1Yr:       r._openAlexUnder1Yr === true,
         citationsSemSch:    r._semSchCitations ?? null,
         citationsInfluential: r._semSchInfluential ?? null,
         citationsICite:     r._iciteCitations ?? null,

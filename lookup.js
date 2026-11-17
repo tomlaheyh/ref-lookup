@@ -476,6 +476,178 @@ async function handleDOILookup(doiInput) {
 }
 
 // Render DOI results inline into the page (#results). Name kept for compatibility.
+// ========================================
+// TEXT OVERVIEW - rule-based plain-language summary of the measure lines.
+// Shown in a popup from the [Text version] link next to the Summary heading.
+// Same inputs always give the same text. Measures with no data are left out, never guessed.
+// ========================================
+function _buildTextOverview(result, ctx) {
+  const src = s => ` <span class="dl-src">(${s})</span>`;
+  const fmtN = n => Number(n).toLocaleString('en-US');
+  const name = (g, f) => [g, f].filter(Boolean).join(' ').trim();
+  const fmtDate = iso => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  };
+  const p1 = [];
+  const p2 = [];
+
+  // ---- Warnings first ----
+  const ue = ctx.updateEntries || [];
+  const has = t => ue.some(e => e.type === t);
+  const retractedCr = has('retraction');
+  const retractedPm = !!(result.pubmedIsRetractedPublication || result.pubmedHasRetraction);
+  if (retractedCr || retractedPm) {
+    const d = fmtDate(ue.find(e => e.type === 'retraction')?.date);
+    const by = [retractedCr && 'Crossref', retractedPm && 'PubMed'].filter(Boolean).join(', ');
+    p1.push(`<span class="dl-warn">This paper has been retracted${d ? ` (${d})` : ''}.</span> Its findings should not be relied on.${src(by)}`);
+  } else {
+    if (has('expression-of-concern')) {
+      p1.push(`<span class="dl-warn-amber">The publisher has issued an expression of concern</span>, meaning questions have been raised about this paper that are not yet resolved.${src('Crossref')}`);
+    }
+    if (has('withdrawal')) p1.push(`A withdrawal notice is recorded for this paper.${src('Crossref')}`);
+    const corrCr = has('correction');
+    const corrPm = !!result.pubmedHasCorrection;
+    if (corrCr || corrPm) {
+      p1.push(`A correction has been published for it.${src([corrCr && 'Crossref', corrPm && 'PubMed'].filter(Boolean).join(', '))}`);
+    }
+  }
+  if (result.pubmedIsPreprint) p1.push(`It is a preprint, so it may not yet have been peer reviewed.${src('PubMed')}`);
+  if (p1.length === 0 && (result.doiOrgRa === 'Crossref' || result.pubmedFound)) {
+    p1.push('No retraction, correction or expression of concern is recorded.');
+  }
+
+  // ---- Year and journal ----
+  const year = ctx.summaryDate ? String(ctx.summaryDate).substring(0, 4) : null;
+  const journal = ctx.summaryJournal ? `<i>${escapeHtml(ctx.summaryJournal)}</i>` : null;
+  const sjr = ctx.sjrScore;
+  const q = result._sjrQuartile || '';
+  const qText = { Q1: 'in the top quarter of journals in its field', Q2: 'in the second quarter of journals in its field',
+                  Q3: 'in the third quarter of journals in its field', Q4: 'in the bottom quarter of journals in its field' }[q];
+  if (year || journal) {
+    let s = 'Published' + (year ? ` in ${year}` : '') + (journal ? ` in ${journal}` : '');
+    if (sjr !== null && qText) s += `, a ${q} journal, meaning it ranks ${qText} by SJR score (${sjr})`;
+    else if (sjr !== null)     s += `, with an SJR score of ${sjr}`;
+    p1.push(s + '.');
+  }
+
+  // ---- Citations ----
+  const oaCites = result._openAlexCitations ?? null;
+  const crCites = result.doiOrgCitationCount ?? result.raCitationCount ?? null;
+  const cites = oaCites ?? crCites;
+  if (cites !== null) {
+    p1.push(`It has been cited ${fmtN(cites)} time${Number(cites) === 1 ? '' : 's'}.${src(oaCites !== null ? 'OpenAlex' : 'Crossref')}`);
+  }
+  if (result._openAlexUnder1Yr) {
+    p1.push('It is less than a year old, too early to compare its citations with other papers in its field.');
+  } else if (result._openAlexFwci !== null && result._openAlexFwci !== undefined) {
+    const f = Math.round(result._openAlexFwci * 100) / 100;
+    const how = f >= 1.2 ? 'above' : f <= 0.8 ? 'below' : 'close to';
+    let s = `That is ${f}× the average for papers of the same field, type and year, ${how} average`;
+    if (result._openAlexTop1)       s += ', placing it in the top 1%';
+    else if (result._openAlexTop10) s += ', placing it in the top 10%';
+    p1.push(s + `.${src('OpenAlex FWCI')}`);
+  }
+  const rcr = result._iciteRcr;
+  if (rcr !== null && rcr !== undefined && rcr !== '') {
+    const r = Number(rcr);
+    const how = r >= 1.2 ? 'above' : r <= 0.8 ? 'below' : 'close to';
+    p1.push(`Among PubMed papers its Relative Citation Ratio is ${rcr}, ${how} the benchmark of 1.0 for NIH-funded papers in the same field.${src('iCite')}`);
+  }
+
+  // ---- Paragraph 2: access, indexing, funding, authors ----
+  if (result._oaFreePdf) p2.push('A free full-text version is available.');
+  if (result._doajFound === true) p2.push(`The journal is open access and listed in the Directory of Open Access Journals.${src('DOAJ')}`);
+  if (result.pubmedFound === true) {
+    p2.push(result.pubmedIsMedline ? `It is indexed in PubMed and MEDLINE.${src('PubMed')}` : `It is in PubMed but not indexed in MEDLINE.${src('PubMed')}`);
+  } else if (result.pubmedFound === false) {
+    p2.push(`It is not in PubMed.${src('PubMed')}`);
+  }
+
+  const grants = result._resolvedGrants || [];
+  if (grants.length > 0) {
+    const byAgency = new Map();
+    const seen = new Set();
+    grants.forEach(g => {
+      const key = `${(g.agency || '').toLowerCase()}|${(g.grantId || '').toLowerCase()}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      const a = g.agency || 'an unnamed funder';
+      if (!byAgency.has(a)) byAgency.set(a, 0);
+      if (g.grantId) byAgency.set(a, byAgency.get(a) + 1);
+    });
+    const list = [...byAgency.entries()].map(([a, n]) => escapeHtml(a) + (n > 0 ? ` (${n} grant${n === 1 ? '' : 's'})` : ''));
+    const shown = list.slice(0, 3);
+    const more = list.length - shown.length;
+    let s = shown.length === 1 ? shown[0] : shown.slice(0, -1).join(', ') + ' and ' + shown[shown.length - 1];
+    if (more > 0) s = shown.join(', ') + ` and ${more} other funder${more === 1 ? '' : 's'}`;
+    p2.push(`Funding is reported from ${s}.${src(result._resolvedGrantsSource || '')}`);
+  }
+
+  // Authors
+  const n = ctx.authorCount;
+  if (n > 0) p2.push(n === 1 ? 'It has a single author.' : `It has ${fmtN(n)} authors.`);
+  const authors = [
+    { role: n === 1 ? 'The author' : 'The first author', nm: name(ctx.firstGiven, ctx.firstFamily), m: ctx.firstMetrics, orcid: ctx.firstOrcid },
+  ];
+  if (n > 1) authors.push({ role: 'The last author', nm: name(ctx.lastGiven, ctx.lastFamily), m: ctx.lastMetrics, orcid: ctx.lastOrcid });
+  const hs = authors.filter(a => a.m && a.m.hIndex !== null && a.m.hIndex !== undefined);
+  if (hs.length > 0) {
+    const phr = hs.map((a, i) => `${i === 0 ? a.role : a.role.toLowerCase()}${a.nm ? `, ${escapeHtml(a.nm)},` : ''} has an h-index of ${a.m.hIndex}`);
+    p2.push(`${phr.join('; ')}.${src('OpenAlex')} An h-index of 20 means 20 of a researcher's papers have each been cited at least 20 times.`);
+  }
+  // Other retracted papers by those authors (same count rule as the measure lines)
+  const retr = authors.map(a => {
+    if (!a.orcid || a.orcid === 'N/A') return null;
+    const r = (result._authorRetractions || {})[a.orcid];
+    if (!r || r.count === null || r.count === undefined) return null;
+    let c = r.count;
+    if (result._oaIsRetracted && c > 0) c -= 1;
+    return { role: a.role, c };
+  });
+  const flagged = retr.filter(r => r && r.c > 0);
+  if (flagged.length > 0) {
+    flagged.forEach(r => p2.push(`<span class="dl-warn">${r.role} has ${r.c} other retracted paper${r.c === 1 ? '' : 's'}.</span>${src('OpenAlex')}`));
+  } else if (retr.length > 0 && retr.every(r => r && r.c === 0)) {
+    p2.push(retr.length === 1 ? `The author has no other retracted papers on record.${src('OpenAlex')}`
+                              : `Neither the first nor the last author has other retracted papers on record.${src('OpenAlex')}`);
+  }
+
+  const para = arr => arr.length ? `<p>${arr.join(' ')}</p>` : '';
+  const body = para(p1) + para(p2);
+  return `<div class="dl-overview">${body || '<p>Not enough data was found to write an overview.</p>'}</div>`;
+}
+
+// Popup for the [Text version] link: copies the card's hidden overview into a box with a Close button.
+function _showTextOverview(id) {
+  const srcEl = document.getElementById(id);
+  if (!srcEl) return;
+  if (!document.getElementById('dl-overview-style')) {
+    const st = document.createElement('style');
+    st.id = 'dl-overview-style';
+    st.textContent = '.dl-overview{font-size:16px;color:#333;line-height:1.6;}.dl-overview p{margin:0 0 12px;}'
+      + '.dl-overview .dl-src{color:#999;font-size:11px;}.dl-overview .dl-warn{color:#cc0000;font-weight:bold;}'
+      + '.dl-overview .dl-warn-amber{color:#e07000;font-weight:bold;}';
+    document.head.appendChild(st);
+  }
+  const old = document.getElementById('dl-overview-popup');
+  if (old) old.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'dl-overview-popup';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
+  overlay.innerHTML = '<div style="background:#fff;max-width:760px;width:100%;max-height:85vh;overflow:auto;padding:22px 26px 18px;border-left:4px solid #005a8c;box-shadow:0 4px 20px rgba(0,0,0,0.25);">'
+    + '<div style="font-weight:bold;color:#005a8c;font-size:17px;margin-bottom:12px;">Summary &mdash; text version</div>'
+    + srcEl.innerHTML
+    + '<div style="text-align:right;margin-top:6px;"><button type="button" class="dl-ov-close" style="font-family:IBM Plex Mono,monospace;font-size:13px;font-weight:600;padding:7px 16px;background:#005a8c;color:#fff;border:none;cursor:pointer;">Close</button></div>'
+    + '</div>';
+  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  overlay.addEventListener('click', e => { if (e.target === overlay || e.target.classList.contains('dl-ov-close')) close(); });
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(overlay);
+}
+
 function showDOIModal(result, linksHtml) {
   
   // Helper function to format timestamps in human-readable format
@@ -761,7 +933,8 @@ function showDOIModal(result, linksHtml) {
   const displaySource = (usedPubMedAff && (resolvedFirstAff || resolvedLastAff)) ? `${authorSourceTop}/PubMed` : authorSourceTop;
 
     html += '<div class="dl-summary-box" style="margin-bottom: 24px; padding: 20px; background: #f8f7f3; border-left: 4px solid #005a8c;">';
-  html += '<div style="font-weight: bold; color: #005a8c; font-size: 17px; margin-bottom: 14px; letter-spacing: 0.5px;">Summary</div>';
+  const ovId = 'ov-' + Math.random().toString(36).slice(2, 9);
+  html += `<div style="font-weight: bold; color: #005a8c; font-size: 17px; margin-bottom: 14px; letter-spacing: 0.5px;">Summary <a href="#" onclick="event.preventDefault(); _showTextOverview('${ovId}')" style="color: #005a8c; font-size: 14px; font-weight: normal; letter-spacing: 0;">[Text version]</a></div>`;
 
   // DOI
   if (summaryDoi) {
@@ -1002,7 +1175,12 @@ function showDOIModal(result, linksHtml) {
       ? `<a href="${iciteUrl}" target="_blank" style="color: #005a8c;">RCR: ${rcrLabel}</a>`
       : `RCR: ${rcrLabel}`;
 
-    const fwciLabel = oaFwci !== null ? String(Math.round(oaFwci * 100) / 100) : 'N/A';
+    const fwciLabel = result._openAlexUnder1Yr
+      ? '<span title="Not reported for papers under 1 year old: too few citations for a meaningful field comparison.">&lt;1 Year</span>'
+      : oaFwci !== null ? String(Math.round(oaFwci * 100) / 100) + (() => {
+          const t = result._openAlexTop1 ? 'Top 1%' : result._openAlexTop10 ? 'Top 10%' : result._openAlexTop10 === false ? 'Not top 10%' : '';
+          return t ? ` <span title="Field percentile from OpenAlex: this paper's citations ranked against papers of the same type, year and subfield.">(${t})</span>` : '';
+        })() : 'N/A';
 
     // Citation chart toggle icon — active when we have yearly data with citations
     const countsByYear = result._openAlexCountsByYear || [];
@@ -1422,6 +1600,14 @@ function showDOIModal(result, linksHtml) {
     html += '</table>';
     html += '</div>';
   }
+
+  // Text version - hidden here, shown in a popup by the [Text version] link next to the Summary heading
+  html += `<div id="${ovId}" style="display:none;">` + _buildTextOverview(result, {
+    updateEntries: _updateEntries, sjrScore, summaryJournal, summaryDate,
+    authorCount: authorCountTop,
+    firstGiven: topFirstGiven, firstFamily: topFirstFamily, firstOrcid: topFirstOrcid, firstMetrics,
+    lastGiven: topLastGiven, lastFamily: topLastFamily, lastOrcid: topLastOrcid, lastMetrics,
+  }) + '</div>';
 
   html += '</div>'; // Close summary block
 
@@ -2321,6 +2507,13 @@ async function checkOpenAlex(doi, result) {
       // This article itself retracted in OpenAlex - its authors' retraction counts include it
       result._oaIsRetracted = data.is_retracted === true;
       result._openAlexFwci = data.fwci ?? null;
+      // FWCI is not reported for papers under 1 year old (OpenAlex publication_date)
+      const oaPubMs = data.publication_date ? Date.parse(data.publication_date) : NaN;
+      result._openAlexUnder1Yr = !isNaN(oaPubMs) && (Date.now() - oaPubMs) < 365 * 24 * 3600 * 1000;
+      // Field percentile flags (same type, year and subfield as FWCI); null when OpenAlex has none
+      const cnp = data.citation_normalized_percentile;
+      result._openAlexTop1 = cnp ? cnp.is_in_top_1_percent === true : null;
+      result._openAlexTop10 = cnp ? cnp.is_in_top_10_percent === true : null;
 
       // Store OpenAlex work ID for linking (e.g. "https://openalex.org/W4412479499" → "W4412479499")
       if (data.id) {
