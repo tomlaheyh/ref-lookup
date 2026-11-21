@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Citation notes — Easy Cite and doilookup.com</title>
+<style>
+  body { max-width: 720px; margin: 24px auto; padding: 0 20px; font: 14px/1.5 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; color: #1a1a18; }
+  h1 { font-size: 18px; color: #005a8c; margin: 0 0 4px; }
+  h2 { font-size: 14px; color: #005a8c; margin: 16px 0 4px; }
+  p, ul { margin: 4px 0; }
+  ul { padding-left: 20px; }
+  .meta { font-size: 12px; color: #888; }
+  .sync { font-size: 12px; background: #fff7e6; border: 1px solid #f0d9a8; padding: 6px 8px; margin: 10px 0; }
+</style>
+</head>
+<body>
+<h1>Citation notes</h1>
+<div class="meta">Easy Cite 1.11.1 · doilookup.com citationBuilder.js Ver 1.1 · updated 2026-11-21</div>
+
+<div class="sync">This page is in two places: the Easy Cite extension and the doilookup.com repo, both as
+<b>citation-notes.html</b>, and its Zotero and limits sections are repeated in the site's help
+(<b>helpContent.js</b>, <b>help.html</b>). Change them together, along with the code they describe (extension
+<b>citation.js</b>, site <b>citationBuilder.js</b>), and update the line above.</div>
+
+<h2>The Ref button</h2>
+<p>Every DOI on a page gets a Ref button. Red: the article is retracted, or is a retraction notice. Red outline:
+a key author has other retracted papers. Hover: times cited, free full
+text, preprint, the journal's SJR rank (SCImago, bundled) and its field-weighted citation impact (FWCI), from
+OpenAlex and CrossRef. On PubMed the buttons pause while PubMed Citation Bar is running.</p>
+
+<h2>Styles</h2>
+<p>APA 7th, MLA 9th, Chicago 18th (bibliography entry), AMA 11th, Vancouver/ICMJE, and RIS for reference
+managers. Data comes from the DOI's record at doi.org, so a citation is only as complete as the publisher's record.</p>
+
+<h2>Where we differ from Zotero, on purpose</h2>
+<ul>
+  <li><b>Article numbers.</b> Many journals number articles instead of paging them (eBioMedicine 105834, PLOS
+  e0120513). APA 7 writes "118, Article 105834"; MLA 9 leaves the number out; Chicago, AMA and Vancouver give the
+  number where the pages would go. Zotero stores the number as a page, so its APA has no "Article" and its MLA shows
+  "p. 105834".</li>
+  <li><b>Vancouver.</b> Six authors, then "et al." when there are more than six (NLM), and the DOI as
+  "doi:10.…". Zotero can switch to its web-page form ("[Internet]", "[cited …]", "Available from:") when the
+  item carries a URL.</li>
+</ul>
+<p>Zotero's single 'quotes' come from its UK English setting; MLA and Chicago use double quotes.</p>
+
+<h2>Known limits</h2>
+<ul>
+  <li><b>Title case.</b> APA, AMA and Vancouver want sentence case. A title the publisher sent in Title Case is
+  converted: only common English words (bundled <b>words.csv</b>) are lowered, so names, places and acronyms keep
+  their capitals. A note above the citations names any capitals kept, to check by hand.</li>
+  <li><b>Editors and place.</b> CrossRef rarely gives editors or a publisher's city for book chapters, so those parts
+  are often missing. The site does not read editors yet; the extension does when they exist.</li>
+  <li><b>Dates.</b> The year is the earliest publication date. MLA and Chicago add the issue's month when it falls
+  in the same year.</li>
+  <li><b>Pages box.</b> Typing pages in the Cite panel replaces what the record gave; leaving it as filled in keeps
+  article numbers working.</li>
+</ul>
+</body>
+</html>

@@ -429,6 +429,22 @@ Each citation has a "Copy" button for one-click copying. An optional "Pages" inp
       ref: null
     },
     {
+      // Same content as citation-notes.html (extension and site): change them together
+      label: 'Citation notes (differences from Zotero, known limits)',
+      description: `Where these citations differ from Zotero, on purpose:
+
+<strong>Article numbers</strong> — many journals number articles instead of paging them (eBioMedicine 105834, PLOS e0120513). APA 7 writes "118, Article 105834"; MLA 9 leaves the number out; Chicago, AMA and Vancouver give the number where the pages would go. Zotero stores the number as a page, so its APA has no "Article" and its MLA shows "p. 105834".
+<strong>Vancouver</strong> — six authors, then "et al." when there are more than six (NLM), and the DOI as "doi:10.…". Zotero can switch to its web-page form ("[Internet]", "[cited …]", "Available from:") when the item carries a URL.
+Zotero's single 'quotes' come from its UK English setting; MLA and Chicago use double quotes.
+
+Known limits:
+<strong>Title case</strong> — APA, AMA and Vancouver want sentence case. A title the publisher sent in Title Case is converted using a list of common English words, so names, places and acronyms keep their capitals; a note above the citations names any capitals kept, to check by hand.
+<strong>Editors and place</strong> — CrossRef rarely gives editors or a publisher's city for book chapters, so those parts are often missing. This site does not read editors yet.
+<strong>Dates</strong> — the year is the earliest publication date; MLA and Chicago add the issue's month when it falls in the same year.
+<strong>Pages box</strong> — typing pages replaces what the record gave; leaving it as filled in keeps article numbers working.`,
+      ref: 'citation-notes.html'
+    },
+    {
       label: 'RIS export (reference managers)',
       description: 'Click "Download RIS" in the Cite modal to save the reference as a .ris file. RIS can be imported directly into Zotero, Mendeley, EndNote, RefWorks, and other reference managers.',
       ref: null
