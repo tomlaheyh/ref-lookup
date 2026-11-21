@@ -417,14 +417,15 @@ Blue links are available; greyed-out links mean the service did not have data fo
     {
       section: 'Cite',
       label: 'Citation formatting',
-      description: `Click "Cite" on the DOI line of any result card to open the citation modal. Four styles are available:
+      description: `Click "Cite" on the DOI line of any result card to open the citation modal. Five styles are available:
 
 <strong>APA (7th edition)</strong> — psychology, social sciences, education, nursing.
+<strong>MLA (9th edition)</strong> — humanities, literature, languages.
+<strong>Chicago (18th edition)</strong> — history, arts, humanities.
 <strong>AMA (11th edition)</strong> — medical journals, clinical research.
 <strong>Vancouver / ICMJE</strong> — biomedical journals (NEJM, Lancet, BMJ, JAMA).
-<strong>MLA (9th edition)</strong> — humanities, literature, languages.
 
-Each citation has a "Copy" button for one-click copying. An optional "Pages" input at the top lets you add or correct page numbers — all four citations update live as you type.`,
+Each citation has a "Copy" button for one-click copying. An optional "Pages" input at the top lets you add or correct page numbers — all five citations update live as you type.`,
       ref: null
     },
     {
