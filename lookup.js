@@ -1182,6 +1182,11 @@ function showDOIModal(result, linksHtml) {
           return t ? ` <span title="Field percentile from OpenAlex: this paper's citations ranked against papers of the same type, year and subfield.">(${t})</span>` : '';
         })() : 'N/A';
 
+    // Top 1% or Top 10% of its field: FWCI in light green, but never on a retracted
+    // paper or a retraction notice (red wins)
+    const fwciRed = result._isRetracted || result._oaIsRetracted || _noticeEntries.some(e => e.type === 'retraction');
+    const fwciTop = !fwciRed && !result._openAlexUnder1Yr && oaFwci !== null && (result._openAlexTop1 === true || result._openAlexTop10 === true);
+
     // Citation chart toggle icon — active when we have yearly data with citations
     const countsByYear = result._openAlexCountsByYear || [];
     const totalCitedByYear = countsByYear.reduce((s, y) => s + y.count, 0);
@@ -1199,7 +1204,7 @@ function showDOIModal(result, linksHtml) {
     const parts = [
       `CrossRef: ${crossRefCites !== null ? crossRefCites : 'N/A'}`,
       `OpenAlex: ${oaCites !== null ? oaCites : 'N/A'}`,
-      `OpenAlex-FWCI: ${fwciLabel}`,
+      fwciTop ? `<span style="background:#e6f4ea; color:#1e5e2a; border:1px solid #b9dcc2; padding:0 6px;">OpenAlex-FWCI: ${fwciLabel}</span>` : `OpenAlex-FWCI: ${fwciLabel}`,
       semSchHtml,
       iciteHtml,
       rcrHtml,

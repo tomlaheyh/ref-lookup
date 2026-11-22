@@ -1,6 +1,6 @@
 // citationBuilder.js - Citation formatting for Awesome DOI-Ref-Lookup
 // Supports APA 7th, MLA 9th, Chicago 18th, AMA 11th, Vancouver/ICMJE, and RIS export
-// Ver 1.1 Nov-2026. The formatters (sentence case .. generateRIS) are the
+// Ver 1.2 Nov-2026. The formatters (sentence case .. generateRIS) are the
 // Easy Cite extension's citation.js, unchanged except _knownWords below; keep the two in step.
 
 // Where this script was loaded from, to find words.csv beside it
@@ -267,7 +267,7 @@ const CitationBuilder = {
     const eds = (data.editors || []).map(a => this._authorDisplay(a)).filter(a => a.family);
     if (!eds.length) return '';
     const n = eds.length;
-    const compact = g => (g || '').trim().split(/[\s-]+/).filter(Boolean).map(p => p[0].toUpperCase()).join('');
+    const compact = g => (g || '').trim().split(/[\s.-]+/).filter(Boolean).map(p => p[0].toUpperCase()).join('');
     if (style === 'apa') {
       const names = eds.map(a => { const i = this._initials(a.given); return i ? `${i} ${a.family}` : a.family; });
       const list = n === 1 ? names[0] : n === 2 ? `${names[0]} & ${names[1]}` : `${names.slice(0, -1).join(', ')}, & ${names[n - 1]}`;
@@ -277,9 +277,21 @@ const CitationBuilder = {
       const list = eds.map(a => { const i = compact(a.given); return i ? `${a.family} ${i}` : a.family; }).join(', ');
       return style === 'ama' ? `${list}, ${n > 1 ? 'eds' : 'ed'}.` : `${list}, ${n > 1 ? 'editors' : 'editor'}.`;
     }
-    // MLA: "edited by First Last", "First Last and First Last", "First Last et al."
     const full = a => a.given ? `${a.given} ${a.family}` : a.family;
+    // Chicago: up to six in full ("A, B, and C"); more than six, the first three et al.
+    if (style === 'chicago') {
+      if (n > 6) return `${eds.slice(0, 3).map(full).join(', ')}, et al.`;
+      return n < 3 ? eds.map(full).join(' and ') : `${eds.slice(0, -1).map(full).join(', ')}, and ${full(eds[n - 1])}`;
+    }
+    // MLA: "edited by First Last", "First Last and First Last", "First Last et al."
     return n === 1 ? full(eds[0]) : n === 2 ? `${full(eds[0])} and ${full(eds[1])}` : `${full(eds[0])} et al.`;
+  },
+
+  /** Who heads the entry: the authors, or a book's editors when it has no authors */
+  _lead(data) {
+    const has = list => (list || []).some(a => this._authorDisplay(a).family);
+    if (!has(data.authors) && this._kind(data) === 'book' && has(data.editors)) return { people: data.editors, edited: true };
+    return { people: data.authors || [], edited: false };
   },
 
   /** Italic title with the period outside the italics */
@@ -303,7 +315,8 @@ const CitationBuilder = {
   _initials(given) {
     if (!given) return '';
     // "Jean-Paul" keeps its hyphen: "J.-P." (APA)
-    return given.trim().split(/\s+/).map(w => w.split('-').map(p => {
+    // "J.R." is two initials: "J. R."
+    return given.trim().replace(/\.(?=[^\s.-])/g, '. ').split(/\s+/).map(w => w.split('-').map(p => {
       if (!p) return '';
       // Already an initial like "J." or "J" (not a short name like "Yi")
       if (p.length === 1) return p + '.';
@@ -344,8 +357,14 @@ const CitationBuilder = {
     // PLOS e0120513, or the number the DOI ends with (MDPI nu12020334 -> 334)
     if (pg && !/[-\u2013]/.test(pg)) {
       // The DOI ends in the number, after a 0 or a non-digit (not 1234 for page 234)
-      const tail = /^\d{3,}$/.test(pg) && new RegExp('(^|\\D|0)' + pg + '$').test(String(data.doi || ''));
-      if (/^e\d+$/i.test(pg) || tail) {
+      const doi = String(data.doi || '');
+      const tail = /^\d{3,}$/.test(pg) && new RegExp('(^|\\D|0)' + pg + '$').test(doi);
+      // A DOI that spells out volume.issue.page (Science 290.5500.2261) ends in a real
+      // page; an article number there starts with 0 (PhysRevLett.116.061102)
+      const re = x => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const spelled = tail && data.volume && !/^0/.test(pg) &&
+        new RegExp('(^|\\D)' + re(data.volume) + '\\.(' + (data.issue ? re(data.issue) + '\\.' : '') + ')?' + pg + '$').test(doi);
+      if (/^e\d+$/i.test(pg) || (tail && !spelled)) {
         return { article: pg };
       }
     }
@@ -405,22 +424,33 @@ const CitationBuilder = {
   _MINOR: new Set(('a an the and but or nor for so yet as at by in of off on onto per to up via vs ' +
     'from into with over upon than').split(' ')),
 
+  /** MLA lower-cases prepositions of any length; Chicago 18 capitalises those of five letters or more */
+  _MINOR_MLA: new Set(('about above across against along among around behind below beneath beside between ' +
+    'beyond despite during except through throughout toward towards under underneath within without').split(' ')),
+
   /** MLA title case: every word capitalised except articles, prepositions and
    *  conjunctions, which stay lower case unless first, last or after a colon.
    *  Words with a capital after their first letter (DNA, mRNA, eBioMedicine)
-   *  are left as they are. */
-  _titleCase(s) {
+   *  are left as they are, and so are names that start in lower case (p53, the
+   *  c of c-Myc). In a compound the first and last parts are capitalised and a
+   *  minor word between them is not (State-of-the-Art). mla: MLA's longer list
+   *  of prepositions. */
+  _titleCase(s, mla) {
     const words = String(s).split(' ');
+    const minor = c => this._MINOR.has(c) || (!!mla && this._MINOR_MLA.has(c));
     let start = true;
     return words.map((w, i) => {
       const last = i === words.length - 1;
-      const out = w.split('-').map((part, j) => {
+      const bits = w.split('-');
+      const out = bits.map((part, j) => {
         const m = part.match(/^([^A-Za-z]*)([A-Za-z].*)$/);
         if (!m) return part;
         const pre = m[1], word = m[2];
         if (/[A-Z]/.test(word.slice(1))) return part;
+        if (/^[a-z]\d/.test(word) || (/^[a-z]$/.test(word) && /^[A-Z]/.test(bits[j + 1] || ''))) return part;
         const core = word.toLowerCase().replace(/[^a-z]+$/, '');
-        if (!start && !last && j === 0 && this._MINOR.has(core)) return pre + word.toLowerCase();
+        const lower = bits.length === 1 ? !start && !last : j > 0 && j < bits.length - 1;
+        if (lower && minor(core)) return pre + word.toLowerCase();
         return pre + word[0].toUpperCase() + word.slice(1);
       }).join('-');
       start = /[:?!]$/.test(w) || /^[\u2013\u2014]$/.test(w);
@@ -441,13 +471,20 @@ const CitationBuilder = {
     // An author list ending in an initial ("Shu, Y.") already has its period
     const endDot = s => s.endsWith('.') ? s : s + '.';
 
-    // Authors
-    const auths = data.authors.map(a => {
+    // Authors (a book with no authors is headed by its editors)
+    const lead = this._lead(data);
+    const auths = lead.people.map(a => {
       const d = this._authorDisplay(a);
       if (!d.family) return '';
       const init = this._initials(d.given);
       return init ? `${d.family}, ${init}` : d.family;
     }).filter(Boolean);
+    const n = auths.length;
+    // Editors heading a book: "One, E., & Two, E. (Eds.)."
+    const close = s => lead.edited ? `${s} (${n > 1 ? 'Eds.' : 'Ed.'}).` : endDot(s);
+    const kind = this._kind(data);
+    // No journal (a preprint, report, dataset or thesis): a work on its own, cited like a book
+    const alone = kind === 'article' && !data.journal;
 
     // The title, as APA writes it
     let title = '';
@@ -457,30 +494,30 @@ const CitationBuilder = {
       title = title.replace(/([:?!]\s+)([a-z])/g, (m, p, c) => p + c.toUpperCase());
       // Ensure ends with period
       if (!title.endsWith('.') && !title.endsWith('?') && !title.endsWith('!')) title += '.';
+      // A book's title, or a work on its own, in italics
+      if (kind === 'book' || alone) title = this._italicTitle(title);
     }
 
     if (auths.length === 0) {
       // No author: the title takes the author's place (and is not repeated)
       if (title) parts.push(title);
     } else if (auths.length === 1) {
-      parts.push(endDot(auths[0]));
+      parts.push(close(auths[0]));
     } else if (auths.length <= 20) {
       const last = auths.pop();
-      parts.push(auths.join(', ') + ', & ' + endDot(last));
+      parts.push(close(auths.join(', ') + ', & ' + last));
     } else {
       // 21+ authors: first 19 ... last
       const first19 = auths.slice(0, 19);
       const last = auths[auths.length - 1];
-      parts.push(first19.join(', ') + ', . . . ' + endDot(last));
+      parts.push(close(first19.join(', ') + ', . . . ' + last));
     }
 
     // Year
     parts.push(`(${data.year || 'n.d.'}).`);
 
     // Title (sentence case, no italics; a book's in italics), after the year when there are authors
-    const kind = this._kind(data);
-    if (title && kind === 'book') title = this._italicTitle(title);
-    if (title && auths.length > 0) parts.push(title);
+    if (title && n > 0) parts.push(title);
 
     const pub = this._publisher(data);
     if (kind === 'chapter') {
@@ -494,7 +531,7 @@ const CitationBuilder = {
       }
       parts.push(inPart + '.');
       if (pub) parts.push(pub + '.');
-    } else if (kind === 'book') {
+    } else if (kind === 'book' || alone) {
       if (pub) parts.push(pub + '.');
     }
 
@@ -537,13 +574,15 @@ const CitationBuilder = {
     // Authors — initials without periods/spaces: "Timothy J." → "TJ"
     const amaInitials = (given) => {
       if (!given) return '';
-      return given.trim().split(/[\s-]+/).map(p => {
+      return given.trim().split(/[\s.-]+/).map(p => {
         if (!p) return '';
         return p[0].toUpperCase();
       }).join('');
     };
 
-    const auths = data.authors.map(a => {
+    // A book with no authors is headed by its editors: "One E, Two E, eds."
+    const lead = this._lead(data);
+    const auths = lead.people.map(a => {
       const d = this._authorDisplay(a);
       if (!d.family) return '';
       const init = amaInitials(d.given);
@@ -553,9 +592,9 @@ const CitationBuilder = {
     if (auths.length === 0) {
       // no authors
     } else if (auths.length <= 6) {
-      parts.push(auths.join(', ') + '.');
+      parts.push(auths.join(', ') + (lead.edited ? (auths.length > 1 ? ', eds' : ', ed') : '') + '.');
     } else {
-      parts.push(auths.slice(0, 3).join(', ') + ', et al.');
+      parts.push(auths.slice(0, 3).join(', ') + (lead.edited ? ', et al, eds.' : ', et al.'));
     }
 
     // Title
@@ -569,6 +608,8 @@ const CitationBuilder = {
 
     const kind = this._kind(data);
     const pub = this._publisher(data);
+    // No journal (a preprint, report, dataset or thesis): publisher and year, like a book
+    const alone = kind === 'article' && !data.journal;
     if (kind === 'chapter') {
       // In: Editor AB, ed. Book Title. Publisher; Year:pages.
       const eds = this._editors(data, 'ama');
@@ -576,7 +617,7 @@ const CitationBuilder = {
       inPart += (pub ? pub + '; ' : '') + (data.year || '');
       if (loc.pages) inPart += ':' + this._pages(loc.pages, 'ama');
       parts.push(inPart + '.');
-    } else if (kind === 'book') {
+    } else if (kind === 'book' || (alone && (pub || data.year))) {
       parts.push((pub ? pub + '; ' : '') + (data.year || '') + '.');
     }
 
@@ -620,25 +661,27 @@ const CitationBuilder = {
     const loc = this._locator(data, overridePages);
     let parts = [];
 
-    // Authors
-    const auths = data.authors.map(a => this._authorDisplay(a)).filter(a => a.family);
+    // Authors (a book with no authors is headed by its editors: "Last, First, editor.")
+    const lead = this._lead(data);
+    const auths = lead.people.map(a => this._authorDisplay(a)).filter(a => a.family);
 
     // "Last, First" (inverted) or "First Last"; an organisation is its name alone
     const nm = (a, inverted) => !a.given ? a.family : inverted ? `${a.family}, ${a.given}` : `${a.given} ${a.family}`;
     const endDot = s => s.endsWith('.') ? s : s + '.';
+    const close = s => lead.edited ? `${s}, ${auths.length > 1 ? 'editors' : 'editor'}.` : endDot(s);
     if (auths.length === 0) {
       // no authors
     } else if (auths.length === 1) {
-      parts.push(endDot(nm(auths[0], true)));
+      parts.push(close(nm(auths[0], true)));
     } else if (auths.length === 2) {
-      parts.push(endDot(`${nm(auths[0], true)}, and ${nm(auths[1], false)}`));
+      parts.push(close(`${nm(auths[0], true)}, and ${nm(auths[1], false)}`));
     } else {
-      parts.push(`${nm(auths[0], true)}, et al.`);
+      parts.push(close(`${nm(auths[0], true)}, et al.`));
     }
 
     // Title in quotes
     if (data.title) {
-      let title = this._titleCase(data.title);
+      let title = this._titleCase(data.title, true);
       // Remove trailing period for quoting; a ? or ! ends the title on its own
       if (title.endsWith('.')) title = title.slice(0, -1);
       if (this._kind(data) === 'book') parts.push(this._italicTitle(title));   // a whole book: italics
@@ -649,7 +692,7 @@ const CitationBuilder = {
     const kind = this._kind(data);
     let journalParts = [];
     if (data.journal && kind !== 'book') {
-      journalParts.push(`<i>${this._escHtml(kind === 'chapter' ? this._titleCase(data.journal) : data.journal)}</i>`);
+      journalParts.push(`<i>${this._escHtml(kind === 'chapter' ? this._titleCase(data.journal, true) : data.journal)}</i>`);
     }
     if (kind !== 'article') {
       const eds = this._editors(data, 'mla');
@@ -657,7 +700,8 @@ const CitationBuilder = {
     }
     if (data.volume) journalParts.push(`vol. ${data.volume}`);
     if (data.issue) journalParts.push(`no. ${data.issue}`);
-    if (kind !== 'article' && this._publisher(data)) journalParts.push(this._publisher(data));
+    // A book or chapter, or a work with no journal (a preprint, report, dataset or thesis)
+    if ((kind !== 'article' || !data.journal) && this._publisher(data)) journalParts.push(this._publisher(data));
     // A journal article's date is month and year (Aug. 2025); a book's is the year
     const MONTHS = ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'May', 'June', 'July', 'Aug.', 'Sept.', 'Oct.', 'Nov.', 'Dec.'];
     const mon = kind === 'article' && data.issueMonth >= 1 && data.issueMonth <= 12 ? MONTHS[data.issueMonth - 1] + ' ' : '';
@@ -694,17 +738,20 @@ const CitationBuilder = {
     let parts = [];
 
     // Authors: the first inverted, the rest "First Last"
-    const auths = data.authors.map(a => this._authorDisplay(a)).filter(a => a.family);
+    // A book with no authors is headed by its editors: "Last, First, ed."
+    const lead = this._lead(data);
+    const auths = lead.people.map(a => this._authorDisplay(a)).filter(a => a.family);
     const nm = (a, inverted) => !a.given ? a.family : inverted ? `${a.family}, ${a.given}` : `${a.given} ${a.family}`;
     const endDot = s => s.endsWith('.') ? s : s + '.';
+    const close = s => lead.edited ? `${s}, ${auths.length > 1 ? 'eds.' : 'ed.'}` : endDot(s);
     if (auths.length === 1) {
-      parts.push(endDot(nm(auths[0], true)));
+      parts.push(close(nm(auths[0], true)));
     } else if (auths.length >= 2 && auths.length <= 6) {
       const names = auths.map((a, i) => nm(a, i === 0));
       const last = names.pop();
-      parts.push(endDot(`${names.join(', ')}, and ${last}`));
+      parts.push(close(`${names.join(', ')}, and ${last}`));
     } else if (auths.length > 6) {
-      parts.push(`${auths.slice(0, 3).map((a, i) => nm(a, i === 0)).join(', ')}, et al.`);
+      parts.push(close(`${auths.slice(0, 3).map((a, i) => nm(a, i === 0)).join(', ')}, et al.`));
     }
 
     // Title: headline case, in quotes (a book's in italics)
@@ -717,7 +764,7 @@ const CitationBuilder = {
 
     const pg = loc.pages ? this._pages(loc.pages, 'chicago') : (loc.article || '');
     if (kind === 'chapter') {
-      const eds = this._editors(data, 'mla');   // "First Last and First Last", "First Last et al."
+      const eds = this._editors(data, 'chicago');   // up to six: "First Last, First Last, and First Last"
       let inPart = 'In ' + (data.journal ? `<i>${this._escHtml(this._titleCase(data.journal))}</i>` : '');
       if (eds) inPart += `, edited by ${eds}`;
       if (pg) inPart += `, ${pg}`;
@@ -725,6 +772,9 @@ const CitationBuilder = {
       parts.push([pub, data.year].filter(Boolean).join(', ') + '.');
     } else if (kind === 'book') {
       parts.push([pub, data.year].filter(Boolean).join(', ') + '.');
+    } else if (!data.journal) {
+      // No journal (a preprint, report, dataset or thesis): Publisher, Year.
+      if (pub || data.year) parts.push([pub, data.year].filter(Boolean).join(', ') + '.');
     } else {
       // Journal Volume, no. Issue (Year): pages.
       let j = data.journal ? `<i>${this._escHtml(data.journal)}</i>` : '';
@@ -758,13 +808,15 @@ const CitationBuilder = {
     // Authors — initials without periods: "Timothy J." → "TJ"
     const vanInitials = (given) => {
       if (!given) return '';
-      return given.trim().split(/[\s-]+/).map(p => {
+      return given.trim().split(/[\s.-]+/).map(p => {
         if (!p) return '';
         return p[0].toUpperCase();
       }).join('');
     };
 
-    const auths = data.authors.map(a => {
+    // A book with no authors is headed by its editors: "One E, Two E, editors."
+    const lead = this._lead(data);
+    const auths = lead.people.map(a => {
       const d = this._authorDisplay(a);
       if (!d.family) return '';
       const init = vanInitials(d.given);
@@ -774,9 +826,9 @@ const CitationBuilder = {
     if (auths.length === 0) {
       // no authors
     } else if (auths.length <= 6) {
-      parts.push(auths.join(', ') + '.');
+      parts.push(auths.join(', ') + (lead.edited ? (auths.length > 1 ? ', editors' : ', editor') : '') + '.');
     } else {
-      parts.push(auths.slice(0, 6).join(', ') + ', et al.');
+      parts.push(auths.slice(0, 6).join(', ') + (lead.edited ? ', et al., editors.' : ', et al.'));
     }
 
     // Title
@@ -796,7 +848,8 @@ const CitationBuilder = {
       inPart += (pub ? pub + '; ' : '') + (data.year || '') + '.';
       if (loc.pages) inPart += ' p. ' + this._pages(loc.pages, 'nlm') + '.';
       parts.push(inPart);
-    } else if (kind === 'book') {
+    } else if (kind === 'book' || (kind === 'article' && !data.journal && (pub || data.year))) {
+      // A book, or a work with no journal (a preprint, report, dataset or thesis)
       parts.push((pub ? pub + '; ' : '') + (data.year || '') + '.');
     }
 
@@ -921,15 +974,17 @@ const CitationBuilder = {
    * Show the citation modal for a given result object.
    * Called from the "Cite" link on the DOI line.
    */
+  /** My style: the id of the style ticked in the Cite panel ('' for none), remembered in this browser */
+  _myStyle() {
+    try { return localStorage.getItem('citeMyStyle') || ''; } catch (e) { return ''; }
+  },
+
   showCiteModal(result) {
     // Remove existing modal
     const existing = document.getElementById('cite-modal');
     if (existing) existing.remove();
 
     const data = this.extractCiteData(result);
-
-    // Pre-fill pages from data
-    const currentPages = data.pages || '';
 
     // Build inline panel (no dark overlay — renders in-page)
     const overlay = document.createElement('div');
@@ -959,17 +1014,8 @@ const CitationBuilder = {
     const body = document.createElement('div');
     body.style.cssText = 'padding:20px 24px; overflow-y:auto; flex:1; font-family:"IBM Plex Sans",sans-serif; font-weight:300; color:#1a1a18;';
 
-    // Page input
-    const pageInputId = 'cite-page-input';
-    let bodyHtml = `<div style="margin-bottom:16px;">
-      <label style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; color:#005a8c; letter-spacing:0.5px;">PAGES <span style="font-weight:400; color:#999;">(optional — updates citations below)</span></label>
-      <input id="${pageInputId}" type="text" value="${this._escAttr(currentPages)}" placeholder="e.g. 221-230"
-        style="display:block; margin-top:4px; width:160px; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:6px 10px; border:1.5px solid #d8d5cc; background:#fff; color:#1a1a18; outline:none;"
-        onfocus="this.style.borderColor='#005a8c'" onblur="this.style.borderColor='#d8d5cc'" />
-    </div>`;
-
     // Citation formats container
-    bodyHtml += '<div id="cite-formats-container"></div>';
+    let bodyHtml = '<div id="cite-formats-container"></div>';
 
     // Actions row: RIS + ZBib
     bodyHtml += `<div style="margin-top:16px; padding-top:14px; border-top:1px solid #eee; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
@@ -1003,27 +1049,20 @@ const CitationBuilder = {
     }
     overlay.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-    // Render citations initially
-    this._renderCitations(data, currentPages);
-
-    // Wire up page input to re-render on change
-    const pageInput = document.getElementById(pageInputId);
+    // Render citations initially, My style first (the order holds while the panel is open)
+    this._firstStyle = this._myStyle();
+    this._renderCitations(data);
 
     // A Title Case title: render again in sentence case once words.csv is in
     this._sentenceCase(data).then(() => {
-      if (data.sentTitle || data.sentBook) this._renderCitations(data, pageInput ? pageInput.value.trim() : currentPages);
+      if (data.sentTitle || data.sentBook) this._renderCitations(data);
     }).catch(() => { /* keep the title as it is */ });
-    if (pageInput) {
-      const rerender = () => this._renderCitations(data, pageInput.value.trim());
-      pageInput.addEventListener('input', rerender);
-    }
 
     // Wire up RIS download
     const risBtn = document.getElementById('cite-ris-btn');
     if (risBtn) {
       risBtn.addEventListener('click', () => {
-        const pg = document.getElementById(pageInputId)?.value.trim() || '';
-        const ris = this.generateRIS(data, pg || null);
+        const ris = this.generateRIS(data, null);
         const blob = new Blob([ris], { type: 'application/x-research-info-systems' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -1037,20 +1076,22 @@ const CitationBuilder = {
   },
 
   /**
-   * Render the five citation formats, most used first, into the container.
+   * Render the five citation formats into the container, My style first, each
+   * with a "My style" tick box and a Copy button.
    */
-  _renderCitations(data, overridePages) {
+  _renderCitations(data) {
     const container = document.getElementById('cite-formats-container');
     if (!container) return;
 
-    const pg = overridePages || null;
+    const pg = null;   // no page override: the record's pages or article number
+    const my = this._myStyle();
     const styles = [
-      { label: 'APA (7th)', result: this.formatAPA(data, pg) },
-      { label: 'MLA (9th)', result: this.formatMLA(data, pg) },
-      { label: 'Chicago (18th)', result: this.formatChicago(data, pg) },
-      { label: 'AMA (11th)', result: this.formatAMA(data, pg) },
-      { label: 'Vancouver / ICMJE', result: this.formatVancouver(data, pg) },
-    ];
+      { id: 'apa', label: 'APA (7th)', result: this.formatAPA(data, pg) },
+      { id: 'mla', label: 'MLA (9th)', result: this.formatMLA(data, pg) },
+      { id: 'chicago', label: 'Chicago (18th)', result: this.formatChicago(data, pg) },
+      { id: 'ama', label: 'AMA (11th)', result: this.formatAMA(data, pg) },
+      { id: 'vancouver', label: 'Vancouver / ICMJE', result: this.formatVancouver(data, pg) },
+    ].sort((a, b) => (b.id === this._firstStyle) - (a.id === this._firstStyle));
 
     let html = '';
     if (data.keptCaps && data.keptCaps.length) {
@@ -1061,8 +1102,11 @@ const CitationBuilder = {
       html += `<div style="margin-bottom:14px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
           <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; color:#005a8c; letter-spacing:0.5px;">${s.label}</span>
-          <button id="${copyId}"
-            style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:2px 10px; background:#f0f4f8; color:#005a8c; border:1px solid #d8d5cc; cursor:pointer; font-weight:600;">Copy</button>
+          <span style="display:flex; align-items:center; gap:12px;">
+            <label style="display:flex; align-items:center; gap:4px; font-size:11px; font-weight:400; color:#555;"><input type="checkbox" id="cite-my-${i}" style="margin:0;"${s.id === my ? ' checked' : ''}> My style</label>
+            <button id="${copyId}"
+              style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:2px 10px; background:#f0f4f8; color:#005a8c; border:1px solid #d8d5cc; cursor:pointer; font-weight:600;">Copy</button>
+          </span>
         </div>
         <div style="font-size:13px; line-height:1.6; color:#333; padding:10px 12px; background:#fafaf8; border:1px solid #eee;">${this._safeHtml(s.result.html)}</div>
       </div>`;
@@ -1075,6 +1119,17 @@ const CitationBuilder = {
       const btn = document.getElementById(`cite-copy-${i}`);
       if (btn) {
         btn.addEventListener('click', () => CitationBuilder._copyText(`cite-copy-${i}`, s.result.plain));
+      }
+      // My style: one at most, listed first the next time the panel opens
+      const tick = document.getElementById(`cite-my-${i}`);
+      if (tick) {
+        tick.addEventListener('change', () => {
+          if (tick.checked) styles.forEach((o, j) => { const t = document.getElementById(`cite-my-${j}`); if (t && t !== tick) t.checked = false; });
+          try {
+            if (tick.checked) localStorage.setItem('citeMyStyle', s.id);
+            else localStorage.removeItem('citeMyStyle');
+          } catch (e) { /* storage blocked: the tick lasts while the panel is open */ }
+        });
       }
     });
   },

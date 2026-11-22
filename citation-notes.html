@@ -15,7 +15,7 @@
 </head>
 <body>
 <h1>Citation notes</h1>
-<div class="meta">Easy Cite 1.11.1 · doilookup.com citationBuilder.js Ver 1.1 · updated 2026-11-21</div>
+<div class="meta">Easy Cite 1.12.0 · doilookup.com citationBuilder.js Ver 1.2 · updated 2026-11-21</div>
 
 <div class="sync">This page is in two places: the Easy Cite extension and the doilookup.com repo, both as
 <b>citation-notes.html</b>, and its Zotero and limits sections are repeated in the site's help
@@ -31,6 +31,10 @@ OpenAlex and CrossRef. On PubMed the buttons pause while PubMed Citation Bar is 
 <h2>Styles</h2>
 <p>APA 7th, MLA 9th, Chicago 18th (bibliography entry), AMA 11th, Vancouver/ICMJE, and RIS for reference
 managers. Data comes from the DOI's record at doi.org, so a citation is only as complete as the publisher's record.</p>
+<p>Tick <b>My style</b> beside a style in the Cite panel (extension and site) and it is listed first from then on.
+In the extension the Ref menu also gets a one-click "Copy" row for it; when that citation has capitals to check,
+the Cite panel opens as well. In the extension, Copy keeps the italics (it copies rich text, and plain text for
+editors that take only that).</p>
 
 <h2>Where we differ from Zotero, on purpose</h2>
 <ul>
@@ -49,12 +53,22 @@ managers. Data comes from the DOI's record at doi.org, so a citation is only as 
   <li><b>Title case.</b> APA, AMA and Vancouver want sentence case. A title the publisher sent in Title Case is
   converted: only common English words (bundled <b>words.csv</b>) are lowered, so names, places and acronyms keep
   their capitals. A note above the citations names any capitals kept, to check by hand.</li>
+  <li><b>Headline case.</b> MLA and Chicago capitalise each main word. MLA lower-cases prepositions of any length;
+  Chicago 18 only those under five letters ("between Groups" in MLA, "Between Groups" in Chicago). Words that are
+  only sometimes prepositions (after, before, since, until) keep their capital in both: lower-case them by hand for
+  MLA. Names that start in lower case (p53, c-Myc) are left as written.</li>
   <li><b>Editors and place.</b> CrossRef rarely gives editors or a publisher's city for book chapters, so those parts
-  are often missing. The site does not read editors yet; the extension does when they exist.</li>
+  are often missing. The site does not read editors yet; the extension does when they exist, and a book with no
+  authors is headed by its editors ("(Eds.)", "editors", "eds.").</li>
+  <li><b>No journal.</b> A preprint, report, dataset or thesis is cited with its publisher and year. The record
+  rarely names the repository (bioRxiv, Zenodo), so add it by hand where the style wants it.</li>
+  <li><b>Journal abbreviations.</b> AMA and Vancouver use the record's short title. When the record has none they
+  fall back to the full journal name.</li>
   <li><b>Dates.</b> The year is the earliest publication date. MLA and Chicago add the issue's month when it falls
   in the same year.</li>
-  <li><b>Pages box.</b> Typing pages in the Cite panel replaces what the record gave; leaving it as filled in keeps
-  article numbers working.</li>
+  <li><b>Page or article number.</b> A lone number the DOI ends with is read as an article number (MDPI
+  nu12020334 is Article 334), unless the DOI spells out volume, issue and page (Science 290.5500.2261 is page
+  2261).</li>
 </ul>
 </body>
 </html>

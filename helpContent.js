@@ -96,8 +96,8 @@ The <code style="font-size:12px;background:#f0f0f0;padding:1px 5px;">&nocache</c
     },
     {
       label: 'Chrome extension',
-      description: 'A companion Chrome extension, <a href="https://chromewebstore.google.com/detail/doi-ref-lookup/eeefkdjjcilinphodokjljocffkkgkfa?utm_source=ext_app_menu" target="_blank" style="color:#005a8c;">DOI-Ref-Lookup</a>, adds a small "Ref" link next to DOIs it finds on any web page — journal tables of contents, PubMed results, reference lists — which opens that DOI here. It can be toggled on and off per site. The link to install it sits at the right-hand end of the button row.',
-      ref: 'https://chromewebstore.google.com/detail/doi-ref-lookup/eeefkdjjcilinphodokjljocffkkgkfa'
+      description: 'A companion Chrome extension, <a href="https://chromewebstore.google.com/detail/easy-cite-retractions-cit/eeefkdjjcilinphodokjljocffkkgkfa?utm_source=ext_app_menu" target="_blank" style="color:#005a8c;">Easy Cite</a>, adds a small "Ref" button next to DOIs it finds on any web page — journal tables of contents, PubMed results, reference lists. The button turns red when the article is retracted; clicking it gives a citation in five styles or opens that DOI here. Scanning can be switched on and off. The link to install it sits at the right-hand end of the button row.',
+      ref: 'https://chromewebstore.google.com/detail/easy-cite-retractions-cit/eeefkdjjcilinphodokjljocffkkgkfa'
     },
     // =====================
     // SUMMARY SECTION
@@ -425,7 +425,7 @@ Blue links are available; greyed-out links mean the service did not have data fo
 <strong>AMA (11th edition)</strong> — medical journals, clinical research.
 <strong>Vancouver / ICMJE</strong> — biomedical journals (NEJM, Lancet, BMJ, JAMA).
 
-Each citation has a "Copy" button for one-click copying. An optional "Pages" input at the top lets you add or correct page numbers — all five citations update live as you type.`,
+Each citation has a "Copy" button for one-click copying. Tick "My style" beside a style and it is listed first the next time you open the panel.`,
       ref: null
     },
     {
@@ -439,9 +439,12 @@ Zotero's single 'quotes' come from its UK English setting; MLA and Chicago use d
 
 Known limits:
 <strong>Title case</strong> — APA, AMA and Vancouver want sentence case. A title the publisher sent in Title Case is converted using a list of common English words, so names, places and acronyms keep their capitals; a note above the citations names any capitals kept, to check by hand.
+<strong>Headline case</strong> — MLA and Chicago capitalise each main word. MLA lower-cases prepositions of any length; Chicago 18 only those under five letters ("between Groups" in MLA, "Between Groups" in Chicago). Words that are only sometimes prepositions (after, before, since, until) keep their capital in both: lower-case them by hand for MLA. Names that start in lower case (p53, c-Myc) are left as written.
 <strong>Editors and place</strong> — CrossRef rarely gives editors or a publisher's city for book chapters, so those parts are often missing. This site does not read editors yet.
+<strong>No journal</strong> — a preprint, report, dataset or thesis is cited with its publisher and year. The record rarely names the repository (bioRxiv, Zenodo), so add it by hand where the style wants it.
+<strong>Journal abbreviations</strong> — AMA and Vancouver use the record's short title. When the record has none they fall back to the full journal name.
 <strong>Dates</strong> — the year is the earliest publication date; MLA and Chicago add the issue's month when it falls in the same year.
-<strong>Pages box</strong> — typing pages replaces what the record gave; leaving it as filled in keeps article numbers working.`,
+<strong>Page or article number</strong> — a lone number the DOI ends with is read as an article number (MDPI nu12020334 is Article 334), unless the DOI spells out volume, issue and page (Science 290.5500.2261 is page 2261).`,
       ref: 'citation-notes.html'
     },
     {
